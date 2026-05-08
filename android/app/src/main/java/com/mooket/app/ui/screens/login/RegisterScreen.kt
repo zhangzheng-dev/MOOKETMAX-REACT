@@ -2,6 +2,7 @@ package com.mooket.app.ui.screens.login
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.plus
 import com.mooket.app.R
 import com.mooket.app.ui.theme.*
 
@@ -38,9 +40,10 @@ fun RegisterScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF6FFFB))
+            .statusBarsPadding()  // 不占用系统状态栏区域
             .padding(horizontal = 30.dp)
     ) {
-        // 返回按钮 - y=0 in Figma, h=48
+        // 返回按钮 - y=0 in Figma (below status bar), h=48
         Row(
             modifier = Modifier
                 .fillMaxWidth()
