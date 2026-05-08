@@ -8,6 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -35,29 +37,21 @@ fun RegisterScreen(
     onBack: () -> Unit,
     onClearError: () -> Unit
 ) {
-    val identityOptions = listOf(
-        "海外供应商" to "海外服务商 - 提供海外物流、供应链等服务",
-        "贸易商" to "从事肉类进出口贸易的企业",
-        "服务商" to "提供各类服务的中间商",
-        "加工厂/商场" to "肉类加工企业或商超采购商",
-        "其它" to "不属于以上类型的其他用户"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF6FFFB))
     ) {
-        // 顶部装饰圆 - 改为绝对定位，不影响布局
+        // 顶部装饰圆 - 绝对定位
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 60.dp, y = (-30).dp)
+                .offset(x = 40.dp, y = (-50).dp)
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_ellipse426),
                 contentDescription = null,
-                modifier = Modifier.size(200.dp),
+                modifier = Modifier.size(250.dp),
                 contentScale = ContentScale.Fit
             )
         }
@@ -84,7 +78,7 @@ fun RegisterScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(30.dp))
 
             // 标题
             Column {
@@ -105,13 +99,28 @@ fun RegisterScreen(
                     color = TextPrimary
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // 请填写 badge
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // 请填写 badge + 尾巴朝下朝左
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.Start
+                ) {
                     Box(
                         modifier = Modifier
-                            .background(Color(0xFF00AEA0), RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 4.dp, bottomEnd = 0.dp))
+                            .offset(x = 0.dp, y = 8.dp)
+                            .graphicsLayer(scaleX = -1f, scaleY = 1f)
+                            .size(width = 10.dp, height = 4.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_polygon22),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFF00AEA0), RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomEnd = 0.dp))
                             .padding(horizontal = 6.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -120,22 +129,10 @@ fun RegisterScreen(
                             color = Color.White
                         )
                     }
-                    // 小三角箭头
-                    Box(
-                        modifier = Modifier
-                            .offset(x = (-4).dp)
-                            .size(10.dp, 4.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_polygon22),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             // 昵称输入
             Column {
@@ -145,7 +142,7 @@ fun RegisterScreen(
                     fontWeight = FontWeight.SemiBold,
                     color = TextPrimary
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -183,7 +180,7 @@ fun RegisterScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // 行业身份
             Column {
@@ -193,53 +190,47 @@ fun RegisterScreen(
                     fontWeight = FontWeight.SemiBold,
                     color = TextPrimary
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // 第一行
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     IdentityChip(
                         text = "海外供应商",
                         selected = selectedTags.contains("海外供应商"),
-                        onClick = { onTagToggle("海外供应商") },
-                        modifier = Modifier.weight(1f)
+                        onClick = { onTagToggle("海外供应商") }
                     )
                     IdentityChip(
                         text = "贸易商",
                         selected = selectedTags.contains("贸易商"),
-                        onClick = { onTagToggle("贸易商") },
-                        modifier = Modifier.weight(1f)
+                        onClick = { onTagToggle("贸易商") }
                     )
                     IdentityChip(
                         text = "服务商",
                         selected = selectedTags.contains("服务商"),
-                        onClick = { onTagToggle("服务商") },
-                        modifier = Modifier.weight(1f)
+                        onClick = { onTagToggle("服务商") }
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // 第二行
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     IdentityChip(
                         text = "加工厂/商场",
                         selected = selectedTags.contains("加工厂/商场"),
-                        onClick = { onTagToggle("加工厂/商场") },
-                        modifier = Modifier.weight(1f)
+                        onClick = { onTagToggle("加工厂/商场") }
                     )
                     IdentityChip(
                         text = "其它",
                         selected = selectedTags.contains("其它"),
-                        onClick = { onTagToggle("其它") },
-                        modifier = Modifier.weight(1f)
+                        onClick = { onTagToggle("其它") }
                     )
-                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
 
@@ -253,18 +244,9 @@ fun RegisterScreen(
                 )
             }
 
-            // 底部留白，确保内容不被按钮遮挡
-            Spacer(modifier = Modifier.height(100.dp))
-        }
+            Spacer(modifier = Modifier.height(32.dp))
 
-        // 固定在底部的确认按钮
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(Color(0xFFF6FFFB))
-                .padding(horizontal = 30.dp, vertical = 16.dp)
-        ) {
+            // 确认按钮（不固定底部，放在内容最后）
             Button(
                 onClick = onConfirm,
                 enabled = nickname.length >= 2 && selectedTags.isNotEmpty() && !isLoading,
@@ -292,6 +274,9 @@ fun RegisterScreen(
                     )
                 }
             }
+
+            // 底部留白（防止内容被虚拟导航栏遮挡）
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
@@ -316,12 +301,12 @@ private fun IdentityChip(
                 shape = RoundedCornerShape(2.dp)
             )
             .clickable { onClick() }
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            fontSize = 14.sp,
+            fontSize = 15.sp,
             color = if (selected) Primary else Color(0xFF3C4947)
         )
     }
