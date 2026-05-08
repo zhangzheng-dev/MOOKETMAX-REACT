@@ -1,0 +1,31 @@
+# Ignore large files
+*.xlsx
+*.xls
+*.png
+*.jpg
+
+# Backup
+backup/
+
+# Temp files
+temp_*.py
+~$*
+
+# Figmg images
+figma_images/
+
+# JAR
+*.jar
+
+# OS
+android/app/build/
+android/.gradle/
+android/build/
+
+# Social build
+social/target/
+social/*.log
+
+# OS
+.DS_Store
+Thumbs.db

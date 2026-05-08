@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MooketMax</string>
+    <string name="search_hint">点击搜索产品/商家</string>
+    <string name="category_cattle">牛</string>
+    <string name="category_pig">猪</string>
+    <string name="slogan">全球肉类供应链B2B商机与行情搜索平台</string>
+    <string name="tab_all">全部</string>
+    <string name="merchant_detail">商家详情</string>
+    <string name="today_offer_count">今日报盘数</string>
+    <string name="today_inquiry_count">今日求购数</string>
+    <string name="today_product_count">报盘产品数</string>
+    <string name="today_factory_count">报盘工厂数</string>
+    <string name="tab_offer">报盘</string>
+    <string name="tab_inquiry">求购</string>
+    <string name="original_text">查看原文</string>
+    <string name="add_wechat">添加微信</string>
+    <string name="call_phone">拨打电话</string>
+    <string name="price_format">%s 元/千克</string>
+    <string name="no_data">暂无数据</string>
+</resources>

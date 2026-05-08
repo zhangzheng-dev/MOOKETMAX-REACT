@@ -1,0 +1,51 @@
+server:
+  port: 8080
+  tomcat:
+    uri-encoding: UTF-8
+
+spring:
+  application:
+    name: social
+  # 不配置任何 datasource，让它们通过 Java Config 手动创建
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force-request: true
+      force-response: true
+  # 启用调度
+  task:
+    scheduling:
+      enabled: true
+  # Redis 配置
+  data:
+    redis:
+      host: 43.139.56.124
+      port: 6379
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+logging:
+  level:
+    com.mooket.social: DEBUG
+    org.springframework.jdbc: DEBUG

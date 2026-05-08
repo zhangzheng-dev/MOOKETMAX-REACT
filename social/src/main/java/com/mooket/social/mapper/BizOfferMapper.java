@@ -1,0 +1,501 @@
+package com.mooket.social.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.mooket.social.dto.BrandProductStatDTO;
+import com.mooket.social.dto.BrandStatDTO;
+import com.mooket.social.dto.CountryProductStatDTO;
+import com.mooket.social.dto.CountryStatDTO;
+import com.mooket.social.dto.FactoryProductStatDTO;
+import com.mooket.social.dto.FactoryStatDTO;
+import com.mooket.social.dto.FactoryStatWithPriceDTO;
+import com.mooket.social.dto.MerchantStatDTO;
+import com.mooket.social.dto.MerchantStatWithPriceDTO;
+import com.mooket.social.dto.ProductStatDTO;
+import com.mooket.social.entity.BizOffer;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+@Mapper
+/* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper.class */
+public interface BizOfferMapper extends BaseMapper<BizOffer> {
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$CountryDashboardStats.class */
+    public static class CountryDashboardStats {
+        public String country;
+        public Long totalOfferCount;
+        public Integer merchantCount;
+        public Integer factoryCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$CountryFactoryProductCombo.class */
+    public static class CountryFactoryProductCombo {
+        public String country;
+        public Integer productId;
+        public String productName;
+        public String factoryNo;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$CountryFactoryProductStats.class */
+    public static class CountryFactoryProductStats {
+        public Long totalOfferCount;
+        public Long totalInquiryCount;
+        public Integer merchantCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$CountryProductAgg.class */
+    public static class CountryProductAgg {
+        public Integer productId;
+        public String productName;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+        public String factoryNos;
+        public Integer factoryCount;
+        public Integer offerCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$CountryProductCombo.class */
+    public static class CountryProductCombo {
+        public String country;
+        public Integer productId;
+        public String productName;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$CountryProductFactoryAgg.class */
+    public static class CountryProductFactoryAgg {
+        public String country;
+        public String factoryNo;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+        public String merchantNames;
+        public Integer merchantCount;
+        public Integer offerCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$CountryProductStats.class */
+    public static class CountryProductStats {
+        public Long totalOfferCount;
+        public Long totalInquiryCount;
+        public Integer merchantCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$DailyPriceStats.class */
+    public static class DailyPriceStats {
+        public LocalDate dataDate;
+        public Integer offerCount;
+        public BigDecimal avgPrice;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$FactoryDashboardAgg.class */
+    public static class FactoryDashboardAgg {
+        public Integer productCount;
+        public Integer inquiryCount;
+        public Integer recentOfferCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$FactoryProductAgg.class */
+    public static class FactoryProductAgg {
+        public Integer productId;
+        public String productName;
+        public String country;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+        public Integer merchantCount;
+        public Integer offerCount;
+        public String merchantNames;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$HotFactoryAgg.class */
+    public static class HotFactoryAgg {
+        public String factoryNo;
+        public Integer offerCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$HotProductAgg.class */
+    public static class HotProductAgg {
+        public String productName;
+        public Integer offerCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$MerchantDashboardStats.class */
+    public static class MerchantDashboardStats {
+        public Long recentOfferCount;
+        public Long recentInquiryCount;
+        public Long recentProductCount;
+        public Long recentFactoryCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$MerchantOfferAgg.class */
+    public static class MerchantOfferAgg {
+        public String productName;
+        public String country;
+        public String factoryNo;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+        public String tags;
+        public String goodsLocations;
+        public String goodsTypes;
+        public String feedingTypes;
+        public LocalDateTime latestPublishTime;
+        public Integer offerCount;
+        public String userNickname;
+        public BigDecimal empPrice;
+        public BigDecimal empPriceMax;
+        public String empWeight;
+        public String empGoodsLocation;
+        public String offerOriginalText;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$MerchantStatAgg.class */
+    public static class MerchantStatAgg {
+        public Long merchantId;
+        public Integer offerCount;
+        public Integer inquiryCount;
+        public Integer productCount;
+        public Integer factoryCount;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$OfferStat.class */
+    public static class OfferStat {
+        public Long merchantId;
+        public String country;
+        public String factoryNo;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$PriceRange.class */
+    public static class PriceRange {
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$ProductDashboardStats.class */
+    public static class ProductDashboardStats {
+        public Long totalOfferCount;
+        public Integer merchantCount;
+        public Integer factoryCount;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$ProductDashboardStatsWithName.class */
+    public static class ProductDashboardStatsWithName {
+        public Integer productId;
+        public String productName;
+        public Long totalOfferCount;
+        public Integer merchantCount;
+        public Integer factoryCount;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$ProductStatAgg.class */
+    public static class ProductStatAgg {
+        public String country;
+        public String factoryNo;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+        public Integer offerCount;
+        public Integer merchantCount;
+        public String merchantNames;
+    }
+
+    /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/BizOfferMapper$HomeStatResult.class */
+    public static class HomeStatResult {
+        public Long totalOfferCount;
+        public Long totalInquiryCount;
+        public Integer totalMerchantCount;
+    }
+
+    @Select({"SELECT * FROM biz_offer WHERE merchant_id = #{merchantId} AND status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' ORDER BY publish_time DESC"})
+    List<BizOffer> selectByMerchantId(@Param("merchantId") Long merchantId);
+
+    @Select({"SELECT * FROM biz_offer WHERE merchant_id = #{merchantId} AND offer_type = #{offerType} AND status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND (#{category} IS NULL OR category = #{category}) ORDER BY publish_time DESC"})
+    List<BizOffer> selectByMerchantIdAndType(@Param("merchantId") Long merchantId, @Param("offerType") String offerType, @Param("category") String category);
+
+    @Select({"SELECT merchant_id, COUNT(*) FILTER (WHERE offer_type = '报盘') as offer_count, COUNT(*) FILTER (WHERE offer_type = '求购') as inquiry_count, COUNT(DISTINCT product_name) FILTER (WHERE product_name IS NOT NULL AND product_name != '') as product_count, COUNT(DISTINCT CONCAT(product_name, '|', country, '|', factory_no)) FILTER (WHERE factory_no IS NOT NULL AND factory_no != '') as factory_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND merchant_id IS NOT NULL GROUP BY merchant_id"})
+    List<MerchantStatAgg> selectMerchantStatsAgg();
+
+    @Select({"SELECT COUNT(*) FILTER (WHERE offer_type = '报盘') as totalOfferCount, COUNT(*) FILTER (WHERE offer_type = '求购') as totalInquiryCount, COUNT(DISTINCT merchant_id) as totalMerchantCount FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND (#{category} IS NULL OR category = #{category})"})
+    HomeStatResult selectHomeStatResult(@Param("category") String category);
+
+    @Delete({"DELETE FROM biz_offer WHERE data_date < CURRENT_DATE - INTERVAL '1 day'"})
+    int deleteOldData();
+
+    @Insert({"INSERT INTO biz_offer (offer_original_text, category, product_id, product_name, country, factory_no, factory_id, brand_id, merchant_id, contact_phone, user_id, user_nickname, price, price_max, weight, offer_type, goods_type, goods_location, tags, fat_ratio, feeding_type, cattle_breed, remark, publish_time, data_date, status, create_time) VALUES (#{offerOriginalText}, #{category}, #{productId}, #{productName}, #{country}, #{factoryNo}, #{factoryId}, #{brandId}, #{merchantId}, #{contactPhone}, #{userId}, #{userNickname}, #{price}, #{priceMax}, #{weight}, #{offerType}, #{goodsType}, #{goodsLocation}, #{tags}, #{fatRatio}, #{feedingType}, #{cattleBreed}, #{remark}, #{publishTime}, #{dataDate}, #{status}, #{createTime}) ON CONFLICT (COALESCE(user_nickname, ''), product_name, COALESCE(country, ''), COALESCE(factory_no, ''), offer_type, COALESCE(feeding_type, ''), COALESCE(fat_ratio, '')) DO UPDATE SET offer_original_text = EXCLUDED.offer_original_text, price = EXCLUDED.price, price_max = EXCLUDED.price_max, weight = EXCLUDED.weight, publish_time = EXCLUDED.publish_time"})
+    void upsert(BizOffer offer);
+
+    @Select({"<script>SELECT * FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if><if test='keyword != null and keyword != \"\"'> AND (product_name LIKE CONCAT('%', #{keyword}, '%') OR country LIKE CONCAT('%', #{keyword}, '%') OR factory_no LIKE CONCAT('%', #{keyword}, '%')) </if>ORDER BY publish_time DESC</script>"})
+    List<BizOffer> searchOffers(@Param("category") String category, @Param("offerType") String offerType, @Param("keyword") String keyword);
+
+    @Select({"<script>SELECT * FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>ORDER BY publish_time DESC</script>"})
+    List<BizOffer> selectByProductId(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"SELECT o.country, o.factory_no, MIN(CASE WHEN o.price > 0 THEN o.price END) as price_min, MAX(CASE WHEN o.price > 0 THEN o.price END) as price_max, COUNT(*) as offer_count, COUNT(DISTINCT o.merchant_id) as merchant_count, STRING_AGG(DISTINCT CASE WHEN m.merchant_short_name IS NOT NULL AND m.merchant_short_name != '' THEN CONCAT(m.merchant_short_name, '|', m.merchant_name) ELSE COALESCE(m.merchant_name, '') END, ',') as merchant_names FROM biz_offer o LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id WHERE o.status = 'ACTIVE' AND o.data_date >= CURRENT_DATE - INTERVAL '1 day' AND o.product_id = #{productId} AND (o.price IS NULL OR (o.price > 0 AND o.price <= 200)) AND (#{category} IS NULL OR o.category = #{category}) AND (#{offerType} IS NULL OR o.offer_type = #{offerType}) GROUP BY o.country, o.factory_no ORDER BY COUNT(*) DESC, MIN(o.price) ASC LIMIT #{limit} OFFSET #{offset}"})
+    List<ProductStatAgg> selectProductStatsAgg(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select({"SELECT COUNT(DISTINCT country || '_' || factory_no) FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND (price IS NULL OR (price > 0 AND price <= 200)) AND (#{category} IS NULL OR category = #{category}) AND (#{offerType} IS NULL OR offer_type = #{offerType})"})
+    int countProductStatsAgg(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT COUNT(DISTINCT o.country || '_' || o.factory_no) FROM biz_offer o WHERE o.status = 'ACTIVE' AND o.data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND o.product_id = #{productId} AND ( o.price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price IS NOT NULL AND price &gt; 0 <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND o.price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price IS NOT NULL AND price &gt; 0 <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) <if test='category != null'> AND o.category = #{category} </if><if test='offerType != null'> AND o.offer_type = #{offerType} </if>)</script>"})
+    int countProductStatsAggFiltered(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   o.country, o.factory_no,   MIN(CASE WHEN o.price > 0 THEN o.price END) as price_min,   MAX(CASE WHEN o.price > 0 THEN o.price END) as price_max,   COUNT(*) as offer_count,   COUNT(DISTINCT o.merchant_id) as merchant_count,   STRING_AGG(DISTINCT CASE WHEN m.merchant_short_name IS NOT NULL AND m.merchant_short_name != '' THEN CONCAT(m.merchant_short_name, '|', m.merchant_name) ELSE COALESCE(m.merchant_name, '') END, ',') as merchant_names FROM biz_offer o LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id WHERE o.status = 'ACTIVE' AND o.data_date >= CURRENT_DATE - INTERVAL '1 day' AND o.product_id = #{productId} AND (  o.price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price IS NOT NULL AND price > 0 <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND o.price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price IS NOT NULL AND price > 0 <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>)) <if test='category != null'> AND o.category = #{category} </if><if test='offerType != null'> AND o.offer_type = #{offerType} </if>GROUP BY o.country, o.factory_no <if test='sortBy == \"price_asc\"'>ORDER BY price_min ASC, offer_count DESC</if><if test='sortBy == \"price_desc\"'>ORDER BY price_max DESC, offer_count DESC</if><if test='sortBy == \"comprehensive\" or sortBy == null or sortBy == \"\"'>ORDER BY offer_count DESC, price_min ASC</if> LIMIT #{limit} OFFSET #{offset}</script>"})
+    List<ProductStatAgg> selectProductStatsAggFiltered(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType, @Param("limit") int limit, @Param("offset") int offset, @Param("sortBy") String sortBy);
+
+    @Select({"<script>SELECT   COUNT(*) as total_offer_count,   COUNT(DISTINCT merchant_id) as merchant_count,   COUNT(DISTINCT country || '_' || factory_no) as factory_count,   MIN(price) as price_min,   MAX(price) as price_max FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND (price IS NULL OR (  price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>))) <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if></script>"})
+    ProductDashboardStats selectProductDashboardStatsFiltered(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT merchant_id, country, factory_no, MIN(price) as price_min, MAX(price) as price_max FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>GROUP BY merchant_id, country, factory_no</script>"})
+    List<OfferStat> selectProductOfferStats(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT COUNT(*) as total_offer_count, COUNT(DISTINCT merchant_id) as merchant_count, COUNT(DISTINCT country || '_' || factory_no) as factory_count, MIN(price) as price_min, MAX(price) as price_max FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND (price IS NULL OR (price > 0 AND price &lt;= 200)) <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if></script>"})
+    ProductDashboardStats selectProductDashboardStats(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT o.product_id AS productId, MAX(p.product_name) AS productName, COUNT(*) as totalOfferCount, COUNT(DISTINCT o.merchant_id) as merchantCount, COUNT(DISTINCT o.country || '_' || o.factory_no) as factoryCount, MIN(o.price) as priceMin, MAX(o.price) as priceMax FROM biz_offer o LEFT JOIN dict_product p ON o.product_id = p.product_id WHERE o.status = 'ACTIVE' AND o.data_date >= CURRENT_DATE - INTERVAL '1 day' AND o.offer_type = '报盘' AND o.product_id IS NOT NULL <if test='category != null'> AND o.category = #{category} </if>GROUP BY o.product_id</script>"})
+    List<ProductDashboardStatsWithName> selectProductDashboardStatsBatch(@Param("category") String category);
+
+    @Select({"<script>SELECT   MIN(price) as price_min,   MAX(price) as price_max FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price > 0 AND (price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price IS NOT NULL AND price > 0 <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND product_id = #{productId} AND price IS NOT NULL AND price > 0 <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>)) <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if></script>"})
+    PriceRange selectFilteredPriceRange(@Param("productId") Integer productId, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT COUNT(*) FILTER (WHERE offer_type = '报盘' AND data_date >= CURRENT_DATE - INTERVAL '1 day') as recent_offer_count, COUNT(*) FILTER (WHERE offer_type = '求购' AND data_date >= CURRENT_DATE - INTERVAL '1 day') as recent_inquiry_count, COUNT(DISTINCT product_name) FILTER (WHERE offer_type = '报盘' AND data_date >= CURRENT_DATE - INTERVAL '1 day') as recent_product_count, COUNT(DISTINCT product_name || '_' || country || '_' || factory_no) FILTER (WHERE offer_type = '报盘' AND data_date >= CURRENT_DATE - INTERVAL '1 day') as recent_factory_count FROM biz_offer WHERE merchant_id = #{merchantId} AND status = 'ACTIVE' <if test='category != null'> AND category = #{category} </if></script>"})
+    MerchantDashboardStats selectMerchantDashboardStats(@Param("merchantId") Long merchantId, @Param("category") String category);
+
+    @Select({"<script>WITH ranked_offers AS (  SELECT *,     ROW_NUMBER() OVER (PARTITION BY product_name, country, factory_no ORDER BY publish_time DESC) as rn   FROM biz_offer   WHERE merchant_id = #{merchantId}   AND status = 'ACTIVE'   AND (#{offerType} IS NULL OR offer_type = #{offerType})   <if test='category != null'> AND category = #{category} </if>)SELECT   product_name, country, factory_no,   MIN(price) as price_min, MAX(price) as price_max,   STRING_AGG(DISTINCT tags, ',') as tags,   STRING_AGG(DISTINCT goods_location, '/') as goods_locations,   STRING_AGG(DISTINCT goods_type, ',') as goods_types,   STRING_AGG(DISTINCT feeding_type, ',') as feeding_types,   MAX(publish_time) as latest_publish_time,   COUNT(*) as offer_count,   MIN(user_nickname) as user_nickname,   MIN(price) as emp_price,   MIN(price_max) as emp_price_max,   MIN(weight) as emp_weight,   MIN(goods_location) as emp_goods_location,   MIN(offer_original_text) as offer_original_text FROM ranked_offers WHERE rn = 1 GROUP BY product_name, country, factory_no ORDER BY latest_publish_time DESC LIMIT #{limit} OFFSET #{offset}</script>"})
+    List<MerchantOfferAgg> selectMerchantOfferAgg(@Param("merchantId") Long merchantId, @Param("category") String category, @Param("offerType") String offerType, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select({"<script>SELECT COUNT(DISTINCT product_name || '_' || country || '_' || factory_no) FROM biz_offer WHERE merchant_id = #{merchantId} AND status = 'ACTIVE' AND (#{offerType} IS NULL OR offer_type = #{offerType}) <if test='category != null'> AND category = #{category} </if></script>"})
+    int countMerchantOfferAgg(@Param("merchantId") Long merchantId, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   COUNT(*) as total_offer_count,   COUNT(DISTINCT merchant_id) as merchant_count,   COUNT(DISTINCT factory_no) as factory_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if></script>"})
+    CountryDashboardStats selectCountryDashboardStats(@Param("country") String country, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   country,   COUNT(*) as total_offer_count,   COUNT(DISTINCT merchant_id) as merchant_count,   COUNT(DISTINCT factory_no) as factory_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND offer_type = '报盘' AND country IS NOT NULL AND country != '' <if test='category != null'> AND category = #{category} </if>GROUP BY country</script>"})
+    List<CountryDashboardStats> selectCountryDashboardStatsBatch(@Param("category") String category);
+
+    @Select({"<script>SELECT   MIN(price) as price_min,   MAX(price) as price_max FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND (price IS NULL OR (  price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>))) <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if></script>"})
+    PriceRange selectFilteredPriceRangeByCountry(@Param("country") String country, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   product_id,   product_name,   MIN(price) as price_min,   MAX(price) as price_max,   STRING_AGG(DISTINCT factory_no, ',') as factory_nos,   COUNT(DISTINCT factory_no) as factory_count,   COUNT(*) as offer_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>AND (price IS NULL OR (  price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>))) GROUP BY product_id, product_name ORDER BY offer_count DESC, MIN(price) ASC LIMIT #{limit} OFFSET #{offset}</script>"})
+    List<CountryProductAgg> selectCountryProductAgg(@Param("country") String country, @Param("category") String category, @Param("offerType") String offerType, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select({"<script>SELECT COUNT(DISTINCT product_name) FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>AND (price IS NULL OR (  price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>))) </script>"})
+    int countCountryProductAgg(@Param("country") String country, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT factory_no, COUNT(*) as offer_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND factory_no IS NOT NULL AND factory_no != '' <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>GROUP BY factory_no ORDER BY COUNT(*) DESC LIMIT 3</script>"})
+    List<HotFactoryAgg> selectHotFactories(@Param("country") String country, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT product_name, COUNT(*) as offer_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND product_name IS NOT NULL AND product_name != '' <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>GROUP BY product_name ORDER BY COUNT(*) DESC LIMIT 3</script>"})
+    List<HotProductAgg> selectHotProducts(@Param("country") String country, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   o.product_id,   o.product_name,   COALESCE(MIN(CASE WHEN o.price > 0 THEN o.price END), 0) as price_min,   COALESCE(MAX(CASE WHEN o.price > 0 THEN o.price END), 0) as price_max,   COUNT(DISTINCT o.merchant_id) as merchant_count,   COUNT(*) as offer_count,   STRING_AGG(DISTINCT CASE WHEN m.merchant_short_name IS NOT NULL AND m.merchant_short_name != '' THEN CONCAT(m.merchant_short_name, '|', m.merchant_name) ELSE COALESCE(m.merchant_name, '') END, ',') as merchant_names FROM biz_offer o LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id WHERE o.status = 'ACTIVE' AND o.data_date >= CURRENT_DATE - INTERVAL '1 day' AND o.country = #{country} AND o.factory_no = #{factoryNo} <if test='category != null'> AND o.category = #{category} </if><if test='offerType != null'> AND o.offer_type = #{offerType} </if>AND (o.price IS NULL OR (  o.price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND factory_no = #{factoryNo} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND o.price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND factory_no = #{factoryNo} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>))) GROUP BY o.product_id, o.product_name ORDER BY offer_count DESC LIMIT #{limit} OFFSET #{offset}</script>"})
+    List<FactoryProductAgg> selectFactoryProductAgg(@Param("country") String country, @Param("factoryNo") String factoryNo, @Param("category") String category, @Param("offerType") String offerType, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select({"<script>SELECT COUNT(DISTINCT product_id) FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND factory_no = #{factoryNo} <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>AND (price IS NULL OR (  price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND factory_no = #{factoryNo} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND factory_no = #{factoryNo} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>))) </script>"})
+    int countFactoryProductAgg(@Param("country") String country, @Param("factoryNo") String factoryNo, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   COUNT(DISTINCT product_id) as product_count,   COUNT(CASE WHEN offer_type = '求购' THEN 1 END) as inquiry_count,   COUNT(*) FILTER (WHERE offer_type = #{offerType}) as recent_offer_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND factory_no = #{factoryNo} <if test='category != null'> AND category = #{category} </if></script>"})
+    FactoryDashboardAgg selectFactoryDashboardStats(@Param("country") String country, @Param("factoryNo") String factoryNo, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   COUNT(*) FILTER (WHERE offer_type = '报盘') as total_offer_count,   COUNT(*) FILTER (WHERE offer_type = '求购') as total_inquiry_count,   COUNT(DISTINCT merchant_id) as merchant_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND product_name LIKE '%' || #{productName} || '%' <if test='category != null'> AND category = #{category} </if></script>"})
+    CountryProductStats selectCountryProductStats(@Param("country") String country, @Param("productName") String productName, @Param("category") String category);
+
+    @Select({"<script>SELECT   data_date,   COUNT(*) as offer_count,   AVG(price) as avg_price FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_name = #{productName} <if test='offerType != null'> AND offer_type = #{offerType} </if>AND price IS NOT NULL AND price &gt;= 5 AND price &lt;= 200 <if test='category != null'> AND category = #{category} </if>AND data_date &gt;= CURRENT_DATE - INTERVAL '7 day' GROUP BY data_date ORDER BY data_date ASC</script>"})
+    List<DailyPriceStats> selectDailyPriceStats(@Param("country") String country, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   o.country,   o.factory_no,   COALESCE(MIN(CASE WHEN o.price > 0 THEN o.price END), 0) as price_min,   COALESCE(MAX(CASE WHEN o.price > 0 THEN o.price END), 0) as price_max,   STRING_AGG(DISTINCT CASE WHEN m.merchant_short_name IS NOT NULL AND m.merchant_short_name != '' THEN CONCAT(m.merchant_short_name, '|', m.merchant_name) ELSE COALESCE(m.merchant_name, '') END, ',') as merchant_names,   COUNT(DISTINCT o.merchant_id) as merchant_count,   COUNT(*) as offer_count FROM biz_offer o LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id WHERE o.status = 'ACTIVE' AND o.data_date >= CURRENT_DATE - INTERVAL '1 day' AND o.country = #{country} AND o.product_name = #{productName} <if test='category != null'> AND o.category = #{category} </if><if test='offerType != null'> AND o.offer_type = #{offerType} </if><if test='offerType != null'> AND o.price > 0 </if>GROUP BY o.country, o.factory_no ORDER BY offer_count DESC LIMIT #{limit} OFFSET #{offset}</script>"})
+    List<CountryProductFactoryAgg> selectCountryProductFactoryAgg(@Param("country") String country, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select({"<script>SELECT COUNT(DISTINCT factory_no) FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND product_name = #{productName} <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>AND (price IS NULL OR (price IS NOT NULL AND price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND product_name = #{productName} AND price IS NOT NULL AND offer_type = #{offerType} <if test='category != null'> AND category = #{category} </if>) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND product_name = #{productName} AND price IS NOT NULL AND offer_type = #{offerType} <if test='category != null'> AND category = #{category} </if>))) </script>"})
+    int countCountryProductFactoryAgg(@Param("country") String country, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT   MIN(price) as price_min,   MAX(price) as price_max FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND product_name = #{productName} AND (price IS NULL OR (  price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND product_name = #{productName} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND product_name = #{productName} AND price IS NOT NULL <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if>))) <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if></script>"})
+    PriceRange selectFilteredPriceRangeByCountryProduct(@Param("country") String country, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT CURRENT_DATE as data_date, COUNT(*) as offer_count, AVG(price) as avg_price FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND offer_type = #{offerType} AND price IS NOT NULL AND price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND offer_type = #{offerType} AND price IS NOT NULL AND data_date = CURRENT_DATE) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND offer_type = #{offerType} AND price IS NOT NULL AND data_date = CURRENT_DATE) AND data_date = CURRENT_DATE</script>"})
+    List<DailyPriceStats> selectTodayAvgPrice(@Param("country") String country, @Param("productId") Integer productId, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT CURRENT_DATE as data_date, COUNT(*) as offer_count, AVG(price) as avg_price FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND factory_no = #{factoryNo} AND offer_type = #{offerType} AND price IS NOT NULL AND price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND factory_no = #{factoryNo} AND offer_type = #{offerType} AND price IS NOT NULL AND data_date = CURRENT_DATE) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND factory_no = #{factoryNo} AND offer_type = #{offerType} AND price IS NOT NULL AND data_date = CURRENT_DATE) AND data_date = CURRENT_DATE</script>"})
+    List<DailyPriceStats> selectTodayAvgPriceByFactory(@Param("country") String country, @Param("productId") Integer productId, @Param("factoryNo") String factoryNo, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT #{targetDate} as data_date, COUNT(*) as offer_count, AVG(price) as avg_price FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND offer_type = #{offerType} AND price IS NOT NULL AND price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND offer_type = #{offerType} AND price IS NOT NULL AND data_date = #{targetDate}) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND offer_type = #{offerType} AND price IS NOT NULL AND data_date = #{targetDate}) AND data_date = #{targetDate}</script>"})
+    List<DailyPriceStats> selectHistoricalAvgPrice(@Param("targetDate") LocalDate targetDate, @Param("country") String country, @Param("productId") Integer productId, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT #{targetDate} as data_date, COUNT(*) as offer_count, AVG(price) as avg_price FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND factory_no = #{factoryNo} AND offer_type = #{offerType} AND price IS NOT NULL AND price &gt;= (SELECT 2.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND factory_no = #{factoryNo} AND offer_type = #{offerType} AND price IS NOT NULL AND data_date = #{targetDate}) AND price &lt;= (SELECT 2.5 * PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) - 1.5 * PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) FROM biz_offer WHERE status = 'ACTIVE' AND country = #{country} AND product_id = #{productId} AND factory_no = #{factoryNo} AND offer_type = #{offerType} AND price IS NOT NULL AND data_date = #{targetDate}) AND data_date = #{targetDate}</script>"})
+    List<DailyPriceStats> selectHistoricalAvgPriceByFactory(@Param("targetDate") LocalDate targetDate, @Param("country") String country, @Param("productId") Integer productId, @Param("factoryNo") String factoryNo, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT DISTINCT country, product_id, product_name FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '7 day' AND country IS NOT NULL AND product_id IS NOT NULL</script>"})
+    List<CountryProductCombo> selectActiveCountryProductCombos();
+
+    @Select({"<script>SELECT DISTINCT country, product_id, product_name, factory_no FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= CURRENT_DATE - INTERVAL '7 day' AND country IS NOT NULL AND product_id IS NOT NULL AND factory_no IS NOT NULL</script>"})
+    List<CountryFactoryProductCombo> selectActiveCountryFactoryProductCombos();
+
+    @Select({"<script>SELECT   COUNT(*) FILTER (WHERE offer_type = '报盘') as total_offer_count,   COUNT(*) FILTER (WHERE offer_type = '求购') as total_inquiry_count,   COUNT(DISTINCT merchant_id) as merchant_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND REPLACE(factory_no, ' ', '') = REPLACE(#{factoryNo}, ' ', '') <if test='productName != null and productName.length() > 0'> AND product_name = #{productName} </if> <if test='category != null'> AND category = #{category} </if></script>"})
+    CountryFactoryProductStats selectCountryFactoryProductStats(@Param("country") String country, @Param("factoryNo") String factoryNo, @Param("productName") String productName, @Param("category") String category);
+
+    @Select({"<script>SELECT   MIN(price) as price_min,   MAX(price) as price_max FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND REPLACE(factory_no, ' ', '') = REPLACE(#{factoryNo}, ' ', '') <if test='productName != null and productName.length() > 0'> AND product_name = #{productName} </if> <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if></script>"})
+    PriceRange selectFilteredPriceRangeByCountryFactoryProduct(@Param("country") String country, @Param("factoryNo") String factoryNo, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT * FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND REPLACE(factory_no, ' ', '') = REPLACE(#{factoryNo}, ' ', '') <if test='productName != null and productName.length() > 0'> AND product_name = #{productName} </if> <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if><choose>  <when test='sortBy == \"price_asc\"'> ORDER BY price ASC NULLS LAST </when>  <when test='sortBy == \"price_desc\"'> ORDER BY price DESC NULLS LAST </when>  <when test='sortBy == \"publish_time\"'> ORDER BY publish_time DESC </when>  <otherwise> ORDER BY     CASE WHEN offer_type = '报盘' THEN 0 ELSE 1 END,     CASE WHEN merchant_id IS NOT NULL THEN 0 ELSE 1 END,     publish_time DESC   </otherwise></choose>LIMIT #{limit} OFFSET #{offset}</script>"})
+    List<BizOffer> selectOfferListByCountryFactoryProduct(@Param("country") String country, @Param("factoryNo") String factoryNo, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType, @Param("sortBy") String sortBy, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select({"<script>SELECT COUNT(*) FROM biz_offer WHERE status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND country = #{country} AND REPLACE(factory_no, ' ', '') = REPLACE(#{factoryNo}, ' ', '') <if test='productName != null and productName.length() > 0'> AND product_name = #{productName} </if> <if test='category != null'> AND category = #{category} </if><if test='offerType != null'> AND offer_type = #{offerType} </if></script>"})
+    int countOfferListByCountryFactoryProduct(@Param("country") String country, @Param("factoryNo") String factoryNo, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    @Select({"<script>SELECT * FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= #{startDate} - INTERVAL '2 days' AND data_date &lt;= #{endDate} <if test='category != null'> AND category = #{category} </if>ORDER BY data_date DESC, publish_time DESC</script>"})
+    List<BizOffer> findByCategoryAndDateRange(@Param("category") String category, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    @Select({"<script>SELECT * FROM biz_offer WHERE status = 'ACTIVE' AND data_date &gt;= #{startDate} - INTERVAL '2 days' AND data_date &lt;= #{endDate} ORDER BY data_date DESC, publish_time DESC</script>"})
+    List<BizOffer> findByDateRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    @Select({"SELECT\n    o.product_id AS productId,\n    MAX(COALESCE(p.product_name, o.product_name)) AS productName,\n    o.category,\n    COUNT(*) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayOfferCount,\n    COUNT(*) FILTER (WHERE o.offer_type = '求购' AND o.data_date = #{statDate}) AS todayInquiryCount,\n    COUNT(DISTINCT o.merchant_id) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayMerchantCount,\n    COUNT(DISTINCT o.factory_id) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayFactoryCount,\n    MIN(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMin,\n    MAX(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMax\nFROM biz_offer o\nLEFT JOIN dict_product p ON o.product_id = p.product_id\nWHERE o.status = 'ACTIVE'\n  AND o.data_date >= #{statDate} - INTERVAL '2 days'\n  AND o.data_date <= #{statDate}\n  AND o.category = #{category}\n  AND o.product_id IS NOT NULL\nGROUP BY o.product_id, o.category\n"})
+    List<ProductStatDTO> aggregateByProduct(@Param("statDate") LocalDate statDate, @Param("category") String category);
+
+    @Select({"SELECT\n    country,\n    category,\n    COUNT(*) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate}) AS todayOfferCount,\n    COUNT(*) FILTER (WHERE offer_type = '求购' AND data_date = #{statDate}) AS todayInquiryCount,\n    COUNT(DISTINCT factory_id) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate}) AS todayFactoryCount,\n    COUNT(DISTINCT merchant_id) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate}) AS todayMerchantCount\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date >= #{statDate} - INTERVAL '2 days'\n  AND data_date <= #{statDate}\n  AND category = #{category}\n  AND country IS NOT NULL AND country <> ''\nGROUP BY country, category\n"})
+    List<CountryStatDTO> aggregateByCountry(@Param("statDate") LocalDate statDate, @Param("category") String category);
+
+    @Select({"SELECT\n    country,\n    factory_no AS factoryNo,\n    factory_id AS factoryId,\n    category,\n    COUNT(*) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate}) AS todayOfferCount,\n    COUNT(*) FILTER (WHERE offer_type = '求购' AND data_date = #{statDate}) AS todayInquiryCount,\n    COUNT(DISTINCT merchant_id) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate}) AS todayMerchantCount,\n    MIN(price) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate} AND price IS NOT NULL) AS priceMin,\n    MAX(price) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate} AND price IS NOT NULL) AS priceMax\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date >= #{statDate} - INTERVAL '2 days'\n  AND data_date <= #{statDate}\n  AND category = #{category}\n  AND factory_id IS NOT NULL\n  AND country IS NOT NULL AND country <> ''\nGROUP BY country, factory_no, factory_id, category\n"})
+    List<FactoryStatDTO> aggregateByFactory(@Param("statDate") LocalDate statDate, @Param("category") String category);
+
+    @Select({"SELECT\n    o.country,\n    o.product_id AS productId,\n    MAX(COALESCE(p.product_name, o.product_name)) AS productName,\n    o.category,\n    COUNT(*) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayOfferCount,\n    COUNT(*) FILTER (WHERE o.offer_type = '求购' AND o.data_date = #{statDate}) AS todayInquiryCount,\n    COUNT(DISTINCT o.factory_id) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayFactoryCount,\n    MIN(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMin,\n    MAX(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMax,\n    AVG(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS avgPrice,\n    AVG(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} - 1 AND o.price IS NOT NULL) AS avgPriceYesterday\nFROM biz_offer o\nLEFT JOIN dict_product p ON o.product_id = p.product_id\nWHERE o.status = 'ACTIVE'\n  AND o.data_date >= #{statDate} - INTERVAL '2 days'\n  AND o.data_date <= #{statDate}\n  AND o.category = #{category}\n  AND o.country IS NOT NULL AND o.country <> ''\n  AND o.product_id IS NOT NULL\nGROUP BY o.country, o.product_id, o.category\n"})
+    List<CountryProductStatDTO> aggregateByCountryProduct(@Param("statDate") LocalDate statDate, @Param("category") String category);
+
+    @Select({"SELECT\n    brand_id AS brandId,\n    country || ' ' || factory_no AS brandName,\n    COUNT(*) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate}) AS todayOfferCount,\n    COUNT(DISTINCT factory_id) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate}) AS todayFactoryCount,\n    COUNT(DISTINCT product_id) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate}) AS todayProductCount,\n    MIN(price) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate} AND price IS NOT NULL) AS priceMin,\n    MAX(price) FILTER (WHERE offer_type = '报盘' AND data_date = #{statDate} AND price IS NOT NULL) AS priceMax\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date >= #{statDate} - INTERVAL '2 days'\n  AND data_date <= #{statDate}\n  AND brand_id IS NOT NULL\nGROUP BY brand_id, country, factory_no\n"})
+    List<BrandStatDTO> aggregateByBrand(@Param("statDate") LocalDate statDate);
+
+    @Select({"SELECT\n    o.brand_id AS brandId,\n    country || ' ' || factory_no AS brandName,\n    o.product_id AS productId,\n    MAX(COALESCE(p.product_name, o.product_name)) AS productName,\n    COUNT(*) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayOfferCount,\n    COUNT(DISTINCT o.factory_id) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayFactoryCount,\n    MIN(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMin,\n    MAX(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMax,\n    AVG(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS avgPrice,\n    AVG(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} - 1 AND o.price IS NOT NULL) AS avgPriceYesterday\nFROM biz_offer o\nLEFT JOIN dict_product p ON o.product_id = p.product_id\nWHERE o.status = 'ACTIVE'\n  AND o.data_date >= #{statDate} - INTERVAL '2 days'\n  AND o.data_date <= #{statDate}\n  AND o.brand_id IS NOT NULL\n  AND o.product_id IS NOT NULL\nGROUP BY o.brand_id, country, factory_no, o.product_id\n"})
+    List<BrandProductStatDTO> aggregateByBrandProduct(@Param("statDate") LocalDate statDate);
+
+    @Select({"SELECT\n    o.country,\n    o.factory_no AS factoryNo,\n    o.factory_id AS factoryId,\n    o.product_id AS productId,\n    MAX(COALESCE(p.product_name, o.product_name)) AS productName,\n    COUNT(*) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayOfferCount,\n    COUNT(*) FILTER (WHERE o.offer_type = '求购' AND o.data_date = #{statDate}) AS todayInquiryCount,\n    MIN(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMin,\n    MAX(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMax,\n    AVG(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS avgPrice,\n    AVG(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} - 1 AND o.price IS NOT NULL) AS avgPriceYesterday\nFROM biz_offer o\nLEFT JOIN dict_product p ON o.product_id = p.product_id\nWHERE o.status = 'ACTIVE'\n  AND o.data_date >= #{statDate} - INTERVAL '2 days'\n  AND o.data_date <= #{statDate}\n  AND o.factory_id IS NOT NULL\n  AND o.product_id IS NOT NULL\n  AND o.country IS NOT NULL AND o.country <> ''\nGROUP BY country, factory_no, factory_id, o.product_id\nHAVING COUNT(*) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) > 0\n"})
+    List<FactoryProductStatDTO> aggregateByFactoryProduct(@Param("statDate") LocalDate statDate);
+
+    @Select({"SELECT\n    merchant_id AS merchantId,\n    COUNT(*) FILTER (WHERE offer_type = '报盘') AS todayOfferCount,\n    COUNT(*) FILTER (WHERE offer_type = '求购') AS todayInquiryCount,\n    COUNT(DISTINCT product_id) FILTER (WHERE offer_type = '报盘') AS todayProductCount,\n    COUNT(DISTINCT factory_id) FILTER (WHERE offer_type = '报盘') AS todayFactoryCount\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date = #{statDate}\n  AND category = #{category}\n  AND merchant_id IS NOT NULL\nGROUP BY merchant_id\n"})
+    List<MerchantStatDTO> aggregateByMerchant(@Param("statDate") LocalDate statDate, @Param("category") String category);
+
+    @Select({"SELECT\n    o.factory_no AS factoryNo,\n    COUNT(*) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayOfferCount,\n    MIN(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMin,\n    MAX(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMax\nFROM biz_offer o\nWHERE o.status = 'ACTIVE'\n  AND o.data_date = #{statDate}\n  AND o.country = #{country}\n  AND o.product_id = #{productId}\n  AND o.factory_no IS NOT NULL\nGROUP BY o.factory_no\nORDER BY todayOfferCount DESC\nLIMIT 3\n"})
+    List<FactoryStatWithPriceDTO> aggregateByFactoryForCountryProduct(@Param("statDate") LocalDate statDate, @Param("country") String country, @Param("productId") Integer productId);
+
+    @Select({"SELECT * FROM biz_offer\nWHERE merchant_id = #{merchantId}\n  AND status = 'ACTIVE'\n  AND offer_type = '报盘'\n  AND data_date >= CURRENT_DATE - INTERVAL '1 day'\nORDER BY\n    (CASE WHEN price IS NOT NULL AND price > 0 THEN 4 ELSE 0 END +\n     CASE WHEN weight IS NOT NULL AND weight != '' THEN 2 ELSE 0 END +\n     CASE WHEN country IS NOT NULL AND country != '' AND factory_no IS NOT NULL AND factory_no != '' THEN 1 ELSE 0 END) DESC,\n    publish_time DESC\nLIMIT #{limit}\n"})
+    List<BizOffer> findLatestByMerchant(@Param("merchantId") Long merchantId, @Param("limit") int limit);
+
+    @Select({"SELECT\n    o.merchant_id AS merchantId,\n    COUNT(*) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayOfferCount,\n    MIN(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMin,\n    MAX(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMax,\n    m.merchant_short_name AS merchantName\nFROM biz_offer o\nLEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id\nWHERE o.status = 'ACTIVE'\n  AND o.data_date = #{statDate}\n  AND o.factory_id = #{factoryId}\n  AND o.product_id = #{productId}\n  AND o.merchant_id IS NOT NULL\nGROUP BY o.merchant_id, m.merchant_short_name\nORDER BY todayOfferCount DESC\nLIMIT 3\n"})
+    List<MerchantStatWithPriceDTO> aggregateByMerchantForFactoryProduct(@Param("statDate") LocalDate statDate, @Param("factoryId") Integer factoryId, @Param("productId") Integer productId);
+
+    @Select({"SELECT\n    o.factory_no AS factoryNo,\n    COUNT(*) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate}) AS todayOfferCount,\n    MIN(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMin,\n    MAX(o.price) FILTER (WHERE o.offer_type = '报盘' AND o.data_date = #{statDate} AND o.price IS NOT NULL) AS priceMax\nFROM biz_offer o\nINNER JOIN dict_factory df ON o.factory_id = df.factory_id\nWHERE o.status = 'ACTIVE'\n  AND o.data_date = #{statDate}\n  AND df.brand_id = #{brandId}\n  AND o.product_id = #{productId}\nGROUP BY o.factory_no\nORDER BY todayOfferCount DESC\nLIMIT 3\n"})
+    List<FactoryStatWithPriceDTO> aggregateByFactoryForBrandProduct(@Param("statDate") LocalDate statDate, @Param("brandId") Integer brandId, @Param("productId") Integer productId);
+
+    // ========== Brand Detail 查询 ==========
+    /* 品牌产品聚合统计 - 按 brandId 查询 */
+    @Select({"<script>SELECT\n    product_id,\n    product_name,\n    MIN(price) as price_min,\n    MAX(price) as price_max,\n    STRING_AGG(DISTINCT factory_no, ',') as factory_nos,\n    COUNT(DISTINCT factory_no) as factory_count,\n    COUNT(*) as offer_count\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day'\n  AND brand_id = #{brandId}\n  <if test='category != null'> AND category = #{category} </if>\n  <if test='offerType != null'> AND offer_type = #{offerType} </if>\nGROUP BY product_id, product_name\nORDER BY offer_count DESC, MIN(price) ASC</script>"})
+    List<BrandProductAgg> selectBrandProductAggByBrandId(@Param("brandId") Integer brandId, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌产品聚合统计 - 按 brandId 查询 */
+    @Select({"<script>SELECT\n    product_id,\n    product_name,\n    MIN(price) as price_min,\n    MAX(price) as price_max,\n    STRING_AGG(DISTINCT factory_no, ',') as factory_nos,\n    COUNT(DISTINCT factory_no) as factory_count,\n    COUNT(*) as offer_count\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day'\n  AND brand_id = #{brandId}\n  <if test='category != null'> AND category = #{category} </if>\n  <if test='offerType != null'> AND offer_type = #{offerType} </if>\nGROUP BY product_id, product_name\nORDER BY offer_count DESC, MIN(price) ASC</script>"})
+    List<BrandProductAgg> selectBrandProductAgg(@Param("brandId") Integer brandId, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌产品聚合统计 - 按 productName 查询（brandName 就是产品名） */
+    @Select({"<script>SELECT\n    product_id,\n    product_name,\n    MIN(price) as price_min,\n    MAX(price) as price_max,\n    STRING_AGG(DISTINCT factory_no, ',') as factory_nos,\n    COUNT(DISTINCT factory_no) as factory_count,\n    COUNT(*) as offer_count\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day'\n  AND product_name = #{productName}\n  <if test='category != null'> AND category = #{category} </if>\n  <if test='offerType != null'> AND offer_type = #{offerType} </if>\nGROUP BY product_id, product_name\nORDER BY offer_count DESC, MIN(price) ASC</script>"})
+    List<BrandProductAgg> selectBrandProductAggByProductName(@Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌统计 - 按 brandId + type 查近2日计数（今日+昨日） */
+    @Select({"<script>SELECT " +
+            "COUNT(*) FILTER (WHERE data_date = CURRENT_DATE) AS todayCount, " +
+            "COUNT(*) FILTER (WHERE data_date = CURRENT_DATE - INTERVAL '1 day') AS yesterdayCount " +
+            "FROM biz_offer " +
+            "WHERE status = 'ACTIVE' " +
+            "AND brand_id = #{brandId} " +
+            "<if test='category != null'> AND category = #{category} </if> " +
+            "<if test='offerType != null'> AND offer_type = #{offerType} </if>" +
+            "</script>"})
+    BrandStatByType countByBrandIdAndType(@Param("brandId") Integer brandId, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌统计 - 按多个 brandId + type 查近2日计数（今日+昨日，支持一个品牌多个厂号） */
+    @Select({"<script>SELECT " +
+            "COUNT(*) FILTER (WHERE data_date = CURRENT_DATE) AS todayCount, " +
+            "COUNT(*) FILTER (WHERE data_date = CURRENT_DATE - INTERVAL '1 day') AS yesterdayCount " +
+            "FROM biz_offer " +
+            "WHERE status = 'ACTIVE' " +
+            "<if test='brandIds != null and brandIds.size() > 0'> AND brand_id IN <foreach collection='brandIds' item='id' open='(' separator=',' close=')'>#{id}</foreach> </if> " +
+            "<if test='category != null'> AND category = #{category} </if> " +
+            "<if test='offerType != null'> AND offer_type = #{offerType} </if>" +
+            "</script>"})
+    BrandStatByType countByBrandIdsAndType(@Param("brandIds") List<Integer> brandIds, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌产品聚合统计 - 按多个 brandId 查询（支持一个品牌多个厂号） */
+    @Select({"<script>SELECT\n    product_id,\n    product_name,\n    MIN(price) as price_min,\n    MAX(price) as price_max,\n    STRING_AGG(DISTINCT factory_no, ',') as factory_nos,\n    COUNT(DISTINCT factory_no) as factory_count,\n    COUNT(*) as offer_count\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day'\n  <if test='brandIds != null and brandIds.size() > 0'> AND brand_id IN <foreach collection='brandIds' item='id' open='(' separator=',' close=')'>#{id}</foreach> </if>\n  <if test='category != null'> AND category = #{category} </if>\n  <if test='offerType != null'> AND offer_type = #{offerType} </if>\nGROUP BY product_id, product_name\nORDER BY offer_count DESC, MIN(price) ASC</script>"})
+    List<BrandProductAgg> selectBrandProductAggByBrandIds(@Param("brandIds") List<Integer> brandIds, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌统计 - 按 productName + type 查近2日计数（今日+昨日） */
+    @Select({"<script>SELECT " +
+            "COUNT(*) FILTER (WHERE data_date = CURRENT_DATE) AS todayCount, " +
+            "COUNT(*) FILTER (WHERE data_date = CURRENT_DATE - INTERVAL '1 day') AS yesterdayCount " +
+            "FROM biz_offer " +
+            "WHERE status = 'ACTIVE' " +
+            "AND product_name = #{productName} " +
+            "<if test='category != null'> AND category = #{category} </if> " +
+            "<if test='offerType != null'> AND offer_type = #{offerType} </if>" +
+            "</script>"})
+    BrandStatByType countByProductNameAndType(@Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌统计 */
+    public static class BrandProductAgg {
+        public Integer productId;
+        public String productName;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+        public String factoryNos;
+        public Integer factoryCount;
+        public Integer offerCount;
+    }
+
+    /* 品牌按 type 统计（近2日计数） */
+    public static class BrandStatByType {
+        public Long todayCount;
+        public Long yesterdayCount;
+    }
+
+    /* 品牌产品详情聚合统计 - 按 brandId + productName + country + factory_no 分组 */
+    public static class BrandProductDetailAgg {
+        public String country;
+        public String factoryNo;
+        public Integer productId;
+        public String productName;
+        public BigDecimal priceMin;
+        public BigDecimal priceMax;
+        public Integer offerCount;
+        public Integer merchantCount;
+        public String merchantNames;
+    }
+
+    /* 品牌产品聚合统计 - 按多个 brandId + productName 查询（品牌+产品搜索） */
+    @Select({"<script>SELECT\n    product_id,\n    product_name,\n    MIN(price) as price_min,\n    MAX(price) as price_max,\n    STRING_AGG(DISTINCT factory_no, ',') as factory_nos,\n    COUNT(DISTINCT factory_no) as factory_count,\n    COUNT(*) as offer_count\nFROM biz_offer\nWHERE status = 'ACTIVE'\n  AND data_date &gt;= CURRENT_DATE - INTERVAL '1 day'\n  <if test='brandIds != null and brandIds.size() > 0'> AND brand_id IN <foreach collection='brandIds' item='id' open='(' separator=',' close=')'>#{id}</foreach> </if>\n  <if test='productName != null and productName != \"\"'> AND product_name LIKE '%' || #{productName} || '%' </if>\n  <if test='category != null'> AND category = #{category} </if>\n  <if test='offerType != null'> AND offer_type = #{offerType} </if>\nGROUP BY product_id, product_name\nORDER BY offer_count DESC, MIN(price) ASC</script>"})
+    List<BrandProductAgg> selectBrandProductAggByBrandIdsAndProductName(@Param("brandIds") List<Integer> brandIds, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌产品详情聚合统计 - 按多个 brandId + productName 查询，按 country + factory_no 分组（品牌+产品详情页用） */
+    @Select({"<script>SELECT\n    o.country,\n    o.factory_no,\n    o.product_id,\n    #{productName} as product_name,\n    MIN(CASE WHEN o.price > 0 THEN o.price END) as price_min,\n    MAX(CASE WHEN o.price > 0 THEN o.price END) as price_max,\n    COUNT(*) as offer_count,\n    COUNT(DISTINCT o.merchant_id) as merchant_count,\n    STRING_AGG(DISTINCT CASE WHEN m.merchant_short_name IS NOT NULL AND m.merchant_short_name != '' THEN CONCAT(m.merchant_short_name, '|', m.merchant_name) ELSE COALESCE(m.merchant_name, '') END, ',') as merchant_names\nFROM biz_offer o\nLEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id\nWHERE o.status = 'ACTIVE'\n  AND o.data_date &gt;= CURRENT_DATE - INTERVAL '1 day'\n  <if test='brandIds != null and brandIds.size() > 0'> AND o.brand_id IN <foreach collection='brandIds' item='id' open='(' separator=',' close=')'>#{id}</foreach> </if>\n  <if test='productName != null and productName != \"\"'> AND o.product_name LIKE '%' || #{productName} || '%' </if>\n  <if test='category != null'> AND o.category = #{category} </if>\n  <if test='offerType != null'> AND o.offer_type = #{offerType} </if>\nGROUP BY o.country, o.factory_no, o.product_id\nORDER BY offer_count DESC, price_min ASC</script>"})
+    List<BrandProductDetailAgg> selectBrandProductDetailByBrandIdsAndProductName(@Param("brandIds") List<Integer> brandIds, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 品牌统计 - 按多个 brandId + productName + type 查近2日计数 */
+    @Select({"<script>SELECT " +
+            "COUNT(*) FILTER (WHERE data_date = CURRENT_DATE) AS todayCount, " +
+            "COUNT(*) FILTER (WHERE data_date = CURRENT_DATE - INTERVAL '1 day') AS yesterdayCount " +
+            "FROM biz_offer " +
+            "WHERE status = 'ACTIVE' " +
+            "<if test='brandIds != null and brandIds.size() > 0'> AND brand_id IN <foreach collection='brandIds' item='id' open='(' separator=',' close=')'>#{id}</foreach> </if> " +
+            "<if test='productName != null and productName != \"\"'> AND product_name LIKE '%' || #{productName} || '%' </if> " +
+            "<if test='category != null'> AND category = #{category} </if> " +
+            "<if test='offerType != null'> AND offer_type = #{offerType} </if>" +
+            "</script>"})
+    BrandStatByType countByBrandIdsAndProductNameAndType(@Param("brandIds") List<Integer> brandIds, @Param("productName") String productName, @Param("category") String category, @Param("offerType") String offerType);
+
+    /* 统计某品牌今日报盘数 */
+    @Select({"SELECT COUNT(*) FROM biz_offer WHERE status = 'ACTIVE' AND data_date = CURRENT_DATE AND brand_id = #{brandId}"})
+    Integer countTodayOffersByBrand(@Param("brandId") Integer brandId);
+}

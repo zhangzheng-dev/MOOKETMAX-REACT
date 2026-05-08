@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: mooket_postgres
+    environment:
+      POSTGRES_DB: mooket_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      LANG: zh_CN.UTF-8
+      LC_ALL: zh_CN.UTF-8
+      POSTGRES_INITDB_ARGS: --encoding=UTF8
+    command: postgres -c client_encoding=UTF8 -c server_encoding=UTF8
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../sql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  social:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mooket_social
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mooket_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

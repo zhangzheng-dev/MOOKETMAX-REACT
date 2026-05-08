@@ -1,0 +1,611 @@
+package com.mooket.social.service;
+
+import com.mooket.social.entity.BizOffer;
+import com.mooket.social.entity.DictBrand;
+import com.mooket.social.entity.DictFactory;
+import com.mooket.social.entity.DictMerchant;
+import com.mooket.social.entity.DictProduct;
+import com.mooket.social.entity.mysql.SocialOnlineBusiness;
+import com.mooket.social.entity.mysql.SocialOnlineBusinessContent;
+import com.mooket.social.entity.mysql.SocialStandardGoodsName;
+import com.mooket.social.entity.mysql.SysDict;
+import com.mooket.social.mapper.BizOfferMapper;
+import com.mooket.social.mapper.DictBrandMapper;
+import com.mooket.social.mapper.DictFactoryMapper;
+import com.mooket.social.mapper.DictMerchantMapper;
+import com.mooket.social.mapper.DictProductMapper;
+import com.mooket.social.mysql.mapper.SocialOnlineBusinessContentMapper;
+import com.mooket.social.mysql.mapper.SocialOnlineBusinessMapper;
+import com.mooket.social.mysql.mapper.SocialStandardGoodsNameMapper;
+import com.mooket.social.mysql.mapper.SysDictMapper;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * MySQL 数据同步服务
+ */
+@Service
+public class DataSyncService {
+
+    private final SocialOnlineBusinessMapper sourceMapper;
+    private final BizOfferMapper targetMapper;
+    private final SysDictMapper sysDictMapper;
+    private final SocialOnlineBusinessContentMapper contentMapper;
+    private final SocialStandardGoodsNameMapper goodsNameMapper;
+    private final DictMerchantMapper merchantMapper;
+    private final DictFactoryMapper factoryMapper;
+    private final DictProductMapper productMapper;
+    private final DictBrandMapper brandMapper;
+    private final JdbcTemplate pgJdbcTemplate;
+
+    // 国家编码→名称映射（与 FactorySyncService 保持一致）
+    private static final Map<Integer, String> COUNTRY_MAP = new HashMap<>();
+    static {
+        COUNTRY_MAP.put(1, "阿根廷"); COUNTRY_MAP.put(2, "澳大利亚"); COUNTRY_MAP.put(3, "白罗斯");
+        COUNTRY_MAP.put(4, "巴西"); COUNTRY_MAP.put(5, "加拿大"); COUNTRY_MAP.put(6, "中国");
+        COUNTRY_MAP.put(7, "智利"); COUNTRY_MAP.put(8, "哥斯达黎加"); COUNTRY_MAP.put(9, "法国");
+        COUNTRY_MAP.put(10, "匈牙利"); COUNTRY_MAP.put(11, "爱尔兰"); COUNTRY_MAP.put(12, "墨西哥");
+        COUNTRY_MAP.put(13, "蒙古"); COUNTRY_MAP.put(14, "纳米比亚"); COUNTRY_MAP.put(15, "新西兰");
+        COUNTRY_MAP.put(16, "南非"); COUNTRY_MAP.put(17, "塞尔维亚"); COUNTRY_MAP.put(18, "乌拉圭");
+        COUNTRY_MAP.put(19, "美国"); COUNTRY_MAP.put(20, "哈萨克斯坦"); COUNTRY_MAP.put(21, "奥地利");
+        COUNTRY_MAP.put(22, "比利时"); COUNTRY_MAP.put(23, "丹麦"); COUNTRY_MAP.put(24, "英国");
+        COUNTRY_MAP.put(25, "芬兰"); COUNTRY_MAP.put(26, "德国"); COUNTRY_MAP.put(27, "意大利");
+        COUNTRY_MAP.put(28, "荷兰"); COUNTRY_MAP.put(29, "波兰"); COUNTRY_MAP.put(30, "罗马尼亚");
+        COUNTRY_MAP.put(31, "西班牙"); COUNTRY_MAP.put(32, "韩国"); COUNTRY_MAP.put(33, "泰国");
+        COUNTRY_MAP.put(34, "俄罗斯"); COUNTRY_MAP.put(35, "玻利维亚"); COUNTRY_MAP.put(36, "立陶宛");
+        COUNTRY_MAP.put(37, "乌克兰"); COUNTRY_MAP.put(38, "巴拿马"); COUNTRY_MAP.put(39, "葡萄牙");
+        COUNTRY_MAP.put(40, "拉脱维亚"); COUNTRY_MAP.put(41, "冰岛"); COUNTRY_MAP.put(42, "瑞士");
+        COUNTRY_MAP.put(43, "新加坡"); COUNTRY_MAP.put(44, "日本"); COUNTRY_MAP.put(45, "土耳其");
+        COUNTRY_MAP.put(46, "秘鲁"); COUNTRY_MAP.put(47, "挪威"); COUNTRY_MAP.put(48, "格陵兰岛");
+        COUNTRY_MAP.put(49, "哥伦比亚"); COUNTRY_MAP.put(50, "巴拉圭");
+        COUNTRY_MAP.put(51, "哥伦比亚"); COUNTRY_MAP.put(52, "危地马拉");
+    }
+
+    // 上次同步时间（内存存储，生产环境建议持久化到数据库或配置中心）
+    private volatile LocalDateTime lastSyncTime;
+
+    public DataSyncService(SocialOnlineBusinessMapper sourceMapper,
+                           BizOfferMapper targetMapper,
+                           SysDictMapper sysDictMapper,
+                           SocialOnlineBusinessContentMapper contentMapper,
+                           SocialStandardGoodsNameMapper goodsNameMapper,
+                           DictMerchantMapper merchantMapper,
+                           DictFactoryMapper factoryMapper,
+                           DictProductMapper productMapper,
+                           DictBrandMapper brandMapper,
+                           @Qualifier("pgJdbcTemplate") JdbcTemplate pgJdbcTemplate) {
+        this.sourceMapper = sourceMapper;
+        this.targetMapper = targetMapper;
+        this.sysDictMapper = sysDictMapper;
+        this.contentMapper = contentMapper;
+        this.goodsNameMapper = goodsNameMapper;
+        this.merchantMapper = merchantMapper;
+        this.factoryMapper = factoryMapper;
+        this.productMapper = productMapper;
+        this.brandMapper = brandMapper;
+        this.pgJdbcTemplate = pgJdbcTemplate;
+    }
+
+    /**
+     * 同步类型枚举
+     */
+    public enum SyncType {
+        INITIAL,   // 首次同步（最近2天）
+        INCREMENT  // 增量同步
+    }
+
+    /**
+     * 执行同步（防止并发重复执行）
+     */
+    public synchronized int sync() {
+        System.out.println("[DataSyncService] 开始执行增量同步...");
+
+        // 1. 获取源数据（基于 update_time 增量查询）
+        LocalDateTime startTime = (lastSyncTime != null) ? lastSyncTime : LocalDateTime.now().minusDays(2);
+        return doSync(startTime);
+    }
+
+    /**
+     * 强制全量同步（最近2天数据）
+     */
+    public synchronized int syncFull() {
+        System.out.println("[DataSyncService] 开始执行全量同步（最近2天）...");
+        lastSyncTime = null; // 重置同步时间，强制全量
+        LocalDateTime startTime = LocalDateTime.now().minusDays(2);
+        return doSync(startTime);
+    }
+
+    /**
+     * 实际执行同步
+     */
+    private int doSync(LocalDateTime startTime) {
+        List<SocialOnlineBusiness> sourceData = sourceMapper.selectIncrementData(startTime);
+        System.out.println("[DataSyncService] 查询起始时间: " + startTime + "，待同步数据: " + sourceData.size() + " 条");
+
+        if (sourceData == null || sourceData.isEmpty()) {
+            System.out.println("[DataSyncService] 没有需要同步的数据");
+            return 0;
+        }
+
+        // 2. 批量查询关联数据（减少数据库查询次数）
+        Map<Long, String> contentMap = batchGetContent(sourceData);
+        Map<Long, String> goodsNameMap = batchGetGoodsName(sourceData);
+        Map<String, String> dictValueMap = batchGetDictValues(sourceData);
+        Map<String, Long> merchantMap = batchGetMerchants(sourceData);
+        Map<String, Long> factoryIdMap = batchGetFactoryIds(sourceData);
+        Map<String, Integer> productIdMap = batchGetProductIds(sourceData);
+        Map<Long, Integer> brandIdMap = batchGetBrandIds(sourceData);
+
+        // 3. 转换为目标实体并插入
+        int successCount = 0;
+        int failCount = 0;
+
+        int total = sourceData.size();
+        for (int i = 0; i < sourceData.size(); i++) {
+            SocialOnlineBusiness src = sourceData.get(i);
+            try {
+                BizOffer target = convertToBizOffer(src, contentMap, goodsNameMap, dictValueMap, merchantMap, factoryIdMap, productIdMap, brandIdMap);
+                targetMapper.upsert(target);
+                successCount++;
+                if ((i + 1) % 5000 == 0) {
+                    System.out.println("[DataSyncService] 进度: " + (i + 1) + "/" + total);
+                }
+            } catch (Exception e) {
+                System.err.println("[DataSyncService] 同步失败, id=" + src.getId() + ", error=" + e.getMessage());
+                e.printStackTrace();
+                failCount++;
+            }
+        }
+
+        // 4. 更新上次同步时间
+        lastSyncTime = LocalDateTime.now();
+
+        System.out.println("[DataSyncService] 同步完成: 成功=" + successCount + ", 失败=" + failCount);
+        return successCount;
+    }
+
+    /**
+     * 批量获取原文内容
+     */
+    private Map<Long, String> batchGetContent(List<SocialOnlineBusiness> sourceData) {
+        List<Long> contentIds = sourceData.stream()
+                .map(SocialOnlineBusiness::getOnlineBusinessContentId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (contentIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return contentMapper.selectByIds(contentIds).stream()
+                .collect(Collectors.toMap(SocialOnlineBusinessContent::getId, SocialOnlineBusinessContent::getContent));
+    }
+
+    /**
+     * 批量获取标准产品名称
+     */
+    private Map<Long, String> batchGetGoodsName(List<SocialOnlineBusiness> sourceData) {
+        List<Long> goodsIds = sourceData.stream()
+                .map(SocialOnlineBusiness::getStandardGoodsNameId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (goodsIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return goodsNameMapper.selectByIds(goodsIds).stream()
+                .collect(Collectors.toMap(SocialStandardGoodsName::getId, SocialStandardGoodsName::getStandardGoodsName));
+    }
+
+    /**
+     * 批量获取字典值
+     */
+    private Map<String, String> batchGetDictValues(List<SocialOnlineBusiness> sourceData) {
+        Map<String, String> result = new HashMap<>();
+
+        // 预加载所有需要的字典
+        String[] dictNames = {"ggoods_country", "weight_unit", "business_category", "lean_ratio"};
+        for (String dictName : dictNames) {
+            List<SysDict> dicts = sysDictMapper.selectByDictNameEn(dictName);
+            for (SysDict dict : dicts) {
+                result.put(dictName + "_" + dict.getDictKey(), dict.getDictValue());
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 批量获取商家信息（优化版：单次SQL IN查询）
+     */
+    private Map<String, Long> batchGetMerchants(List<SocialOnlineBusiness> sourceData) {
+        Map<String, Long> result = new HashMap<>();
+
+        // 获取所有需要关联的电话号码
+        List<String> phoneNos = sourceData.stream()
+                .map(SocialOnlineBusiness::getPhoneNo)
+                .filter(Objects::nonNull)
+                .filter(p -> !p.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (phoneNos.isEmpty()) {
+            return result;
+        }
+
+        // 批量查询（单次SQL）
+        List<DictMerchant> merchants = merchantMapper.selectByPhones(phoneNos);
+        for (DictMerchant merchant : merchants) {
+            if (merchant.getContactPhone() != null) {
+                result.put(merchant.getContactPhone(), merchant.getMerchantId());
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 批量获取厂号ID（通过factory_no直接查询）
+     */
+    private Map<String, Long> batchGetFactoryIds(List<SocialOnlineBusiness> sourceData) {
+        Map<String, Long> result = new HashMap<>();
+
+        // 收集所有不重复的factory_no
+        List<String> factoryNos = sourceData.stream()
+                .map(SocialOnlineBusiness::getPlantNo)
+                .filter(Objects::nonNull)
+                .filter(p -> !p.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (factoryNos.isEmpty()) {
+            return result;
+        }
+
+        // 直接用factory_no查询dict_factory表
+        for (String factoryNo : factoryNos) {
+            try {
+                // 使用精确匹配（忽略空格）
+                List<DictFactory> factories = factoryMapper.selectByFactoryNo(factoryNo);
+                if (factories != null && !factories.isEmpty()) {
+                    result.put(factoryNo, factories.get(0).getFactoryId().longValue());
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 批量获取产品ID（通过product_name查询）
+     */
+    private Map<String, Integer> batchGetProductIds(List<SocialOnlineBusiness> sourceData) {
+        Map<String, Integer> result = new HashMap<>();
+
+        // 收集所有不重复的产品名称
+        List<String> productNames = sourceData.stream()
+                .map(SocialOnlineBusiness::getGoodsName)
+                .filter(Objects::nonNull)
+                .filter(p -> !p.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (productNames.isEmpty()) {
+            return result;
+        }
+
+        // 直接用product_name查询dict_product表
+        for (String productName : productNames) {
+            try {
+                DictProduct product = productMapper.selectByProductName(productName);
+                if (product != null) {
+                    result.put(productName, product.getProductId());
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 批量获取品牌ID（通过factory_id查询）
+     */
+    private Map<Long, Integer> batchGetBrandIds(List<SocialOnlineBusiness> sourceData) {
+        Map<Long, Integer> result = new HashMap<>();
+
+        // 收集所有不重复的factory_id（用于兼容原有调用方）
+        List<Long> factoryIds = sourceData.stream()
+                .map(src -> {
+                    String factoryNo = src.getPlantNo();
+                    if (factoryNo == null || factoryNo.isEmpty()) return null;
+                    // 通过factory_no查找factory_id
+                    var factories = factoryMapper.selectByFactoryNo(factoryNo);
+                    if (factories != null && !factories.isEmpty()) {
+                        return factories.get(0).getFactoryId().longValue();
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (factoryIds.isEmpty()) {
+            return result;
+        }
+
+        // 通过factory_id查询dict_brand表（此路可能因 factory_id 不一致而查不到，改用 factory_no 直查兜底）
+        for (Long factoryId : factoryIds) {
+            try {
+                List<DictBrand> brands = brandMapper.selectByFactoryId(factoryId.intValue());
+                if (brands != null && !brands.isEmpty()) {
+                    result.put(factoryId, brands.get(0).getBrandId());
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        System.out.println("[DataSyncService] 品牌ID获取完成（按factoryId）: " + result.size() + " 个");
+
+        // 兜底：用 factory_no 直查 dict_brand，补充 result 中缺失的 brandId
+        // 场景：factory_no 对应的 factory_id 在 dict_brand 中关联了不同的 brand
+        Map<String, Integer> factoryNoBrandMap = new HashMap<>();
+        for (SocialOnlineBusiness src : sourceData) {
+            String factoryNo = src.getPlantNo();
+            String category = convertCategory(src.getGoodsCategory());
+            if (factoryNo == null || factoryNo.isEmpty() || category == null) continue;
+            if (factoryNoBrandMap.containsKey(factoryNo + "_" + category)) continue;
+
+            // 用 factory_no + category 直接查 dict_brand
+            try {
+                List<DictBrand> brands = brandMapper.selectByFactoryNoAndCategory(factoryNo, category);
+                if (brands != null && !brands.isEmpty()) {
+                    factoryNoBrandMap.put(factoryNo + "_" + category, brands.get(0).getBrandId());
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        // 将 factoryNoBrandMap 合并到 result（factoryNo → factoryId → brandId 链补充）
+        for (SocialOnlineBusiness src : sourceData) {
+            String factoryNo = src.getPlantNo();
+            String category = convertCategory(src.getGoodsCategory());
+            if (factoryNo == null || factoryNo.isEmpty() || category == null) continue;
+            Integer brandId = factoryNoBrandMap.get(factoryNo + "_" + category);
+            if (brandId != null) {
+                var factories = factoryMapper.selectByFactoryNo(factoryNo);
+                if (factories != null && !factories.isEmpty()) {
+                    Long factoryId = factories.get(0).getFactoryId().longValue();
+                    result.putIfAbsent(factoryId, brandId);
+                }
+            }
+        }
+
+        System.out.println("[DataSyncService] 品牌ID获取完成（总计）: " + result.size() + " 个");
+        return result;
+    }
+
+    /**
+     * 修复 biz_offer 中 brand_id 为 NULL 的记录
+     * 通过 factory_no + category 直连 dict_brand 补全 brand_id
+     */
+    public int repairNullBrandId() {
+        System.out.println("[DataSyncService] 开始修复 biz_offer 中 brand_id 为 NULL 的记录...");
+
+        // 直接用 UPDATE + JOIN，一次性修复所有记录
+        String sql = """
+            UPDATE biz_offer AS bo
+            SET brand_id = db.brand_id
+            FROM dict_brand AS db
+            WHERE bo.status = 'ACTIVE'
+              AND bo.brand_id IS NULL
+              AND bo.factory_no IS NOT NULL
+              AND bo.factory_no != ''
+              AND REPLACE(bo.factory_no, ' ', '') = REPLACE(db.factory_no, ' ', '')
+              AND bo.category = db.category
+            """;
+
+        int updated = pgJdbcTemplate.update(sql);
+        System.out.println("[DataSyncService] 修复完成: 共修复 " + updated + " 条");
+        return updated;
+    }
+
+    /**
+     * 转换为目标实体
+     */
+    private BizOffer convertToBizOffer(SocialOnlineBusiness src,
+                                        Map<Long, String> contentMap,
+                                        Map<Long, String> goodsNameMap,
+                                        Map<String, String> dictValueMap,
+                                        Map<String, Long> merchantMap,
+                                        Map<String, Long> factoryIdMap,
+                                        Map<String, Integer> productIdMap,
+                                        Map<Long, Integer> brandIdMap) {
+        BizOffer target = new BizOffer();
+
+        // offer_original_text: 通过 online_business_content_id 关联
+        if (src.getOnlineBusinessContentId() != null) {
+            target.setOfferOriginalText(contentMap.get(src.getOnlineBusinessContentId()));
+        }
+
+        // category: 1=牛, 2=羊, 3=猪, 4=禽, 5=水产
+        target.setCategory(convertCategory(src.getGoodsCategory()));
+
+        // product_name（使用源数据的goodsName）
+        target.setProductName(src.getGoodsName());
+
+        // product_id: 通过 goodsName 查询 dict_product 表获取
+        if (src.getGoodsName() != null && !src.getGoodsName().isEmpty()) {
+            target.setProductId(productIdMap.get(src.getGoodsName()));
+        }
+
+        // country: 通过国家编码映射（包括哥伦比亚49等）
+        target.setCountry(COUNTRY_MAP.get(src.getCountry()));
+
+        // factory_no
+        target.setFactoryNo(src.getPlantNo());
+
+        // factory_id: 通过 factory_no 直接查询 dict_factory 表
+        if (src.getPlantNo() != null && !src.getPlantNo().isEmpty()) {
+            target.setFactoryId(factoryIdMap.get(src.getPlantNo()));
+        }
+
+        // brand_id: 通过 factory_id 查询 dict_brand 表获取
+        Long factoryId = factoryIdMap.get(src.getPlantNo());
+        if (factoryId != null) {
+            target.setBrandId(brandIdMap.get(factoryId));
+        }
+
+        // merchant_id: 通过 phone_no 关联 dict_merchant
+        if (src.getPhoneNo() != null && !src.getPhoneNo().isEmpty()) {
+            target.setMerchantId(merchantMap.get(src.getPhoneNo()));
+        }
+
+        // contact_phone
+        target.setContactPhone(src.getPhoneNo());
+
+        // user_id
+        target.setUserId(src.getUserId());
+
+        // user_nickname
+        target.setUserNickname(src.getUserName());
+
+        // price
+        target.setPrice(src.getAmount());
+
+        // weight: weight + weight_unit
+        String weight = "";
+        if (src.getWeight() != null) {
+            weight = src.getWeight().toString();
+            if (src.getWeightUnit() != null) {
+                String unit = dictValueMap.get("weight_unit_" + src.getWeightUnit());
+                if (unit != null) {
+                    weight += " " + unit;
+                }
+            }
+        }
+        target.setWeight(weight);
+
+        // offer_type: 0=求购, 1=报盘
+        target.setOfferType(src.getIsOffer() != null ?
+                (src.getIsOffer() == 0 ? "求购" : "报盘") : null);
+
+        // goods_type
+        target.setGoodsType(dictValueMap.get("business_category_" + src.getBusinessCategory()));
+
+        // goods_location
+        target.setGoodsLocation((src.getAddressProvince() != null ? src.getAddressProvince() : "") +
+                (src.getAddressCity() != null ? src.getAddressCity() : ""));
+
+        // fat_ratio
+        target.setFatRatio(dictValueMap.get("lean_ratio_" + src.getLeanRatio()));
+
+        // feeding_type
+        target.setFeedingType(src.getStandard());
+
+        // cattle_breed
+        target.setCattleBreed(src.getStandardTwo());
+
+        // remark
+        target.setRemark(src.getMemo());
+
+        // publish_time
+        target.setPublishTime(src.getOfferDate());
+
+        // data_date
+        target.setDataDate(src.getOfferDate() != null ? src.getOfferDate().toLocalDate() : LocalDate.now());
+
+        // status: 1=已过期, 3=ACTIVE
+        target.setStatus(src.getStatus() != null ?
+                (src.getStatus() == 1 ? "已过期" : "ACTIVE") : "ACTIVE");
+
+        // create_time
+        target.setCreateTime(src.getCreatedTime() != null ? src.getCreatedTime() : LocalDateTime.now());
+
+        return target;
+    }
+
+    /**
+     * 转换品类
+     */
+    private String convertCategory(Integer goodsCategory) {
+        if (goodsCategory == null) return null;
+        switch (goodsCategory) {
+            case 1: return "牛";
+            case 2: return "羊";
+            case 3: return "猪";
+            case 4: return "禽";
+            case 5: return "水产";
+            default: return null;
+        }
+    }
+
+    /**
+     * 获取上次同步时间
+     */
+    public LocalDateTime getLastSyncTime() {
+        return lastSyncTime;
+    }
+
+    /**
+     * 修复 biz_offer 表中 country 为 null 的数据
+     * 通过 factory_no + category 关联 dict_factory 回填国家名称
+     * 哥伦比亚等国家编码原来在 COUNTRY_MAP 中缺失，导致 country 为 null
+     * 由于唯一约束包含 country，先删冲突行再更新
+     */
+    public int fixColombiaCountry() {
+        // 先删掉 country 为 null 且会产生冲突的重复行（保留 country 非 null 的那条）
+        String deleteSql = """
+            DELETE FROM biz_offer o
+            WHERE o.country IS NULL
+            AND EXISTS (
+                SELECT 1 FROM biz_offer o2
+                WHERE o2.factory_no = o.factory_no
+                AND o2.product_name = o.product_name
+                AND o2.user_nickname = o.user_nickname
+                AND o2.offer_type = o.offer_type
+                AND o2.feeding_type IS NOT DISTINCT FROM o.feeding_type
+                AND o2.fat_ratio IS NOT DISTINCT FROM o.fat_ratio
+                AND o2.country IS NOT NULL
+            )
+            """;
+        int deleted = pgJdbcTemplate.update(deleteSql);
+
+        // 再更新剩余 country 为 null 的行
+        String updateSql = """
+            UPDATE biz_offer o
+            SET country = d.country
+            FROM dict_factory d
+            WHERE o.factory_no = d.factory_no
+            AND o.category = d.category
+            AND o.country IS NULL
+            AND d.country IS NOT NULL
+            """;
+        int updated = pgJdbcTemplate.update(updateSql);
+        return deleted + updated;
+    }
+
+    /**
+     * 清空 dict_factory 表（删除错误同步的数字国家数据）
+     */
+    public void truncateDictFactory() {
+        pgJdbcTemplate.execute("TRUNCATE TABLE dict_factory RESTART IDENTITY CASCADE");
+    }
+}

@@ -1,0 +1,76 @@
+package com.mooket.social.config;
+
+import com.mooket.social.entity.DictProduct;
+import com.mooket.social.mapper.DictProductMapper;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+// 暂时禁用测试数据初始化器（改用 MySQL 同步）
+// @Component
+public class DataInitializer implements CommandLineRunner {
+
+    private final DictProductMapper productMapper;
+
+    public DataInitializer(DictProductMapper productMapper) {
+        this.productMapper = productMapper;
+    }
+
+    @Override
+    public void run(String... args) {
+        // 检查是否已有数据
+        if (productMapper.selectCount(null) > 0) {
+            System.out.println("dict_product already has data, skipping initialization");
+            return;
+        }
+
+        System.out.println("Initializing test product data...");
+
+        // 牛肉产品
+        String[][] beefProducts = {
+            {"牛腩", "牛排骨肉,牛腹肉"},
+            {"牛霖", "和尚头,大米龙"},
+            {"牛腱", "牛腿肉,牛腩子"},
+            {"牛里脊", "牛柳,菲力"},
+            {"牛眼肉", "眼肉"},
+            {"牛上脑", "上脑"},
+            {"牛肩肉", "肩肉"},
+            {"牛胸肉", "胸肉"},
+            {"牛臀肉", "臀肉"},
+            {"牛碎肉", "碎肉,肉糜"}
+        };
+
+        for (String[] product : beefProducts) {
+            DictProduct p = new DictProduct();
+            p.setCategory("牛");
+            p.setProductName(product[0]);
+            p.setAliasList(product[1]);
+            p.setCreateTime(java.time.LocalDateTime.now());
+            productMapper.insert(p);
+        }
+
+        // 猪肉产品
+        String[][] porkProducts = {
+            {"猪腩肉", "五花肉,猪腹肉"},
+            {"猪里脊", "瘦肉,大里脊"},
+            {"猪腿肉", "后腿肉"},
+            {"猪肩肉", "前腿肉,梅花肉"},
+            {"猪排骨", "肋排"},
+            {"猪蹄", "猪脚"},
+            {"猪耳", "猪耳朵"},
+            {"猪舌", "猪口条"},
+            {"猪心", "猪心脏"},
+            {"猪肝", "猪肝脏"}
+        };
+
+        for (String[] product : porkProducts) {
+            DictProduct p = new DictProduct();
+            p.setCategory("猪");
+            p.setProductName(product[0]);
+            p.setAliasList(product[1]);
+            p.setCreateTime(java.time.LocalDateTime.now());
+            productMapper.insert(p);
+        }
+
+        System.out.println("Test product data initialized: " + (beefProducts.length + porkProducts.length) + " products");
+    }
+}
