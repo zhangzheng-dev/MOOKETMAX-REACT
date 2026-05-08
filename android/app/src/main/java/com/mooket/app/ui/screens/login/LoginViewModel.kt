@@ -96,8 +96,10 @@ class LoginViewModel : ViewModel() {
                 val response = apiService.login(LoginRequest(cachedPhone, code))
                 if (response.code == 200 && response.data != null) {
                     cachedToken = response.data.token
-                    if (response.data.isNewUser) {
-                        // 首次登录，跳转到注册页面
+                    val nickname = response.data.nickname
+                    val needsProfile = nickname.isNullOrBlank()
+                    if (needsProfile) {
+                        // 昵称为空=未完善资料，跳转到注册页面
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
                             screen = LoginScreen.Register,
@@ -105,7 +107,7 @@ class LoginViewModel : ViewModel() {
                             isNewUser = true
                         )
                     } else {
-                        // 已注册用户，跳转首页
+                        // 资料完整，跳转首页
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
                             screen = LoginScreen.Home,

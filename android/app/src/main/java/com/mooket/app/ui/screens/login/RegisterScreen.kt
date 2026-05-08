@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -47,24 +48,26 @@ fun RegisterScreen(
             .fillMaxSize()
             .background(Color(0xFFF6FFFB))
     ) {
+        // 顶部装饰圆 - 改为绝对定位，不影响布局
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 60.dp, y = (-30).dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_ellipse426),
+                contentDescription = null,
+                modifier = Modifier.size(200.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 30.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            // 顶部装饰圆
-            Box(
-                modifier = Modifier
-                    .offset(x = 201.dp, y = (-111).dp)
-                    .size(332.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_ellipse426),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
             // 返回按钮
             Row(
                 modifier = Modifier
@@ -81,28 +84,26 @@ fun RegisterScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(58.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             // 标题
             Column {
-                Column {
-                    Text(
-                        text = "为了更好地向您提供",
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = buildAnnotatedString {
-                            withStyle(SpanStyle(color = Primary)) { append("数据") }
-                            append("与")
-                            withStyle(SpanStyle(color = Primary)) { append("服务") }
-                        },
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    )
-                }
+                Text(
+                    text = "为了更好地向您提供",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = Primary)) { append("数据") }
+                        append("与")
+                        withStyle(SpanStyle(color = Primary)) { append("服务") }
+                    },
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -134,7 +135,7 @@ fun RegisterScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             // 昵称输入
             Column {
@@ -150,7 +151,7 @@ fun RegisterScreen(
                         .fillMaxWidth()
                         .background(Color.White, RoundedCornerShape(2.dp))
                         .border(1.dp, Color(0x26006A61), RoundedCornerShape(2.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     androidx.compose.foundation.text.BasicTextField(
                         value = nickname,
@@ -182,7 +183,7 @@ fun RegisterScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             // 行业身份
             Column {
@@ -197,7 +198,7 @@ fun RegisterScreen(
                 // 第一行
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IdentityChip(
                         text = "海外供应商",
@@ -219,12 +220,12 @@ fun RegisterScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // 第二行
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IdentityChip(
                         text = "加工厂/商场",
@@ -252,16 +253,24 @@ fun RegisterScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            // 底部留白，确保内容不被按钮遮挡
+            Spacer(modifier = Modifier.height(100.dp))
+        }
 
-            // 确认按钮
+        // 固定在底部的确认按钮
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color(0xFFF6FFFB))
+                .padding(horizontal = 30.dp, vertical = 16.dp)
+        ) {
             Button(
                 onClick = onConfirm,
                 enabled = nickname.length >= 2 && selectedTags.isNotEmpty() && !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
-                    .padding(bottom = 32.dp),
+                    .height(44.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Primary,
                     disabledContainerColor = Color(0x66006A61)
@@ -307,12 +316,12 @@ private fun IdentityChip(
                 shape = RoundedCornerShape(2.dp)
             )
             .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             color = if (selected) Primary else Color(0xFF3C4947)
         )
     }
