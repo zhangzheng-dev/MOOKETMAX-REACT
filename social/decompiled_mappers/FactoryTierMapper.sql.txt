@@ -1,0 +1,2 @@
+SELECT factory_no FROM factory_tier WHERE category = #{category} AND product_name = #{productName} AND tier = #{tier}
+SELECT tier FROM factory_tier WHERE category = #{category} AND product_name = #{productName} AND factory_no = #{factoryNo} LIMIT 1

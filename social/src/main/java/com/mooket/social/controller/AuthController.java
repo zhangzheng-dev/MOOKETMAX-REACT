@@ -48,9 +48,8 @@ public class AuthController {
             return ApiResponse.error(400, "请稍后再试");
         }
 
-        // 生成6位验证码（基于时间的简单验证码，便于测试）
-        long counter = codeCounter.incrementAndGet();
-        String code = String.format("%06d", counter % 1000000 + random.nextInt(100000));
+        // 写死验证码888888，方便测试
+        String code = "888888";
 
         // 存储验证码（15分钟有效期）
         smsCodeStore.put(phone, code);

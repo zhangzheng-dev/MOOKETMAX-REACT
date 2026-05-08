@@ -1,0 +1,7 @@
+SELECT * FROM dict_factory WHERE category = #{category}
+SELECT * FROM dict_factory WHERE brand_id = #{brandId}
+SELECT * FROM dict_factory WHERE category = #{category} AND (REPLACE(factory_no, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{keyword}, \' \', \'\'), \'%\') OR REPLACE(country, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{keyword}, \' \', \'\'), \'%\'))
+SELECT * FROM dict_factory WHERE category = #{category} AND REPLACE(country, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{country}, \' \', \'\'), \'%\')
+SELECT * FROM dict_factory WHERE category = #{category} AND REPLACE(factory_no, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{factoryNo}, \' \', \'\'), \'%\')
+SELECT * FROM dict_factory WHERE REPLACE(factory_no, \' \', \'\') = REPLACE(#{factoryNo}, \' \', \'\')
+SELECT * FROM dict_factory WHERE category = #{category} AND REPLACE(country, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{country}, \' \', \'\'), \'%\') AND REPLACE(factory_no, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{factoryNo}, \' \', \'\'), \'%\')

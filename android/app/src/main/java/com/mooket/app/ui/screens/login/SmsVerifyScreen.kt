@@ -10,10 +10,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +39,7 @@ fun SmsVerifyScreen(
     onClearError: () -> Unit
 ) {
     var code by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
 
     Box(
         modifier = Modifier
@@ -106,53 +109,65 @@ fun SmsVerifyScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // 验证码输入框（4格）
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            // 验证码6格 — 点击任意区域触发输入
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { focusRequester.requestFocus() }
             ) {
-                repeat(4) { index ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                            .clip(RoundedCornerShape(0.dp))
-                            .border(
-                                width = if (index == code.length) 2.dp else 1.dp,
-                                color = if (index == code.length) Primary else Color(0xFFF5F5F5),
-                                shape = RoundedCornerShape(0.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        BasicTextField(
-                            value = if (index < code.length) code[index].toString() else "",
-                            onValueChange = { newChar ->
-                                if (newChar.length == 1 && newChar.all { it.isDigit() }) {
-                                    val newCode = code + newChar
-                                    code = newCode
-                                    onClearError()
-                                    if (newCode.length == 4) {
-                                        onVerify(newCode)
-                                    }
-                                } else if (newChar.isEmpty() && code.isNotEmpty()) {
-                                    code = code.dropLast(1)
-                                }
-                            },
-                            textStyle = TextStyle(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    repeat(6) { index ->
+                        val isFocused = code.length == index
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(0.dp))
+                                .border(
+                                    width = if (isFocused) 2.dp else 1.dp,
+                                    color = if (isFocused) Primary else Color(0xFFF5F5F5),
+                                    shape = RoundedCornerShape(0.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (index < code.length) code[index].toString() else "",
                                 fontSize = 40.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = TextPrimary,
                                 textAlign = TextAlign.Center
-                            ),
-                            cursorBrush = SolidColor(Primary),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.fillMaxSize(),
-                            decorationBox = {}
-                        )
+                            )
+                        }
                     }
                 }
+
+                // 透明的TextField覆盖在格子上，接收所有输入
+                BasicTextField(
+                    value = code,
+                    onValueChange = { newValue ->
+                        if (newValue.length <= 6 && newValue.all { it.isDigit() }) {
+                            val oldLen = code.length
+                            code = newValue
+                            onClearError()
+                            if (newValue.length == 6 && oldLen < 6) {
+                                onVerify(newValue)
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .focusRequester(focusRequester),
+                    cursorBrush = SolidColor(Color.Transparent),
+                    decorationBox = {}
+                )
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 错误提示
             error?.let {
@@ -174,8 +189,8 @@ fun SmsVerifyScreen(
 
             // 确认按钮
             Button(
-                onClick = { onVerify(code) },
-                enabled = code.length == 4 && !isLoading,
+                onClick = { if (code.length == 6) onVerify(code) },
+                enabled = code.length == 6 && !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(44.dp),

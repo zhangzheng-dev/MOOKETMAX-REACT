@@ -1,0 +1,9 @@
+SELECT * FROM biz_search_history WHERE user_id = #{userId} AND is_self_select = 0 ORDER BY create_time DESC LIMIT #{limit}
+SELECT * FROM biz_search_history WHERE user_id = #{userId} AND is_self_select = 1 ORDER BY create_time DESC LIMIT #{limit}
+SELECT history_id FROM biz_search_history WHERE user_id = #{userId} AND search_word = #{searchWord} AND search_type = #{searchType} LIMIT 1
+UPDATE biz_search_history SET create_time = CURRENT_TIMESTAMP WHERE history_id = #{historyId}
+DELETE FROM biz_search_history WHERE history_id = #{historyId}
+DELETE FROM biz_search_history WHERE user_id = #{userId} AND is_self_select = 1
+<script>DELETE FROM biz_search_history WHERE history_id IN <foreach collection=\'ids\' item=\'id\' open=\'(\' separator=\',\' close=\')\'>#{id}</foreach></script>
+INSERT INTO biz_search_history (user_id, search_word, search_type, is_self_select, create_time) VALUES (#{userId}, #{searchWord}, #{searchType}, #{isSelfSelect}, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING
+INSERT INTO biz_search_history (user_id, search_word, search_type, is_self_select, create_time) VALUES (#{userId}, #{searchWord}, #{searchType}, #{isSelfSelect}, CURRENT_TIMESTAMP)

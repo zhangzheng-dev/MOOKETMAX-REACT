@@ -1,0 +1,5 @@
+SELECT * FROM dict_brand WHERE REPLACE(brand_name, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{keyword}, \' \', \'\'), \'%\') OR REPLACE(alias_list, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{keyword}, \' \', \'\'), \'%\')
+SELECT * FROM dict_brand
+SELECT * FROM dict_brand WHERE factory_id = #{factoryId}
+SELECT * FROM dict_brand WHERE REPLACE(brand_name, \' \', \'\') = REPLACE(#{brandName}, \' \', \'\') LIMIT 1
+SELECT * FROM dict_brand WHERE REPLACE(factory_no, \' \', \'\') = REPLACE(#{factoryNo}, \' \', \'\')

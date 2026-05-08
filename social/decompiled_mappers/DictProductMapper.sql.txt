@@ -1,0 +1,5 @@
+SELECT * FROM dict_product WHERE REPLACE(product_name, \' \', \'\') = REPLACE(#{productName}, \' \', \'\')
+SELECT * FROM dict_product WHERE category = #{category}
+SELECT * FROM dict_product
+SELECT * FROM dict_product WHERE category = #{category} AND (REPLACE(product_name, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{keyword}, \' \', \'\'), \'%\') OR REPLACE(alias_list, \' \', \'\') LIKE CONCAT(\'%\', REPLACE(#{keyword}, \' \', \'\'), \'%\'))
+SELECT * FROM dict_product WHERE category = #{category} AND product_name = #{productName}
