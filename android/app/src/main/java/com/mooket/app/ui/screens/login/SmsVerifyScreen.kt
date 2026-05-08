@@ -124,7 +124,8 @@ fun SmsVerifyScreen(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     repeat(6) { index ->
                         val isFocused = code.length == index
@@ -148,6 +149,19 @@ fun SmsVerifyScreen(
                                 textAlign = TextAlign.Center
                             )
                         }
+                    }
+                    // 删除按钮 - 有数字时显示
+                    if (code.isNotEmpty()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_delete_input),
+                            contentDescription = "清除",
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable {
+                                    code = ""
+                                    onClearError()
+                                }
+                        )
                     }
                 }
 

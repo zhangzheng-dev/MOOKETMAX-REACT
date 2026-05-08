@@ -81,7 +81,7 @@ fun PhoneInputScreen(
 
             // 手机号输入 - 往上移，减少空白
             Column(
-                modifier = Modifier.padding(top = 60.dp)
+                modifier = Modifier.padding(top = 30.dp)
             ) {
                 Text(
                     text = "手机号",
@@ -118,6 +118,20 @@ fun PhoneInputScreen(
                             }
                         }
                     )
+                    // 删除按钮 - 有数字时显示
+                    if (phone.isNotEmpty()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_delete_input),
+                            contentDescription = "清除",
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .size(24.dp)
+                                .clickable {
+                                    phone = ""
+                                    onClearError()
+                                }
+                        )
+                    }
                     // 下划线
                     Divider(
                         modifier = Modifier
