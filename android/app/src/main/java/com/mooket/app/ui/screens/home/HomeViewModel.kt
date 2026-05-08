@@ -30,6 +30,9 @@ class HomeViewModel : ViewModel() {
      */
     fun loadData() {
         val category = _uiState.value.selectedCategory
+        // 重置 tab 自动切换标记（换品类时重新判断）
+        _uiState.value = _uiState.value.copy(tabsInitialized = false, tabsPendingCount = 2)
+
         loadHotSearch(category)
         loadHomeStat(category)
         loadRecentSearchCards(category)
@@ -49,7 +52,7 @@ class HomeViewModel : ViewModel() {
      * 状态提升到 ViewModel，导航返回后不丢失
      */
     fun selectTab(tab: Int) {
-        _uiState.value = _uiState.value.copy(selectedTab = tab)
+        _uiState.value = _uiState.value.copy(selectedTab = tab, tabsInitialized = true)
     }
 
     /**
@@ -103,6 +106,7 @@ class HomeViewModel : ViewModel() {
                 .onFailure {
                     _uiState.value = _uiState.value.copy(recentSearchCards = emptyList())
                 }
+            tabsLoadDone()
         }
     }
 
@@ -118,6 +122,22 @@ class HomeViewModel : ViewModel() {
                 .onFailure {
                     _uiState.value = _uiState.value.copy(selfSelectCards = emptyList())
                 }
+            tabsLoadDone()
+        }
+    }
+
+    /**
+     * 两个 tab 数据请求都完成后的自动 tab 切换逻辑
+     */
+    private fun tabsLoadDone() {
+        val remaining = _uiState.value.tabsPendingCount - 1
+        _uiState.value = _uiState.value.copy(tabsPendingCount = remaining)
+        if (remaining == 0 && !_uiState.value.tabsInitialized) {
+            // 自选数据为空 → 自动切到历史搜索 tab
+            if (_uiState.value.selfSelectCards.isEmpty()) {
+                _uiState.value = _uiState.value.copy(selectedTab = 1)
+            }
+            _uiState.value = _uiState.value.copy(tabsInitialized = true)
         }
     }
 
@@ -215,5 +235,7 @@ data class HomeUiState(
     val hotSearchItems: List<HotSearchItem> = emptyList(),
     val homeStatData: HomeStatData? = null,
     val recentSearchCards: List<HomeCardItem> = emptyList(),
-    val selfSelectCards: List<HomeCardItem> = emptyList()
+    val selfSelectCards: List<HomeCardItem> = emptyList(),
+    val tabsInitialized: Boolean = false, // 首次加载时自动选tab
+    val tabsPendingCount: Int = 0 // 待完成的tab数据请求计数
 )

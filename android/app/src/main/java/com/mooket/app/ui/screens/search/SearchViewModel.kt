@@ -36,8 +36,18 @@ class SearchViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun loadSearchHistory() {
-        val history = prefs.getStringSet("history", emptySet())?.toList() ?: emptyList()
-        _uiState.update { it.copy(searchHistory = history.take(10)) }
+        viewModelScope.launch {
+            repository.getRecentSearches(limit = 20)
+                .onSuccess { histories ->
+                    val words = histories.map { it.searchWord }.distinct().take(10)
+                    _uiState.update { it.copy(searchHistory = words) }
+                }
+                .onFailure {
+                    // 降级到本地缓存
+                    val history = prefs.getStringSet("history", emptySet())?.toList() ?: emptyList()
+                    _uiState.update { it.copy(searchHistory = history.take(10)) }
+                }
+        }
     }
 
     fun updateKeyword(keyword: String, category: String) {

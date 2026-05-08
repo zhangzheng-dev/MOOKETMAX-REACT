@@ -125,7 +125,7 @@ fun PhoneInputScreen(
                             contentDescription = "清除",
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
-                                .size(24.dp)
+                                .size(18.dp)
                                 .clickable {
                                     phone = ""
                                     onClearError()

@@ -102,7 +102,6 @@ fun HomeCardsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
                 .padding(paddingValues)
                 .background(Background)
         ) {

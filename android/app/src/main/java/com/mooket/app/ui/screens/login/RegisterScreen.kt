@@ -101,16 +101,11 @@ fun RegisterScreen(
                         color = Color.White
                     )
                 }
-                // triangle at badge内 y=29 → badge h=25 → 4dp below badge bottom
-                // badge bottom = 25dp, triangle height = 4dp, offset from badge top = 29dp
-                // But we want it below badge: offset y = badge height + (29-25) = 25 + 4 = 29dp from badge top
-                // Actually: triangle tip is at badge内y=29, badge bottom is at y=25 → 4dp below badge
-                // In our layout: badge is at y=0, triangle offset y = 25dp (badge h) + (29-25)=29dp from badge top
-                // = just 4dp below badge
+                // triangle: centered below badge, 4dp below
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset(x = (-4).dp, y = 25.dp)
+                        .align(Alignment.TopCenter)
+                        .offset(y = 25.dp)
                         .size(width = 10.dp, height = 4.dp)
                 ) {
                     Image(

@@ -557,22 +557,32 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         }
         if (brandId == null || productId == null) return null;
 
-        StatBrandProduct stat = statBrandProductMapper.selectByBrandIdAndProductId(brandId.intValue(), productId);
-        if (stat == null) return null;
+        // 直接从 biz_offer 聚合查询，不依赖 stat_brand_product 表（2天窗口，和首页口径一致）
+        BrandProductStatDTO statData = bizOfferMapper.aggregateByBrandProductById(today, brandId.intValue(), productId);
+        if (statData == null) return null;
 
         BrandProductCardDTO card = new BrandProductCardDTO();
         card.setCardType("brandProduct");
         card.setRank(rank);
         card.setHistoryId(history.getHistoryId());
-        card.setBrandId(stat.getBrandId());
-        card.setBrandName(stat.getBrandName());
-        card.setProductId(stat.getProductId());
-        card.setProductName(stat.getProductName());
-        card.setPriceMin(stat.getPriceMin());
-        card.setPriceMax(stat.getPriceMax());
-        card.setPriceChange(stat.getPriceChange());
-        card.setPriceChangeRate(stat.getPriceChangeRate());
-        card.setTodayOfferCount(stat.getTodayOfferCount());
+        card.setBrandId(statData.getBrandId());
+        card.setBrandName(statData.getBrandName());
+        card.setProductId(statData.getProductId());
+        card.setProductName(statData.getProductName());
+        card.setPriceMin(statData.getPriceMin());
+        card.setPriceMax(statData.getPriceMax());
+        // 计算涨跌
+        if (statData.getAvgPrice() != null && statData.getAvgPriceYesterday() != null
+                && statData.getAvgPriceYesterday().compareTo(java.math.BigDecimal.ZERO) > 0) {
+            java.math.BigDecimal priceChange = statData.getAvgPrice().subtract(statData.getAvgPriceYesterday());
+            java.math.BigDecimal rate = priceChange
+                    .divide(statData.getAvgPriceYesterday(), 4, java.math.RoundingMode.HALF_UP)
+                    .multiply(java.math.BigDecimal.valueOf(100))
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            card.setPriceChange(priceChange);
+            card.setPriceChangeRate(rate);
+        }
+        card.setTodayOfferCount(statData.getTodayOfferCount());
 
         // 热门工厂
         List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, brandId.intValue(), productId);

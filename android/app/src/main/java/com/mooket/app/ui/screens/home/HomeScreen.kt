@@ -46,8 +46,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.mooket.app.R
+import com.mooket.app.data.model.HomeCardItem
 import com.mooket.app.data.model.HotSearchItem
 import com.mooket.app.data.model.SearchHistory
 import com.mooket.app.ui.theme.*
@@ -75,13 +79,28 @@ fun HomeScreen(
     var expanded by remember { mutableStateOf(false) }
     var isEditMode by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<SearchHistory?>(null) }
-    var refreshCountdown by remember { mutableIntStateOf(10) } // 倒计时秒数
 
     // 滚动状态 - 用于固定头部 + FAB显示/隐藏
     val lazyListState = rememberLazyListState()
     val fabVisible by remember { derivedStateOf { lazyListState.firstVisibleItemIndex > 0 || lazyListState.firstVisibleItemScrollOffset > 0 } }
     val fabScale by animateFloatAsState(if (fabVisible) 1f else 0f, label = "fabScale")
     val coroutineScope = rememberCoroutineScope()
+
+    // 监听生命周期：返回首页时自动刷新卡片数据
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshRecentSearchCards()
+                viewModel.refreshSelfSelectCards()
+                viewModel.refreshHomeStat()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // 热门搜索项点击路由
     fun navigateToDetail(hotItem: HotSearchItem) {
@@ -139,21 +158,10 @@ fun HomeScreen(
         while (true) {
             delay(10_000)
             viewModel.refreshHomeStat()
-            refreshCountdown = 10
         }
     }
 
-    // 倒计时更新（每秒更新一次）
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1_000)
-            if (refreshCountdown > 0) {
-                refreshCountdown--
-            }
-        }
-    }
-
-    // 删除确认弹窗
+// 删除确认弹窗
     showDeleteDialog?.let { history ->
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
@@ -300,30 +308,12 @@ fun HomeScreen(
                         StatItemDark(label = "商家", value = statData?.merchantCount ?: "--")
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = statData?.statTime ?: "--:--",
                         fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.6f)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier.size(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            progress = refreshCountdown / 10f,
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 1.5.dp,
-                            color = Primary,
-                            trackColor = Color.White.copy(alpha = 0.2f)
-                        )
-                        Text(
-                            text = "$refreshCountdown",
-                            fontSize = 8.sp,
-                            color = Color.White
-                        )
-                    }
                 }
             }
 
@@ -385,87 +375,206 @@ fun HomeScreen(
                     0 -> {
                         val selfSelectCards = uiState.selfSelectCards
                         if (selfSelectCards.isEmpty()) {
-                            Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                                Text("暂无自选数据", fontSize = 12.sp, color = TextHint)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(300.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ic_empty_self_select),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(80.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "暂无自选数据，您可从历史搜索数据页中编辑后添加为自选",
+                                    fontSize = 14.sp,
+                                    color = TextHint,
+                                    modifier = Modifier.padding(horizontal = 32.dp)
+                                )
                             }
                         } else {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                LazyVerticalStaggeredGrid(
-                                    columns = StaggeredGridCells.Fixed(2),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalItemSpacing = 12.dp,
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                    modifier = Modifier.heightIn(max = 600.dp)
-                                ) {
-                                    items(selfSelectCards) { card ->
-                                        HomeCardItemView(
-                                            card = card,
-                                            onProductClick = onProductClick,
-                                            onCountryClick = onCountryClick,
-                                            onBrandClick = onBrandClick,
-                                            onMerchantClick = onMerchantClick,
-                                            onFactoryClick = onFactoryClick,
-                                            onCountryProductClick = onCountryProductClick,
-                                            onCountryFactoryProductClick = onCountryFactoryProductClick,
-                                            isEditMode = isEditMode,
-                                            onAddToSelfSelect = null,
-                                            onDelete = { card.historyId?.let { viewModel.cancelSelfSelect(it) } }
-                                        )
-                                    }
+                            LazyVerticalStaggeredGrid(
+                                columns = StaggeredGridCells.Fixed(2),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalItemSpacing = 12.dp,
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                modifier = Modifier.heightIn(max = 3000.dp)
+                            ) {
+                                items(selfSelectCards) { card ->
+                                    HomeCardItemView(
+                                        card = card,
+                                        onProductClick = onProductClick,
+                                        onCountryClick = onCountryClick,
+                                        onBrandClick = onBrandClick,
+                                        onMerchantClick = onMerchantClick,
+                                        onFactoryClick = onFactoryClick,
+                                        onCountryProductClick = onCountryProductClick,
+                                        onCountryFactoryProductClick = onCountryFactoryProductClick,
+                                        isEditMode = isEditMode,
+                                        onAddToSelfSelect = null,
+                                        onDelete = { card.historyId?.let { viewModel.cancelSelfSelect(it) } }
+                                    )
                                 }
                             }
                         }
                     }
                     1 -> {
-                        if (uiState.recentSearchCards.isEmpty()) {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                Text(text = "最近搜索", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.padding(vertical = 12.dp))
-                                val examples = listOf(
-                                    RecentSearchExample("产品", "牛前八件套", "产品"),
-                                    RecentSearchExample("国家", "巴西", "国家"),
-                                    RecentSearchExample("品牌", "JBS S.A.", "品牌"),
-                                    RecentSearchExample("国家厂号", "巴西SIF504", "国家厂号"),
-                                    RecentSearchExample("国家产品", "巴西牛前八件套", "国家产品"),
-                                    RecentSearchExample("国家厂号产品", "巴西SIF1440牛前八件套", "国家厂号产品")
-                                )
-                                examples.forEach { example ->
-                                    RecentSearchExampleCard(example = example, onCardClick = {
-                                        navigateToExample(example, uiState.selectedCategory, onProductClick, onCountryClick, onFactoryClick, onCountryProductClick, onCountryFactoryProductClick)
-                                    })
-                                }
-                            }
-                        } else {
-                            val historyCards = uiState.recentSearchCards
-
+                        val historyCards = uiState.recentSearchCards
+                        LazyVerticalStaggeredGrid(
+                            columns = StaggeredGridCells.Fixed(2),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalItemSpacing = 12.dp,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.heightIn(max = 3000.dp)
+                        ) {
                             if (historyCards.isEmpty()) {
-                                Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                                    Text("暂无历史搜索数据", fontSize = 12.sp, color = TextHint)
+                                // 空状态：展示 7 个示例卡片（与真实卡片样式一致）
+                                val exampleCards = listOf(
+                                    // 1. 产品卡片：牛前八件套
+                                    HomeCardItem(
+                                        cardType = "product",
+                                        productId = null,
+                                        productName = "牛前八件套",
+                                        todayOfferCount = 12400,
+                                        merchantCount = 32,
+                                        factoryCount = 24
+                                    ),
+                                    // 2. 国家卡片：巴西
+                                    HomeCardItem(
+                                        cardType = "country",
+                                        country = "巴西",
+                                        hotProducts = listOf(
+                                            mapOf("rank" to 1, "productName" to "前腱", "offerCount" to 1200),
+                                            mapOf("rank" to 2, "productName" to "牛前八件套", "offerCount" to 921),
+                                            mapOf("rank" to 3, "productName" to "胸肉", "offerCount" to 642)
+                                        ),
+                                        hotFactories = listOf(
+                                            mapOf("factoryNo" to "SIF1440", "offerCount" to 328),
+                                            mapOf("factoryNo" to "SIF504", "offerCount" to 215),
+                                            mapOf("factoryNo" to "SIF4554", "offerCount" to 189)
+                                        )
+                                    ),
+                                    // 3. 品牌卡片：JBS S.A.
+                                    HomeCardItem(
+                                        cardType = "brand",
+                                        brandName = "JBS S.A.",
+                                        todayOfferCount = 124,
+                                        productCount = 32,
+                                        factoryCount = 24
+                                    ),
+                                    // 4. 厂号卡片：巴西SIF504
+                                    HomeCardItem(
+                                        cardType = "factory",
+                                        country = "巴西",
+                                        factoryNo = "SIF504",
+                                        hotProducts = listOf(
+                                            mapOf("rank" to 1, "productName" to "前腱", "offerCount" to 1200),
+                                            mapOf("rank" to 2, "productName" to "牛前八件套", "offerCount" to 921),
+                                            mapOf("rank" to 3, "productName" to "胸肉", "offerCount" to 642)
+                                        ),
+                                        todayOfferCount = 32
+                                    ),
+                                    // 5. 国家产品卡片：巴西牛前八件套
+                                    HomeCardItem(
+                                        cardType = "countryProduct",
+                                        country = "巴西",
+                                        productName = "牛前八件套",
+                                        topFactories = listOf(
+                                            mapOf("factoryNo" to "SIF4333", "priceMin" to 60.5, "priceMax" to 60.5),
+                                            mapOf("factoryNo" to "SIF504", "priceMin" to 60.5, "priceMax" to 62.4),
+                                            mapOf("factoryNo" to "SIF2583", "priceMin" to 60.5, "priceMax" to 60.5)
+                                        ),
+                                        factoryCount = 32,
+                                        todayOfferCount = 24
+                                    ),
+                                    // 6. 厂号产品卡片：巴西SIF1440牛前八件套
+                                    HomeCardItem(
+                                        cardType = "factoryProduct",
+                                        country = "巴西",
+                                        factoryNo = "SIF1440",
+                                        productName = "牛前八件套",
+                                        priceMin = 58.2,
+                                        priceMax = 63.0,
+                                        priceChange = 0.5,
+                                        priceChangeRate = 2.5,
+                                        trendPoints = listOf(
+                                            mapOf("date" to "05-02", "avgPrice" to 60.5),
+                                            mapOf("date" to "05-03", "avgPrice" to 61.2),
+                                            mapOf("date" to "05-04", "avgPrice" to 60.8),
+                                            mapOf("date" to "05-05", "avgPrice" to 59.5),
+                                            mapOf("date" to "05-06", "avgPrice" to 60.1),
+                                            mapOf("date" to "05-07", "avgPrice" to 61.5),
+                                            mapOf("date" to "05-08", "avgPrice" to 62.3)
+                                        ),
+                                        hotMerchants = listOf(
+                                            mapOf("merchantName" to "上海牛一品", "priceMin" to 60.5, "priceMax" to 60.5),
+                                            mapOf("merchantName" to "郑州帮你剩", "priceMin" to 60.5, "priceMax" to 62.4),
+                                            mapOf("merchantName" to "天津大洋时代", "priceMin" to 60.5, "priceMax" to 60.5)
+                                        ),
+                                        todayOfferCount = 32,
+                                        inquiryCount = 60
+                                    ),
+                                    // 7. 品牌产品卡片：JBS S.A.牛前八件套
+                                    HomeCardItem(
+                                        cardType = "brandProduct",
+                                        brandName = "JBS S.A.",
+                                        productName = "牛前八件套",
+                                        priceMin = 58.2,
+                                        priceMax = 63.0,
+                                        priceChange = 0.5,
+                                        priceChangeRate = 2.5,
+                                        trendPoints = listOf(
+                                            mapOf("date" to "05-02", "avgPrice" to 60.5),
+                                            mapOf("date" to "05-03", "avgPrice" to 61.2),
+                                            mapOf("date" to "05-04", "avgPrice" to 60.8),
+                                            mapOf("date" to "05-05", "avgPrice" to 59.5),
+                                            mapOf("date" to "05-06", "avgPrice" to 60.1),
+                                            mapOf("date" to "05-07", "avgPrice" to 61.5),
+                                            mapOf("date" to "05-08", "avgPrice" to 62.3)
+                                        ),
+                                        topFactories = listOf(
+                                            mapOf("factoryNo" to "SIF4333", "priceMin" to 60.5, "priceMax" to 60.5),
+                                            mapOf("factoryNo" to "SIF504", "priceMin" to 60.5, "priceMax" to 62.4),
+                                            mapOf("factoryNo" to "SIF2583", "priceMin" to 60.5, "priceMax" to 60.5)
+                                        ),
+                                        factoryCount = 32,
+                                        todayOfferCount = 24
+                                    )
+                                )
+                                items(exampleCards) { card ->
+                                    HomeCardItemView(
+                                        card = card,
+                                        onProductClick = onProductClick,
+                                        onCountryClick = onCountryClick,
+                                        onBrandClick = onBrandClick,
+                                        onMerchantClick = onMerchantClick,
+                                        onFactoryClick = onFactoryClick,
+                                        onCountryProductClick = onCountryProductClick,
+                                        onCountryFactoryProductClick = onCountryFactoryProductClick,
+                                        isEditMode = false,
+                                        isExample = true,
+                                        onAddToSelfSelect = null,
+                                        onDelete = null
+                                    )
                                 }
                             } else {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    LazyVerticalStaggeredGrid(
-                                        columns = StaggeredGridCells.Fixed(2),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        verticalItemSpacing = 12.dp,
-                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                        modifier = Modifier.heightIn(max = 600.dp)
-                                    ) {
-                                        items(historyCards) { card ->
-                                            HomeCardItemView(
-                                                card = card,
-                                                onProductClick = onProductClick,
-                                                onCountryClick = onCountryClick,
-                                                onBrandClick = onBrandClick,
-                                                onMerchantClick = onMerchantClick,
-                                                onFactoryClick = onFactoryClick,
-                                                onCountryProductClick = onCountryProductClick,
-                                                onCountryFactoryProductClick = onCountryFactoryProductClick,
-                                                isEditMode = isEditMode,
-                                                onAddToSelfSelect = { card.historyId?.let { viewModel.moveToSelfSelect(it) } },
-                                                onDelete = { card.historyId?.let { viewModel.deleteRecentSearch(it) } }
-                                            )
-                                        }
-                                    }
+                                items(historyCards) { card ->
+                                    HomeCardItemView(
+                                        card = card,
+                                        onProductClick = onProductClick,
+                                        onCountryClick = onCountryClick,
+                                        onBrandClick = onBrandClick,
+                                        onMerchantClick = onMerchantClick,
+                                        onFactoryClick = onFactoryClick,
+                                        onCountryProductClick = onCountryProductClick,
+                                        onCountryFactoryProductClick = onCountryFactoryProductClick,
+                                        isEditMode = isEditMode,
+                                        onAddToSelfSelect = { card.historyId?.let { viewModel.moveToSelfSelect(it) } },
+                                        onDelete = { card.historyId?.let { viewModel.deleteRecentSearch(it) } }
+                                    )
                                 }
                             }
                         }
@@ -473,7 +582,7 @@ fun HomeScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(100.dp)) }
+            item { Spacer(modifier = Modifier.height(160.dp)) }
         }
 
         // 返回顶部 FAB
@@ -617,8 +726,7 @@ private fun HomeCardsContent(
                 columns = StaggeredGridCells.Fixed(2),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalItemSpacing = 12.dp,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                modifier = Modifier.heightIn(max = 600.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 items(uiState.recentSearchCards, key = { "${it.cardType}_${it.rank}_${it.historyId}" }) { card ->
                     HomeCardItemView(
@@ -649,6 +757,7 @@ private fun HomeCardItemView(
     onCountryProductClick: (String, String, String) -> Unit,
     onCountryFactoryProductClick: (String, String, String, String) -> Unit,
     isEditMode: Boolean = false,
+    isExample: Boolean = false,
     onAddToSelfSelect: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -658,59 +767,60 @@ private fun HomeCardItemView(
         when (card.cardType) {
             "product" -> com.mooket.app.ui.screens.home.cards.ProductCard(
                 card = card,
-                onClick = {
+                onClick = if (isExample) null else ({
                     card.productId?.let { id ->
                         onProductClick(id, category, card.productName ?: "")
                     }
-                }
+                })
             )
             "country" -> com.mooket.app.ui.screens.home.cards.CountryCard(
                 card = card,
-                onClick = {
+                onClick = if (isExample) null else ({
                     card.country?.let { country ->
                         onCountryClick(country, category)
                     }
-                }
+                })
             )
             "brand" -> com.mooket.app.ui.screens.home.cards.BrandCard(
                 card = card,
-                onClick = {
+                onClick = if (isExample) null else ({
                     card.brandName?.let { name ->
                         onBrandClick(name, category)
                     }
-                }
+                })
             )
             "merchant" -> com.mooket.app.ui.screens.home.cards.MerchantCard(
                 card = card,
-                onClick = {
+                onClick = if (isExample) null else ({
                     card.merchantId?.let { id ->
                         onMerchantClick(id, category)
                     }
-                }
+                })
             )
             "factory" -> com.mooket.app.ui.screens.home.cards.FactoryCard(
                 card = card,
-                onClick = {
+                onClick = if (isExample) null else ({
                     card.country?.let { country ->
                         card.factoryNo?.let { factoryNo ->
                             onFactoryClick(country, factoryNo, category)
                         }
                     }
-                }
+                })
             )
             "brandProduct" -> com.mooket.app.ui.screens.home.cards.BrandProductCard(
                 card = card,
-                onClick = {
+                onClick = if (isExample) null else ({
                     card.brandId?.let { brandId ->
                         card.productId?.let { productId ->
                             onProductClick(productId, category, card.productName ?: "")
                         }
                     }
-                }
+                }),
+                isExample = isExample
             )
             "factoryProduct" -> com.mooket.app.ui.screens.home.cards.FactoryProductCard(
                 card = card,
-                onClick = {
+                onClick = if (isExample) null else ({
                     card.country?.let { country ->
                         card.factoryNo?.let { factoryNo ->
                             card.productName?.let { productName ->
@@ -718,17 +828,18 @@ private fun HomeCardItemView(
                             }
                         }
                     }
-                }
+                }),
+                isExample = isExample
             )
             "countryProduct" -> com.mooket.app.ui.screens.home.cards.CountryProductCard(
                 card = card,
-                onClick = {
+                onClick = if (isExample) null else ({
                     card.country?.let { country ->
                         card.productName?.let { productName ->
                             onCountryProductClick(country, productName, category)
                         }
                     }
-                }
+                })
             )
             else -> {
                 Box(
@@ -737,6 +848,20 @@ private fun HomeCardItemView(
                         .height(100.dp)
                         .background(Color.White, RoundedCornerShape(8.dp))
                 )
+            }
+        }
+
+        // 示例标识（示例卡片右上角，圆形小尺寸）
+        if (isExample) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(20.dp)
+                    .background(Primary.copy(alpha = 0.85f), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "例", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
 

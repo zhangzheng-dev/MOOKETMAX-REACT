@@ -29,7 +29,7 @@ import com.mooket.app.ui.theme.*
 @Composable
 fun MerchantCard(
     card: HomeCardItem,
-    onClick: () -> Unit
+    onClick: (() -> Unit)? = null
 ) {
     // 判断是否为知名商家
     val isTrusted = card.merchantTags?.contains("知名商家") == true
@@ -45,7 +45,7 @@ fun MerchantCard(
                 shape = RoundedCornerShape(8.dp)
             )
             .border(1.dp, Color(0xFFFFE7C5), RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
     ) {
         Column(
             modifier = Modifier.padding(12.dp)

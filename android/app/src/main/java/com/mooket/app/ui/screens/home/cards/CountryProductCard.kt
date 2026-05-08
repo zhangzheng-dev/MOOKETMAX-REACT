@@ -28,7 +28,7 @@ import com.mooket.app.ui.theme.*
 @Composable
 fun CountryProductCard(
     card: HomeCardItem,
-    onClick: () -> Unit
+    onClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -36,7 +36,7 @@ fun CountryProductCard(
             .shadow(elevation = 2.dp, shape = RoundedCornerShape(8.dp), spotColor = Color(0x05000000))
             .background(Color.White, RoundedCornerShape(8.dp))
             .border(1.dp, Color(0xFFE3EAE7), RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
     ) {
         Column(
             modifier = Modifier.padding(12.dp)

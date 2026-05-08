@@ -156,7 +156,7 @@ fun SmsVerifyScreen(
                             painter = painterResource(id = R.drawable.ic_delete_input),
                             contentDescription = "清除",
                             modifier = Modifier
-                                .size(24.dp)
+                                .size(18.dp)
                                 .clickable {
                                     code = ""
                                     onClearError()

@@ -1,6 +1,7 @@
 package com.mooket.social.controller;
 
 import com.mooket.social.common.ApiResponse;
+import com.mooket.social.common.JwtUtil;
 import com.mooket.social.dto.HomeCardsResponseDTO;
 import com.mooket.social.service.HomeStatService;
 import com.mooket.social.service.SearchHistoryService;
@@ -19,12 +20,27 @@ public class SearchHistoryController {
     private final SearchHistoryService searchHistoryService;
     private final HomeStatService homeStatService;
 
-    // 默认用户ID（实际项目中从登录态获取）
-    private static final Long DEFAULT_USER_ID = 1L;
-
     public SearchHistoryController(SearchHistoryService searchHistoryService, HomeStatService homeStatService) {
         this.searchHistoryService = searchHistoryService;
         this.homeStatService = homeStatService;
+    }
+
+    /**
+     * 从 Authorization header 提取用户ID
+     */
+    private Long extractUserId(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        try {
+            String token = authHeader.substring(7);
+            if (!JwtUtil.validateToken(token)) {
+                return null;
+            }
+            return JwtUtil.getUserId(token);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -32,8 +48,13 @@ public class SearchHistoryController {
      */
     @GetMapping("/recent")
     public ApiResponse<List<SearchHistoryService.SearchHistoryDTO>> getRecentSearches(
+            @RequestHeader("Authorization") String authHeader,
             @RequestParam(defaultValue = "200") int limit) {
-        List<SearchHistoryService.SearchHistoryDTO> histories = searchHistoryService.getRecentSearches(DEFAULT_USER_ID, limit);
+        Long userId = extractUserId(authHeader);
+        if (userId == null) {
+            return ApiResponse.success(List.of());
+        }
+        List<SearchHistoryService.SearchHistoryDTO> histories = searchHistoryService.getRecentSearches(userId, limit);
         return ApiResponse.success(histories);
     }
 
@@ -42,8 +63,16 @@ public class SearchHistoryController {
      */
     @GetMapping("/cards/recent")
     public ApiResponse<HomeCardsResponseDTO> getRecentSearchCards(
+            @RequestHeader("Authorization") String authHeader,
             @RequestParam(defaultValue = "牛") String category) {
-        HomeCardsResponseDTO cards = searchHistoryService.getRecentSearchCards(DEFAULT_USER_ID, category);
+        Long userId = extractUserId(authHeader);
+        if (userId == null) {
+            HomeCardsResponseDTO empty = new HomeCardsResponseDTO();
+            empty.setCards(List.of());
+            empty.setUpdateTime(null);
+            return ApiResponse.success(empty);
+        }
+        HomeCardsResponseDTO cards = searchHistoryService.getRecentSearchCards(userId, category);
         return ApiResponse.success(cards);
     }
 
@@ -52,8 +81,13 @@ public class SearchHistoryController {
      */
     @GetMapping("/self-select")
     public ApiResponse<List<SearchHistoryService.SearchHistoryDTO>> getSelfSelectSearches(
+            @RequestHeader("Authorization") String authHeader,
             @RequestParam(defaultValue = "200") int limit) {
-        List<SearchHistoryService.SearchHistoryDTO> histories = searchHistoryService.getSelfSelectSearches(DEFAULT_USER_ID, limit);
+        Long userId = extractUserId(authHeader);
+        if (userId == null) {
+            return ApiResponse.success(List.of());
+        }
+        List<SearchHistoryService.SearchHistoryDTO> histories = searchHistoryService.getSelfSelectSearches(userId, limit);
         return ApiResponse.success(histories);
     }
 
@@ -62,8 +96,16 @@ public class SearchHistoryController {
      */
     @GetMapping("/cards/self-select")
     public ApiResponse<HomeCardsResponseDTO> getSelfSelectCards(
+            @RequestHeader("Authorization") String authHeader,
             @RequestParam(defaultValue = "牛") String category) {
-        HomeCardsResponseDTO cards = searchHistoryService.getSelfSelectCards(DEFAULT_USER_ID, category);
+        Long userId = extractUserId(authHeader);
+        if (userId == null) {
+            HomeCardsResponseDTO empty = new HomeCardsResponseDTO();
+            empty.setCards(List.of());
+            empty.setUpdateTime(null);
+            return ApiResponse.success(empty);
+        }
+        HomeCardsResponseDTO cards = searchHistoryService.getSelfSelectCards(userId, category);
         return ApiResponse.success(cards);
     }
 
@@ -72,9 +114,14 @@ public class SearchHistoryController {
      */
     @PostMapping("/add")
     public ApiResponse<Map<String, String>> addSearchHistory(
+            @RequestHeader("Authorization") String authHeader,
             @RequestParam String searchWord,
             @RequestParam String searchType) {
-        searchHistoryService.addSearchHistory(DEFAULT_USER_ID, searchWord, searchType);
+        Long userId = extractUserId(authHeader);
+        if (userId == null) {
+            return ApiResponse.error(401, "请先登录");
+        }
+        searchHistoryService.addSearchHistory(userId, searchWord, searchType);
         return ApiResponse.success(Map.of("message", "添加成功"));
     }
 
@@ -103,9 +150,14 @@ public class SearchHistoryController {
      */
     @PostMapping("/self-select/add")
     public ApiResponse<Map<String, String>> addSelfSelect(
+            @RequestHeader("Authorization") String authHeader,
             @RequestParam String searchWord,
             @RequestParam String searchType) {
-        searchHistoryService.addSelfSelect(DEFAULT_USER_ID, searchWord, searchType);
+        Long userId = extractUserId(authHeader);
+        if (userId == null) {
+            return ApiResponse.error(401, "请先登录");
+        }
+        searchHistoryService.addSelfSelect(userId, searchWord, searchType);
         return ApiResponse.success(Map.of("message", "添加自选成功"));
     }
 

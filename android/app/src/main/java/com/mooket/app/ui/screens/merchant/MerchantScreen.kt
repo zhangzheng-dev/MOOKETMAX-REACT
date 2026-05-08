@@ -437,7 +437,6 @@ fun MerchantScreen(
                         priceSortOrder = SortOrder.NONE
                     },
                     modifier = Modifier
-                        .statusBarsPadding()
                         .padding(paddingValues)
                 )
             }

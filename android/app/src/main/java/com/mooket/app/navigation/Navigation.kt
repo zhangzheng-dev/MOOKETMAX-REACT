@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mooket.app.data.SessionManager
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -124,7 +125,7 @@ fun MooketNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = if (SessionManager.isLoggedIn()) Screen.Home.route else Screen.Login.route
     ) {
         // 登录页
         composable(Screen.Login.route) {

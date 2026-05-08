@@ -27,7 +27,7 @@ import com.mooket.app.ui.util.CountryFlagUtil
 @Composable
 fun CountryCard(
     card: HomeCardItem,
-    onClick: () -> Unit
+    onClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -40,7 +40,7 @@ fun CountryCard(
                 shape = RoundedCornerShape(8.dp)
             )
             .border(1.dp, Color(0xFFE3EAE7), RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
     ) {
         Column(
             modifier = Modifier.padding(12.dp)

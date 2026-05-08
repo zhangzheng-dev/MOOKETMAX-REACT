@@ -3,6 +3,7 @@ package com.mooket.app.ui.screens.login
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mooket.app.data.SessionManager
 import com.mooket.app.data.api.RetrofitClient
 import com.mooket.app.data.model.*
 import kotlinx.coroutines.delay
@@ -96,6 +97,9 @@ class LoginViewModel : ViewModel() {
                 val response = apiService.login(LoginRequest(cachedPhone, code))
                 if (response.code == 200 && response.data != null) {
                     cachedToken = response.data.token
+                    // 持久化到 SessionManager，供 AuthInterceptor 使用
+                    SessionManager.token = response.data.token
+                    response.data.userId?.let { SessionManager.userId = it }
                     val nickname = response.data.nickname
                     val needsProfile = nickname.isNullOrBlank()
                     if (needsProfile) {
@@ -152,6 +156,7 @@ class LoginViewModel : ViewModel() {
                     RegisterRequest(nickname, identityTags)
                 )
                 if (response.code == 200) {
+                    SessionManager.nickname = nickname
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         screen = LoginScreen.Home,

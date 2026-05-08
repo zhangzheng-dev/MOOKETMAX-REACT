@@ -1,0 +1,52 @@
+package com.mooket.app.data
+
+import android.content.Context
+import android.content.SharedPreferences
+
+/**
+ * 会话管理器：管理登录态 token 的持久化
+ */
+object SessionManager {
+
+    private const val PREFS_NAME = "mooket_session"
+    private const val KEY_TOKEN = "auth_token"
+    private const val KEY_USER_ID = "user_id"
+    private const val KEY_NICKNAME = "nickname"
+
+    private lateinit var prefs: SharedPreferences
+
+    /**
+     * 在 Application 或 MainActivity 中早期初始化
+     */
+    fun init(context: Context) {
+        prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    var token: String?
+        get() = prefs.getString(KEY_TOKEN, null)
+        set(value) {
+            prefs.edit().putString(KEY_TOKEN, value).apply()
+        }
+
+    var userId: Long?
+        get() = if (prefs.contains(KEY_USER_ID)) prefs.getLong(KEY_USER_ID, -1) else null
+        set(value) {
+            if (value != null) {
+                prefs.edit().putLong(KEY_USER_ID, value).apply()
+            } else {
+                prefs.edit().remove(KEY_USER_ID).apply()
+            }
+        }
+
+    var nickname: String?
+        get() = prefs.getString(KEY_NICKNAME, null)
+        set(value) {
+            prefs.edit().putString(KEY_NICKNAME, value).apply()
+        }
+
+    fun isLoggedIn(): Boolean = !token.isNullOrBlank()
+
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
+}

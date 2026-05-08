@@ -87,7 +87,6 @@ fun DataComparisonScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
                 .padding(paddingValues)
                 .background(Background)
         ) {

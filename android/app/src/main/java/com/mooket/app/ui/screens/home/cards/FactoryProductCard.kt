@@ -1,5 +1,6 @@
 package com.mooket.app.ui.screens.home.cards
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,10 +12,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mooket.app.R
 import com.mooket.app.data.model.HomeCardItem
 import com.mooket.app.ui.components.MiniTrendChart
 import com.mooket.app.ui.theme.*
@@ -27,10 +30,11 @@ import com.mooket.app.ui.util.CountryFlagUtil
 @Composable
 fun FactoryProductCard(
     card: HomeCardItem,
-    onClick: () -> Unit
+    onClick: (() -> Unit)? = null,
+    isExample: Boolean = false
 ) {
-    // 涨跌颜色
-    val changeBgColor = Color(0xFFE67F5A).copy(alpha = 0.1f)
+    // 涨跌颜色（示例时强制红色涨）
+    val changeBgColor = if (isExample) Color(0xFFE67F5A).copy(alpha = 0.12f) else Color(0xFFE67F5A).copy(alpha = 0.1f)
     val changeTextColor = Color(0xFFA53321)
 
     Box(
@@ -39,7 +43,7 @@ fun FactoryProductCard(
             .shadow(elevation = 2.dp, shape = RoundedCornerShape(8.dp), spotColor = Color(0x05000000))
             .background(Color.White, RoundedCornerShape(8.dp))
             .border(1.dp, Color(0xFFE3EAE7), RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
@@ -117,6 +121,16 @@ fun FactoryProductCard(
                     // 涨跌图标/符号
                     val isUp = priceChange != null && priceChange > 0
                     val isDown = priceChange != null && priceChange < 0
+
+                    // 示例卡片：显示红色向上箭头
+                    if (isExample && isUp) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_price_up),
+                            contentDescription = "涨",
+                            modifier = Modifier.size(10.dp, 10.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                    }
 
                     Text(
                         text = when {

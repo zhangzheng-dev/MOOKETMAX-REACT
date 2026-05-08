@@ -1061,13 +1061,9 @@ public class HomeStatServiceImpl implements HomeStatService {
             for (MerchantStatWithPriceDTO ms : merchantStats) {
                 FactoryProductCardDTO.HotMerchantDTO dto = new FactoryProductCardDTO.HotMerchantDTO();
                 dto.setMerchantId(ms.getMerchantId());
-                // 从dict_merchant获取商家名称
-                DictMerchant merchant = dictMerchantMapper.selectById(ms.getMerchantId());
-                if (merchant != null && merchant.getMerchantName() != null && !merchant.getMerchantName().isEmpty()) {
-                    dto.setMerchantName(merchant.getMerchantName());
-                } else {
-                    dto.setMerchantName("商家-" + ms.getMerchantId());
-                }
+                // 直接使用 SQL JOIN 返回的 merchantName（COALESCE short_name, full_name）
+                String merchantName = ms.getMerchantName();
+                dto.setMerchantName(merchantName != null && !merchantName.isEmpty() ? merchantName : "商家-" + ms.getMerchantId());
                 dto.setOfferCount(ms.getTodayOfferCount());
                 dto.setPriceMin(ms.getPriceMin());
                 dto.setPriceMax(ms.getPriceMax());

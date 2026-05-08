@@ -462,7 +462,9 @@ data class HomeCardItem(
     // 热门商家
     val hotMerchants: List<Map<String, Any>>? = null,
     // 国家厂号产品卡片
-    val inquiryCount: Int? = null
+    val inquiryCount: Int? = null,
+    // 示例标识颜色（可空，为空则使用默认 Primary）
+    val exampleBadgeColor: Long? = null
 )
 
 /**

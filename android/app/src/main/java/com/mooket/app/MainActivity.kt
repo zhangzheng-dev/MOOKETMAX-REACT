@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.rememberNavController
+import com.mooket.app.data.SessionManager
 import com.mooket.app.navigation.MooketNavHost
 import com.mooket.app.ui.theme.MooketTheme
 
@@ -28,6 +29,9 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.WHITE
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
         enableEdgeToEdge()
+
+        // 初始化 SessionManager（恢复登录态）
+        SessionManager.init(this)
 
         setContent {
             val navController = rememberNavController()

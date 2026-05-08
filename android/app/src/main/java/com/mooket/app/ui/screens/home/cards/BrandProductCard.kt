@@ -29,11 +29,13 @@ import com.mooket.app.ui.theme.*
 @Composable
 fun BrandProductCard(
     card: HomeCardItem,
-    onClick: () -> Unit
+    onClick: (() -> Unit)? = null,
+    isExample: Boolean = false
 ) {
     // 涨跌颜色（绿色跌/红色涨，和 FactoryProductCard 相反）
-    val changeBgColor = Color(0xFF47BB58).copy(alpha = 0.1f)
-    val changeTextColor = Color(0xFF0E8D41)
+    // 示例时强制红色涨
+    val changeBgColor = if (isExample) Color(0xFFE67F5A).copy(alpha = 0.12f) else Color(0xFF47BB58).copy(alpha = 0.1f)
+    val changeTextColor = if (isExample) Color(0xFFA53321) else Color(0xFF0E8D41)
 
     Box(
         modifier = Modifier
@@ -41,7 +43,7 @@ fun BrandProductCard(
             .shadow(elevation = 2.dp, shape = RoundedCornerShape(8.dp), spotColor = Color(0x05000000))
             .background(Color.White, RoundedCornerShape(8.dp))
             .border(1.dp, Color(0xFFE3EAE7), RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
@@ -120,6 +122,16 @@ fun BrandProductCard(
                     // 涨跌图标/符号
                     val isUp = priceChange != null && priceChange > 0
                     val isDown = priceChange != null && priceChange < 0
+
+                    // 示例卡片：显示红色向上箭头
+                    if (isExample && isUp) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_price_up),
+                            contentDescription = "涨",
+                            modifier = Modifier.size(10.dp, 10.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                    }
 
                     Text(
                         text = when {
