@@ -152,6 +152,7 @@ fun BrandProductDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .background(Background)
                 .padding(paddingValues)
         ) {

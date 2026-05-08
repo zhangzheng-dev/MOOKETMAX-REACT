@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,9 +42,15 @@ fun SmsVerifyScreen(
     var code by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
 
+    // 页面加载时自动弹出数字键盘
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .background(Surface)
     ) {
         Column(

@@ -122,6 +122,7 @@ fun CountryDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .background(Background)
                 .padding(paddingValues)
         ) {

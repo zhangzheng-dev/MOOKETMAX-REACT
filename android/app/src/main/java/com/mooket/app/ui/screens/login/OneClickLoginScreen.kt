@@ -34,6 +34,7 @@ fun OneClickLoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .background(Surface)
     ) {
         Column(

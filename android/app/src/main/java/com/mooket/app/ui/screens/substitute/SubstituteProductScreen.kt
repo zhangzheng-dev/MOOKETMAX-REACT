@@ -150,6 +150,7 @@ fun SubstituteProductScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .background(Background)
                 .padding(paddingValues)
         ) {

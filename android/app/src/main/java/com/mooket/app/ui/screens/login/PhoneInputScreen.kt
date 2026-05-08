@@ -43,6 +43,7 @@ fun PhoneInputScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .background(Surface)
     ) {
         Column(
@@ -78,9 +79,9 @@ fun PhoneInputScreen(
                 )
             }
 
-            // 手机号输入
+            // 手机号输入 - 往上移，减少空白
             Column(
-                modifier = Modifier.padding(top = 109.dp)
+                modifier = Modifier.padding(top = 60.dp)
             ) {
                 Text(
                     text = "手机号",
