@@ -95,7 +95,7 @@ public class UserMerchantSyncService {
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
                 SocialExternalBusinessUser src = sourceData.get(i);
-                Timestamp createTime = src.getCreatedTime() != null ? Timestamp.valueOf(src.getCreatedTime()) : Timestamp.valueOf(LocalDateTime.now());
+                Timestamp createTime = src.getCreatedTime() != null ? Timestamp.valueOf(src.getCreatedTime()) : null;
                 Timestamp updateTime = src.getUpdateTime() != null ? Timestamp.valueOf(src.getUpdateTime()) : Timestamp.valueOf(LocalDateTime.now());
                 String identity = identityMap.get(src.getIndustryGroupId());
 

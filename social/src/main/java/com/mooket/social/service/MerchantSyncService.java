@@ -75,7 +75,7 @@ public class MerchantSyncService {
             public void setValues(PreparedStatement ps, int i) throws SQLException {
                 UacIndustryGroup src = sourceData.get(i);
                 String contactPhone = merchantIdToMobile.get(src.getId());
-                Timestamp createTime = src.getCreatedTime() != null ? Timestamp.valueOf(src.getCreatedTime()) : Timestamp.valueOf(LocalDateTime.now());
+                Timestamp createTime = src.getCreatedTime() != null ? Timestamp.valueOf(src.getCreatedTime()) : null;
                 Timestamp updateTime = src.getUpdateTime() != null ? Timestamp.valueOf(src.getUpdateTime()) : Timestamp.valueOf(LocalDateTime.now());
                 ps.setLong(1, src.getId());
                 ps.setString(2, src.getIndustryGroupName());

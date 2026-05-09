@@ -536,8 +536,8 @@ public class DataSyncService {
         target.setStatus(src.getStatus() != null ?
                 (src.getStatus() == 1 ? "已过期" : "ACTIVE") : "ACTIVE");
 
-        // create_time
-        target.setCreateTime(src.getCreatedTime() != null ? src.getCreatedTime() : LocalDateTime.now());
+        // create_time: 与源表保持一致，源表为null则写null
+        target.setCreateTime(src.getCreatedTime());
 
         return target;
     }

@@ -205,19 +205,18 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         if (productId == null) return null;
 
         StatProduct stat = statProductMapper.selectByProductIdAndCategory(productId, category);
-        if (stat == null) return null;
 
         ProductCardDTO card = new ProductCardDTO();
         card.setCardType("product");
         card.setRank(rank);
         card.setHistoryId(history.getHistoryId());
         card.setProductId(productId);
-        card.setProductName(stat.getProductName() != null ? stat.getProductName() : history.getSearchWord());
-        card.setTodayOfferCount(stat.getTodayOfferCount());
-        card.setMerchantCount(stat.getTodayMerchantCount());
-        card.setFactoryCount(stat.getTodayFactoryCount());
-        card.setPriceMin(stat.getPriceMin());
-        card.setPriceMax(stat.getPriceMax());
+        card.setProductName(stat != null && stat.getProductName() != null ? stat.getProductName() : history.getSearchWord());
+        card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
+        card.setMerchantCount(stat != null ? stat.getTodayMerchantCount() : null);
+        card.setFactoryCount(stat != null ? stat.getTodayFactoryCount() : null);
+        card.setPriceMin(stat != null ? stat.getPriceMin() : null);
+        card.setPriceMax(stat != null ? stat.getPriceMax() : null);
         return card;
     }
 
@@ -232,15 +231,14 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         if (stat == null && country != null) {
             stat = statCountryMapper.selectByCountryKeyword(country, category);
         }
-        if (stat == null) return null;
 
         CountryCardDTO card = new CountryCardDTO();
         card.setCardType("country");
         card.setRank(rank);
         card.setHistoryId(history.getHistoryId());
-        card.setCountry(stat.getCountry());
-        card.setCountryAlias(stat.getCountry());
-        card.setTodayOfferCount(stat.getTodayOfferCount());
+        card.setCountry(stat != null ? stat.getCountry() : country);
+        card.setCountryAlias(stat != null ? stat.getCountry() : country);
+        card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
 
         // 如果 stat_country 表中的 hotFactories 为空，直接从 biz_offer 查询
         List<CountryCardDTO.HotFactoryDTO> hotFactories = parseHotFactoriesFromJson(stat.getHotFactories());
@@ -380,7 +378,6 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         if (merchantId == null) return null;
 
         StatMerchant stat = statMerchantMapper.selectByMerchantIdAndDate(merchantId, today);
-        if (stat == null) return null;
 
         DictMerchant merchant = merchantMapper.selectById(merchantId);
         MerchantCardDTO card = new MerchantCardDTO();
@@ -395,7 +392,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         } else {
             card.setMerchantName("商家-" + merchantId);
         }
-        card.setTodayOfferCount(stat.getTodayOfferCount());
+        card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
 
         // 最新报盘
         List<BizOffer> latestOffers = bizOfferMapper.findLatestByMerchant(merchantId, 2);
@@ -430,16 +427,15 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         if (country == null) country = "";
 
         StatFactory stat = statFactoryMapper.selectByFactoryNoAndCategory(factoryNo, category);
-        if (stat == null) return null;
 
         FactoryCardDTO card = new FactoryCardDTO();
         card.setCardType("factory");
         card.setRank(rank);
         card.setHistoryId(history.getHistoryId());
-        card.setCountry(stat.getCountry() != null ? stat.getCountry() : country);
-        card.setCountryAlias(stat.getCountry() != null ? stat.getCountry() : country);
-        card.setFactoryNo(stat.getFactoryNo() != null ? stat.getFactoryNo() : factoryNo);
-        card.setTodayOfferCount(stat.getTodayOfferCount());
+        card.setCountry(stat != null && stat.getCountry() != null ? stat.getCountry() : country);
+        card.setCountryAlias(stat != null && stat.getCountry() != null ? stat.getCountry() : country);
+        card.setFactoryNo(stat != null && stat.getFactoryNo() != null ? stat.getFactoryNo() : factoryNo);
+        card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
 
         // 热门产品
         List<FactoryProductStatDTO> factoryProducts = bizOfferMapper.aggregateByFactoryProduct(today);
@@ -518,20 +514,19 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         if (country == null || country.isEmpty() || productId == null) return null;
 
         StatCountryProduct stat = statCountryProductMapper.selectByCountryAndProductId(country, productId, category);
-        if (stat == null) return null;
 
         CountryProductCardDTO card = new CountryProductCardDTO();
         card.setCardType("countryProduct");
         card.setRank(rank);
         card.setHistoryId(history.getHistoryId());
-        card.setCountry(stat.getCountry());
-        card.setCountryAlias(stat.getCountry()); // 设置国家别名
-        card.setProductId(stat.getProductId());
-        card.setProductName(stat.getProductName());
-        card.setTodayOfferCount(stat.getTodayOfferCount());
-        card.setFactoryCount(stat.getTodayFactoryCount());
-        card.setPriceMin(stat.getPriceMin());
-        card.setPriceMax(stat.getPriceMax());
+        card.setCountry(stat != null ? stat.getCountry() : country);
+        card.setCountryAlias(stat != null ? stat.getCountry() : country);
+        card.setProductId(stat != null ? stat.getProductId() : productId);
+        card.setProductName(stat != null ? stat.getProductName() : null);
+        card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
+        card.setFactoryCount(stat != null ? stat.getTodayFactoryCount() : null);
+        card.setPriceMin(stat != null ? stat.getPriceMin() : null);
+        card.setPriceMax(stat != null ? stat.getPriceMax() : null);
 
         // 查询热门工厂
         try {
@@ -640,22 +635,21 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         // 从 stat_brand_product 表聚合查询（一个品牌名可能对应多条 brand_id 记录）
         StatBrandProduct stat = statBrandProductMapper.selectAggregatedByBrandNameAndProductName(brandNameForStat, productNameForStat);
         log.info("[DEBUG] buildBrandProductCard stat query brandName={} productName={} -> stat={}", brandNameForStat, productNameForStat, stat);
-        if (stat == null) return null;
 
         BrandProductCardDTO card = new BrandProductCardDTO();
         card.setCardType("brandProduct");
         card.setRank(rank);
         card.setHistoryId(history.getHistoryId());
-        card.setBrandId(stat.getBrandId());
-        card.setBrandName(stat.getBrandName());
-        card.setProductId(stat.getProductId());
-        card.setProductName(stat.getProductName());
-        card.setPriceMin(stat.getPriceMin());
-        card.setPriceMax(stat.getPriceMax());
-        card.setPriceChange(stat.getPriceChange());
-        card.setPriceChangeRate(stat.getPriceChangeRate());
-        card.setTodayOfferCount(stat.getTodayOfferCount());
-        card.setFactoryCount(stat.getTodayFactoryCount());
+        card.setBrandId(stat != null ? stat.getBrandId() : null);
+        card.setBrandName(stat != null ? stat.getBrandName() : brandNameForStat);
+        card.setProductId(stat != null ? stat.getProductId() : productId);
+        card.setProductName(stat != null ? stat.getProductName() : productNameForStat);
+        card.setPriceMin(stat != null ? stat.getPriceMin() : null);
+        card.setPriceMax(stat != null ? stat.getPriceMax() : null);
+        card.setPriceChange(stat != null ? stat.getPriceChange() : null);
+        card.setPriceChangeRate(stat != null ? stat.getPriceChangeRate() : null);
+        card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
+        card.setFactoryCount(stat != null ? stat.getTodayFactoryCount() : null);
 
         // 热门工厂（通过 dict_brand.brand_name 匹配，一个品牌有多个 brandId）
         List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, brandNameForStat, productId);
@@ -769,10 +763,9 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         }
 
         StatFactoryProduct stat = statFactoryProductMapper.selectByFactoryNoAndProductId(factoryNo, productId);
-        if (stat == null) return null;
 
         // 获取产品名用于 IQR 过滤查询
-        String productName = stat.getProductName();
+        String productName = stat != null ? stat.getProductName() : null;
         if (productName == null) {
             DictProduct product = productMapper.selectById(productId);
             if (product != null) {
@@ -784,10 +777,10 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         card.setCardType("factoryProduct");
         card.setRank(rank);
         card.setHistoryId(history.getHistoryId());
-        card.setCountry(stat.getCountry() != null ? stat.getCountry() : country);
-        card.setCountryAlias(stat.getCountry() != null ? stat.getCountry() : country);
-        card.setFactoryNo(stat.getFactoryNo() != null ? stat.getFactoryNo() : factoryNo);
-        card.setProductId(stat.getProductId());
+        card.setCountry(stat != null && stat.getCountry() != null ? stat.getCountry() : country);
+        card.setCountryAlias(stat != null && stat.getCountry() != null ? stat.getCountry() : country);
+        card.setFactoryNo(stat != null && stat.getFactoryNo() != null ? stat.getFactoryNo() : factoryNo);
+        card.setProductId(stat != null ? stat.getProductId() : productId);
         card.setProductName(productName);
         // 价格区间：从实时 IQR 过滤 SQL 获取（口径与详情页一致）
         try {
@@ -798,8 +791,8 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         } catch (Exception e) {
             log.warn("获取价格区间失败: country={}, factoryNo={}, product={}, error={}",
                     country, factoryNo, productName, e.getMessage());
-            card.setPriceMin(stat.getPriceMin());
-            card.setPriceMax(stat.getPriceMax());
+            card.setPriceMin(stat != null ? stat.getPriceMin() : null);
+            card.setPriceMax(stat != null ? stat.getPriceMax() : null);
         }
         // 价格涨跌：从 stat_price_trend 读取今日/昨日数据计算（口径与详情页一致）
         try {
@@ -839,21 +832,21 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
                         card.setPriceChangeRate(null);
                     }
                 } else {
-                    card.setPriceChange(stat.getPriceChange());
-                    card.setPriceChangeRate(stat.getPriceChangeRate());
+                    card.setPriceChange(stat != null ? stat.getPriceChange() : null);
+                    card.setPriceChangeRate(stat != null ? stat.getPriceChangeRate() : null);
                 }
             } else {
-                card.setPriceChange(stat.getPriceChange());
-                card.setPriceChangeRate(stat.getPriceChangeRate());
+                card.setPriceChange(stat != null ? stat.getPriceChange() : null);
+                card.setPriceChangeRate(stat != null ? stat.getPriceChangeRate() : null);
             }
         } catch (Exception e) {
             log.warn("获取价格趋势失败: country={}, factoryNo={}, productId={}, error={}",
                     country, factoryNo, productId, e.getMessage());
-            card.setPriceChange(stat.getPriceChange());
-            card.setPriceChangeRate(stat.getPriceChangeRate());
+            card.setPriceChange(stat != null ? stat.getPriceChange() : null);
+            card.setPriceChangeRate(stat != null ? stat.getPriceChangeRate() : null);
         }
-        card.setTodayOfferCount(stat.getTodayOfferCount());
-        card.setInquiryCount(stat.getTodayInquiryCount());
+        card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
+        card.setInquiryCount(stat != null ? stat.getTodayInquiryCount() : null);
 
         // 价格趋势
         try {
