@@ -71,6 +71,7 @@ fun HomeScreen(
     onFactoryClick: (String, String, String) -> Unit,
     onCountryProductClick: (String, String, String) -> Unit,
     onCountryFactoryProductClick: (String, String, String, String) -> Unit,
+    onBrandProductClick: (String, String, String) -> Unit,
     onHomeCardsClick: () -> Unit = {},
     viewModel: HomeViewModel = viewModel()
 ) {
@@ -146,8 +147,14 @@ fun HomeScreen(
                 }
             }
             "品牌产品" -> {
-                hotItem.productId?.let { id ->
-                    hotItem.keyword?.let { kw -> onProductClick(id, category, kw) }
+                hotItem.keyword?.let { kw ->
+                    // keyword 格式: "JBS S.A. 牛前八件套"，提取品牌名和产品名
+                    val parts = kw.split(" ", limit = 2)
+                    val brandName = parts.getOrNull(0) ?: kw
+                    val productName = parts.getOrNull(1) ?: ""
+                    if (brandName.isNotEmpty() && productName.isNotEmpty()) {
+                        onBrandProductClick(brandName, productName, category)
+                    }
                 }
             }
         }
@@ -413,6 +420,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                                         onFactoryClick = onFactoryClick,
                                         onCountryProductClick = onCountryProductClick,
                                         onCountryFactoryProductClick = onCountryFactoryProductClick,
+                                        onBrandProductClick = onBrandProductClick,
                                         isEditMode = isEditMode,
                                         onAddToSelfSelect = null,
                                         onDelete = { card.historyId?.let { viewModel.cancelSelfSelect(it) } }
@@ -554,6 +562,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                                         onFactoryClick = onFactoryClick,
                                         onCountryProductClick = onCountryProductClick,
                                         onCountryFactoryProductClick = onCountryFactoryProductClick,
+                                        onBrandProductClick = onBrandProductClick,
                                         isEditMode = false,
                                         isExample = true,
                                         onAddToSelfSelect = null,
@@ -571,6 +580,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                                         onFactoryClick = onFactoryClick,
                                         onCountryProductClick = onCountryProductClick,
                                         onCountryFactoryProductClick = onCountryFactoryProductClick,
+                                        onBrandProductClick = onBrandProductClick,
                                         isEditMode = isEditMode,
                                         onAddToSelfSelect = { card.historyId?.let { viewModel.moveToSelfSelect(it) } },
                                         onDelete = { card.historyId?.let { viewModel.deleteRecentSearch(it) } }
@@ -689,7 +699,8 @@ private fun HomeCardsContent(
     onMerchantClick: (Long, String) -> Unit,
     onFactoryClick: (String, String, String) -> Unit,
     onCountryProductClick: (String, String, String) -> Unit,
-    onCountryFactoryProductClick: (String, String, String, String) -> Unit
+    onCountryFactoryProductClick: (String, String, String, String) -> Unit,
+    onBrandProductClick: (String, String, String) -> Unit
 ) {
     val viewModel: HomeCardsViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -737,7 +748,8 @@ private fun HomeCardsContent(
                         onMerchantClick = onMerchantClick,
                         onFactoryClick = onFactoryClick,
                         onCountryProductClick = onCountryProductClick,
-                        onCountryFactoryProductClick = onCountryFactoryProductClick
+                        onCountryFactoryProductClick = onCountryFactoryProductClick,
+                        onBrandProductClick = onBrandProductClick
                     )
                 }
             }
@@ -756,6 +768,7 @@ private fun HomeCardItemView(
     onFactoryClick: (String, String, String) -> Unit,
     onCountryProductClick: (String, String, String) -> Unit,
     onCountryFactoryProductClick: (String, String, String, String) -> Unit,
+    onBrandProductClick: (String, String, String) -> Unit,
     isEditMode: Boolean = false,
     isExample: Boolean = false,
     onAddToSelfSelect: (() -> Unit)? = null,
@@ -810,9 +823,9 @@ private fun HomeCardItemView(
             "brandProduct" -> com.mooket.app.ui.screens.home.cards.BrandProductCard(
                 card = card,
                 onClick = if (isExample) null else ({
-                    card.brandId?.let { brandId ->
-                        card.productId?.let { productId ->
-                            onProductClick(productId, category, card.productName ?: "")
+                    card.brandName?.let { brandName ->
+                        card.productName?.let { productName ->
+                            onBrandProductClick(brandName, productName, category)
                         }
                     }
                 }),

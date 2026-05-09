@@ -50,15 +50,26 @@ fun MerchantCard(
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
-            // 顶部：商家名称（第一行）
-            Text(
-                text = card.merchantName ?: "商家-${card.merchantId}",
-                fontSize = 16.sp,
-                color = TextPrimary,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            // 顶部：商家名称
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_merchant_logo),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = card.merchantShortName ?: card.merchantName ?: "商家-${card.merchantId}",
+                    fontSize = 16.sp,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
             // 知名商家标签 + 皇冠 + 商家简称（第二行）
             if (isTrusted) {

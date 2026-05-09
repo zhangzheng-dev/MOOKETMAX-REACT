@@ -45,6 +45,7 @@ fun HomeCardsScreen(
     onFactoryClick: (String, String, String) -> Unit,
     onCountryProductClick: (String, String, String) -> Unit,
     onCountryFactoryProductClick: (String, String, String, String) -> Unit,
+    onBrandProductClick: (String, String, String) -> Unit,
     viewModel: HomeCardsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -182,6 +183,7 @@ fun HomeCardsScreen(
                                     onFactoryClick = onFactoryClick,
                                     onCountryProductClick = onCountryProductClick,
                                     onCountryFactoryProductClick = onCountryFactoryProductClick,
+                                    onBrandProductClick = onBrandProductClick,
                                     isEditMode = isEditMode,
                                     onAddToSelfSelect = if (uiState.selectedTab == 1 && card.historyId != null) {
                                         { viewModel.moveToSelfSelect(card.historyId) }
@@ -262,6 +264,7 @@ private fun HomeCard(
     onFactoryClick: (String, String, String) -> Unit,
     onCountryProductClick: (String, String, String) -> Unit,
     onCountryFactoryProductClick: (String, String, String, String) -> Unit,
+    onBrandProductClick: (String, String, String) -> Unit,
     isEditMode: Boolean = false,
     onAddToSelfSelect: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
@@ -315,9 +318,9 @@ private fun HomeCard(
             "brandProduct" -> BrandProductCard(
                 card = card,
                 onClick = {
-                    card.brandId?.let { brandId ->
-                        card.productId?.let { productId ->
-                            onProductClick(productId, category, card.productName ?: "")
+                    card.brandName?.let { brandName ->
+                        card.productName?.let { productName ->
+                            onBrandProductClick(brandName, productName, category)
                         }
                     }
                 }

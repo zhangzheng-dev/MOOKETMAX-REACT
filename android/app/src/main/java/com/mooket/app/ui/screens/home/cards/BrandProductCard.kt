@@ -58,13 +58,11 @@ fun BrandProductCard(
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
-            // 顶部：品牌名在第一行，产品名换行到第二行从左边开始
-            // 第一行：产品icon + 品牌名
+            // 顶部：品牌名+产品名在同一行，超长才换行
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 产品图标
                 Image(
                     painter = painterResource(id = R.drawable.ic_product),
                     contentDescription = null,
@@ -73,27 +71,16 @@ fun BrandProductCard(
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // 品牌名
                 Text(
-                    text = card.brandName ?: "--",
+                    text = "${card.brandName ?: "--"} ${card.productName ?: ""}",
                     fontSize = 16.sp,
                     color = TextPrimary,
                     fontWeight = FontWeight.Medium,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
             }
-
-            // 第二行：产品名（从最左边开始，不缩进）
-            Text(
-                text = card.productName ?: "",
-                fontSize = 16.sp,
-                color = TextPrimary,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
 
             Spacer(modifier = Modifier.height(8.dp))
 

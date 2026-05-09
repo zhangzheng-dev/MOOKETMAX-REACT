@@ -203,6 +203,9 @@ fun MooketNavHost(
                         onCountryFactoryProductClick = { country, factoryNo, productName, cat ->
                             safeNavigate(Screen.CountryFactoryProduct.createRoute(country, factoryNo, productName, cat))
                         },
+                        onBrandProductClick = { brandName, productName, cat ->
+                            safeNavigate(Screen.BrandProduct.createRoute(brandName, productName, cat))
+                        },
                         onHomeCardsClick = {
                             safeNavigate(Screen.HomeCards.route)
                         }
@@ -238,6 +241,9 @@ fun MooketNavHost(
                 onCountryFactoryProductClick = { country, factoryNo, productName, cat ->
                     safeNavigate(Screen.CountryFactoryProduct.createRoute(country, factoryNo, productName, cat))
                 },
+                onBrandProductClick = { brandName, productName, cat ->
+                    safeNavigate(Screen.BrandProduct.createRoute(brandName, productName, cat))
+                },
                 onHomeCardsClick = {
                     safeNavigate(Screen.HomeCards.route)
                 }
@@ -270,6 +276,9 @@ fun MooketNavHost(
                 },
                 onCountryFactoryProductClick = { country, factoryNo, productName, cat ->
                     safeNavigate(Screen.CountryFactoryProduct.createRoute(country, factoryNo, productName, cat))
+                },
+                onBrandProductClick = { brandName, productName, cat ->
+                    safeNavigate(Screen.BrandProduct.createRoute(brandName, productName, cat))
                 }
             )
         }
