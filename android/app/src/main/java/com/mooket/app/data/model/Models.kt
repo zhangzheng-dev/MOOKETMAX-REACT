@@ -591,3 +591,35 @@ data class UserInfo(
     val identityTags: List<String>?,
     val createTime: String?
 )
+
+/**
+ * 用户资料
+ */
+data class UserProfile(
+    val userId: Long,
+    val phone: String,
+    val nickname: String?,
+    val avatarUrl: String?,
+    val mooketId: String?,
+    val realNameStatus: String?,  // 实名状态: pending/approved/rejected
+    val realName: String?         // 真实姓名（如果已实名）
+)
+
+/**
+ * 更新资料请求
+ */
+data class UpdateProfileRequest(
+    val nickname: String?,
+    val realName: String?
+)
+
+/**
+ * App版本信息
+ */
+data class AppVersion(
+    val version: String,
+    val versionCode: Int,
+    val hasUpdate: Boolean,
+    val updateUrl: String?,
+    val updateContent: String?
+)

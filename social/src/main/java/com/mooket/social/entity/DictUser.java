@@ -29,6 +29,14 @@ public class DictUser {
 
     private String realName;           // 姓名
 
+    private String avatarUrl;          // 头像URL
+
+    private String realNameStatus;     // 实名状态：pending/verified/rejected
+
+    private String cancellationStatus; // 注销状态：active/cancelled
+
+    private String mooketId;            // Mooket ID
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

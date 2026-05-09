@@ -29,3 +29,11 @@ social/*.log
 # OS
 .DS_Store
 Thumbs.db
+*.apk
+*.jar
+build/
+target/
+.gradle/
+bin/
+.idea/
+*.iml

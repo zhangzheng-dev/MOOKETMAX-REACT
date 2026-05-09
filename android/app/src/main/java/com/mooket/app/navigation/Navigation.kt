@@ -41,6 +41,7 @@ import com.mooket.app.ui.screens.login.PhoneInputScreen
 import com.mooket.app.ui.screens.login.SmsVerifyScreen
 import com.mooket.app.ui.screens.login.OneClickLoginScreen
 import com.mooket.app.ui.screens.login.RegisterScreen
+import com.mooket.app.ui.screens.profile.ProfileScreen
 
 /**
  * 导航路由
@@ -88,6 +89,7 @@ sealed class Screen(val route: String) {
         fun createRoute(brandName: String, productName: String, category: String) =
             "brand-product/${java.net.URLEncoder.encode(brandName, "UTF-8")}/${java.net.URLEncoder.encode(productName, "UTF-8")}/$category"
     }
+    object Profile : Screen("profile")
 }
 
 @Composable
@@ -208,6 +210,9 @@ fun MooketNavHost(
                         },
                         onHomeCardsClick = {
                             safeNavigate(Screen.HomeCards.route)
+                        },
+                        onProfileClick = {
+                            safeNavigate(Screen.Profile.route)
                         }
                     )
                 }
@@ -246,6 +251,9 @@ fun MooketNavHost(
                 },
                 onHomeCardsClick = {
                     safeNavigate(Screen.HomeCards.route)
+                },
+                onProfileClick = {
+                    safeNavigate(Screen.Profile.route)
                 }
             )
         }
@@ -622,6 +630,18 @@ fun MooketNavHost(
                     safeNavigate(Screen.CountryFactoryProduct.createRoute(country, factoryNo, productName, cat))
                 },
                 viewModel = viewModel
+            )
+        }
+
+        // 个人中心页
+        composable(Screen.Profile.route) {
+            ProfileScreen(
+                onBackClick = {
+                    safePopBackStack()
+                },
+                onNavigateToLogin = {
+                    safeNavigateWithPopUp(Screen.Login.route, Screen.Home.route, true)
+                }
             )
         }
     }

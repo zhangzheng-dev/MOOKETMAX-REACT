@@ -46,6 +46,10 @@ object SessionManager {
 
     fun isLoggedIn(): Boolean = !token.isNullOrBlank()
 
+    fun clearSession() {
+        prefs.edit().clear().apply()
+    }
+
     fun clear() {
         prefs.edit().clear().apply()
     }

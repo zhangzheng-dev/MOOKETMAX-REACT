@@ -89,7 +89,15 @@ public class AuthController {
         DictUser user = dictUserMapper.selectOne(
             new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<DictUser>()
                 .eq("phone", phone)
+                .eq("cancellation_status", "active")
         );
+
+        // 如果没有活跃用户但有注销用户（同一手机号），保持旧记录不变，插入新记录
+        boolean hasCancelledRecord = dictUserMapper.selectCount(
+            new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<DictUser>()
+                .eq("phone", phone)
+                .eq("cancellation_status", "cancelled")
+        ) > 0;
 
         boolean isNewUser = (user == null);
         if (isNewUser) {
@@ -110,6 +118,7 @@ public class AuthController {
         data.put("userId", user.getUserId());
         data.put("phone", user.getPhone());
         data.put("nickname", user.getNickname());
+        data.put("mooketId", user.getMooketId());
 
         return ApiResponse.success(data);
     }

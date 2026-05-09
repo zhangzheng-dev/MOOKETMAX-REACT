@@ -1,6 +1,9 @@
 package com.mooket.app.data.api
 
 import com.mooket.app.data.model.*
+import okhttp3.MultipartBody
+import retrofit2.http.Multipart
+import retrofit2.http.Part
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.DELETE
@@ -407,4 +410,45 @@ interface ApiService {
     suspend fun getUserInfo(
         @Header("Authorization") token: String
     ): ApiResponse<UserInfo>
+
+    /**
+     * 获取用户资料
+     */
+    @GET("api/v1/user/profile")
+    suspend fun getUserProfile(): ApiResponse<UserProfile>
+
+    /**
+     * 更新用户资料
+     */
+    @POST("api/v1/user/profile/update")
+    suspend fun updateProfile(
+        @Body request: UpdateProfileRequest
+    ): ApiResponse<Unit>
+
+    /**
+     * 上传头像
+     */
+    @Multipart
+    @POST("api/v1/user/avatar/upload")
+    suspend fun uploadAvatar(
+        @Part avatar: MultipartBody.Part
+    ): ApiResponse<String>
+
+    /**
+     * 登出
+     */
+    @POST("api/v1/user/logout")
+    suspend fun logout(): ApiResponse<Unit>
+
+    /**
+     * 获取App版本信息
+     */
+    @GET("api/v1/app/version")
+    suspend fun getAppVersion(): ApiResponse<AppVersion>
+
+    /**
+     * 注销账号
+     */
+    @POST("api/v1/user/cancel-account")
+    suspend fun cancelAccount(): ApiResponse<Map<String, String>>
 }

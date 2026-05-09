@@ -56,10 +56,15 @@ class LoginViewModel : ViewModel() {
                     )
                     startCountdown()
                 } else {
+                    // 即使发送失败也跳转到验证码页，让用户看到倒计时和重试提示
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
+                        phone = phone,
+                        screen = LoginScreen.SmsVerify,
+                        countdown = 60,
                         error = response.message ?: "发送失败"
                     )
+                    startCountdown()
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

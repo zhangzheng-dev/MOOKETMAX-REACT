@@ -39,7 +39,10 @@
       "Bash(mkdir:*)",
       "Bash(\"E:/project6/android/app/src/main/java/com/mooket/app/data/model/Models.kt\":*)",
       "Bash(\"E:/project6/android/app/src/main/java/com/mooket/app/data/api/ApiService.kt\":*)",
-      "Bash(./gradlew :app:assembleDebug:*)"
+      "Bash(./gradlew :app:assembleDebug:*)",
+      "mcp__figma__get_screenshot",
+      "Bash(mvn compile:*)",
+      "Skill(ssh-skill)"
     ]
   }
 }

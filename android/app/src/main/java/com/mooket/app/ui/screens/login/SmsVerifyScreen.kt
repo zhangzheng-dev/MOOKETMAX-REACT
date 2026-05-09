@@ -116,77 +116,81 @@ fun SmsVerifyScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // 验证码6格 — 点击任意区域触发输入
-            Box(
+            // 验证码输入区域 - 点击任意区域触发输入
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { focusRequester.requestFocus() }
+                    .clickable { focusRequester.requestFocus() },
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(6) { index ->
-                        val isFocused = code.length == index
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(0.dp))
-                                .border(
-                                    width = if (isFocused) 2.dp else 1.dp,
-                                    color = if (isFocused) Primary else Color(0xFFF5F5F5),
-                                    shape = RoundedCornerShape(0.dp)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (index < code.length) code[index].toString() else "",
-                                fontSize = 40.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextPrimary,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                    // 删除按钮 - 有数字时显示
-                    if (code.isNotEmpty()) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_delete_input),
-                            contentDescription = "清除",
-                            modifier = Modifier
-                                .size(18.dp)
-                                .clickable {
-                                    code = ""
-                                    onClearError()
-                                }
+                repeat(6) { index ->
+                    val isFocused = code.length == index
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                            .clip(RoundedCornerShape(0.dp))
+                            .border(
+                                width = if (isFocused) 2.dp else 1.dp,
+                                color = if (isFocused) Primary else Color(0xFFF5F5F5),
+                                shape = RoundedCornerShape(0.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (index < code.length) code[index].toString() else "",
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
-
-                // 透明的TextField覆盖在格子上，接收所有输入
-                BasicTextField(
-                    value = code,
-                    onValueChange = { newValue ->
-                        if (newValue.length <= 6 && newValue.all { it.isDigit() }) {
-                            val oldLen = code.length
-                            code = newValue
-                            onClearError()
-                            if (newValue.length == 6 && oldLen < 6) {
-                                onVerify(newValue)
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier
-                        .matchParentSize()
-                        .focusRequester(focusRequester),
-                    cursorBrush = SolidColor(Color.Transparent),
-                    decorationBox = {}
-                )
+                // 删除按钮 - 有数字时显示，增大点击区域
+                if (code.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(56.dp)
+                            .clickable {
+                                code = ""
+                                onClearError()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_delete_input),
+                            contentDescription = "清除",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
+
+            // 透明的TextField覆盖在格子上，接收所有输入
+            BasicTextField(
+                value = code,
+                onValueChange = { newValue ->
+                    if (newValue.length <= 6 && newValue.all { it.isDigit() }) {
+                        val oldLen = code.length
+                        code = newValue
+                        onClearError()
+                        if (newValue.length == 6 && oldLen < 6) {
+                            onVerify(newValue)
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .width(0.dp)
+                    .height(0.dp)
+                    .focusRequester(focusRequester),
+                cursorBrush = SolidColor(Color.Transparent),
+                decorationBox = {}
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
