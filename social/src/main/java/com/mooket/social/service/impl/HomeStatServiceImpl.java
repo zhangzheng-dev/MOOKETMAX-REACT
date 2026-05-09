@@ -672,7 +672,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         for (StatFactoryProduct fp : hotFactoryProducts) {
             if (result.size() >= 5) break;
             String coreElement = fp.getCountry() + "+" + fp.getFactoryNo() + "+" + fp.getProductName();
-            if (!usedCoreElements.contains(coreElement) && fp.getTodayOfferCount() >= 10) {
+            if (!usedCoreElements.contains(coreElement)) {
                 HotSearchItem item = new HotSearchItem();
                 item.keyword = fp.getCountry() + fp.getFactoryNo() + fp.getProductName();
                 item.dimension = "国家厂号产品";
@@ -690,7 +690,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         for (StatCountryProduct cp : hotCountryProducts) {
             if (result.size() >= 5) break;
             String coreElement = cp.getCountry() + "+" + cp.getProductName();
-            if (!usedCoreElements.contains(coreElement) && cp.getTodayOfferCount() >= 10) {
+            if (!usedCoreElements.contains(coreElement)) {
                 HotSearchItem item = new HotSearchItem();
                 item.keyword = cp.getCountry() + " " + cp.getProductName();
                 item.dimension = "国家产品";
@@ -706,7 +706,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         List<StatCountryMapper.HotCountry> hotCountries = statCountryMapper.findHotCountries(today, category, 3);
         for (StatCountryMapper.HotCountry c : hotCountries) {
             if (result.size() >= 5) break;
-            if (!usedCoreElements.contains(c.country) && c.todayOfferCount >= 10) {
+            if (!usedCoreElements.contains(c.country)) {
                 HotSearchItem item = new HotSearchItem();
                 item.keyword = c.country;
                 item.dimension = "国家";
@@ -721,7 +721,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         List<StatProductMapper.HotProduct> hotProducts = statProductMapper.findHotProducts(today, category, 3);
         for (StatProductMapper.HotProduct p : hotProducts) {
             if (result.size() >= 5) break;
-            if (!usedCoreElements.contains(p.productName) && p.todayOfferCount >= 10) {
+            if (!usedCoreElements.contains(p.productName)) {
                 HotSearchItem item = new HotSearchItem();
                 item.keyword = p.productName;
                 item.dimension = "产品";
@@ -737,7 +737,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         for (StatBrandMapper.HotBrand b : hotBrands) {
             if (result.size() >= 5) break;
             String coreElement = "brand:" + b.brandId;
-            if (!usedCoreElements.contains(coreElement) && b.todayOfferCount >= 10) {
+            if (!usedCoreElements.contains(coreElement)) {
                 HotSearchItem item = new HotSearchItem();
                 item.keyword = b.brandName;
                 item.dimension = "品牌";
@@ -753,7 +753,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         for (StatMerchantMapper.HotMerchant m : hotMerchants) {
             if (result.size() >= 5) break;
             String coreElement = "merchant:" + m.merchantId;
-            if (!usedCoreElements.contains(coreElement) && m.todayOfferCount >= 10) {
+            if (!usedCoreElements.contains(coreElement)) {
                 HotSearchItem item = new HotSearchItem();
                 item.keyword = "商家-" + m.merchantId; // 商家名称需要单独查询
                 item.dimension = "商家";
@@ -769,7 +769,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         for (StatFactoryMapper.HotFactory f : hotFactories) {
             if (result.size() >= 5) break;
             String coreElement = "factory:" + f.factoryId;
-            if (!usedCoreElements.contains(coreElement) && f.todayOfferCount >= 10) {
+            if (!usedCoreElements.contains(coreElement)) {
                 HotSearchItem item = new HotSearchItem();
                 item.keyword = f.country + f.factoryNo;
                 item.dimension = "国家厂号";
@@ -786,7 +786,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         for (StatBrandProduct bp : hotBrandProducts) {
             if (result.size() >= 5) break;
             String coreElement = "brandProduct:" + bp.getBrandId() + "+" + bp.getProductId();
-            if (!usedCoreElements.contains(coreElement) && bp.getTodayOfferCount() >= 10) {
+            if (!usedCoreElements.contains(coreElement)) {
                 HotSearchItem item = new HotSearchItem();
                 item.keyword = bp.getBrandName() + " " + bp.getProductName();
                 item.dimension = "品牌产品";
@@ -965,8 +965,9 @@ public class HomeStatServiceImpl implements HomeStatService {
             card.setPriceChange(bp.getPriceChange());
             card.setPriceChangeRate(bp.getPriceChangeRate());
             card.setTodayOfferCount(bp.getTodayOfferCount());
-            // 热门工厂（带价格）- 使用新查询按品牌产品筛选
-            List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, bp.getBrandId(), bp.getProductId());
+            card.setFactoryCount(bp.getTodayFactoryCount());
+            // 热门工厂（通过 dict_brand.brand_name 匹配，一个品牌有多个 brandId）
+            List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, bp.getBrandName(), bp.getProductId());
             List<BrandProductCardDTO.HotFactoryDTO> hotFactories = new ArrayList<>();
             for (FactoryStatWithPriceDTO fs : factoryStats) {
                 BrandProductCardDTO.HotFactoryDTO dto = new BrandProductCardDTO.HotFactoryDTO();
@@ -977,6 +978,22 @@ public class HomeStatServiceImpl implements HomeStatService {
                 hotFactories.add(dto);
             }
             card.setHotFactories(hotFactories);
+            // 7日价格趋势
+            try {
+                List<StatBrandProduct> trendRows = statBrandProductMapper.selectTrendByBrandNameAndProductName(bp.getBrandName(), bp.getProductName());
+                if (trendRows != null && !trendRows.isEmpty()) {
+                    List<BrandProductCardDTO.TrendPointDTO> trendPointDTOs = new ArrayList<>();
+                    for (StatBrandProduct tp : trendRows) {
+                        BrandProductCardDTO.TrendPointDTO dto = new BrandProductCardDTO.TrendPointDTO();
+                        dto.setDate(tp.getStatDate() != null ? tp.getStatDate().toString() : "");
+                        dto.setAvgPrice(tp.getAvgPrice() != null ? tp.getAvgPrice().doubleValue() : null);
+                        trendPointDTOs.add(dto);
+                    }
+                    card.setTrendPoints(trendPointDTOs);
+                }
+            } catch (Exception e) {
+                log.warn("获取品牌产品价格趋势失败 brandName={}: {}", bp.getBrandName(), e.getMessage());
+            }
             cards.add(card);
         }
 

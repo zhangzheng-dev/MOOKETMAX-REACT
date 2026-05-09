@@ -23,6 +23,11 @@ public class HomeCardItemDTO {
     private Integer todayOfferCount;
 
     /**
+     * 今日报盘工厂数
+     */
+    private Integer factoryCount;
+
+    /**
      * 历史记录ID（用于删除和添加到自选）
      */
     private Long historyId;

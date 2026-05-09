@@ -18,7 +18,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 搜索历史服务实现
@@ -146,8 +148,14 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
                     return buildProductCard(history, category, today, rank);
                 case "国家":
                     return buildCountryCard(history, category, today, rank);
-                case "品牌":
+                case "品牌": {
+                    // 尝试构建品牌+产品卡片（搜索词可能同时包含品牌和产品，如"巴西JBS 前腱"）
+                    // suggest API 只返回 type="品牌"，但 searchWord 中可能含产品名
+                    BrandProductCardDTO bpCard = buildBrandProductCard(history, category, today, rank);
+                    if (bpCard != null) return bpCard;
+                    // 回落：普通品牌卡片
                     return buildBrandCard(history, category, today, rank);
+                }
                 case "商家":
                     return buildMerchantCard(history, today, rank);
                 case "国家厂号":
@@ -323,19 +331,34 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         // stat_brand 没有则查 dict_brand 本身（即使统计数 < 10 也展示）
         DictBrand brand = brandMapper.selectById(brandId.intValue());
         if (brand == null) return null;
-        card.setBrandName(brand.getBrandName());
 
-        // 调用 BrandService 获取实时统计（与品牌详情页一致的数据）
+        // 获取品牌名，用 brandName 查所有 brandId（一个品牌有多个厂号=多个brandId）
+        String brandName = brand.getBrandName();
+        card.setBrandName(brandName);
+        List<DictBrand> allBrands = brandMapper.selectByName(brandName);
+        List<Integer> allBrandIds = allBrands.stream()
+                .map(DictBrand::getBrandId)
+                .filter(id -> id != null)
+                .collect(Collectors.toList());
+
+        // 直接查聚合SQL，不走 BrandService.getBrandDetail（避免重复计算）
         try {
-            BrandDetailDTO brandDetail = brandService.getBrandDetail(brand.getBrandName(), category, "offer", "comprehensive", 1, 1);
-            card.setTodayOfferCount(brandDetail.getTodayOfferCount() != null ? brandDetail.getTodayOfferCount().intValue() : 0);
-            card.setProductCount(brandDetail.getProductCount());
-            card.setFactoryCount(brandDetail.getFactoryCount());
+            if (!allBrandIds.isEmpty()) {
+                List<BizOfferMapper.BrandProductAgg> aggList = bizOfferMapper.selectBrandProductAggByBrandIds(allBrandIds, category, "报盘");
+                // factoryCount = 所有 factory_no 去重数量
+                long factoryCount = aggList.stream()
+                        .flatMap(a -> Arrays.stream(a.factoryNos.split(",")))
+                        .filter(f -> f != null && !f.trim().isEmpty())
+                        .distinct()
+                        .count();
+                long productCount = aggList.size();
+                card.setFactoryCount((int) factoryCount);
+                card.setProductCount((int) productCount);
+            }
         } catch (Exception e) {
             log.warn("获取品牌统计失败: brandId={}, error={}", brandId, e.getMessage());
-            card.setTodayOfferCount(0);
-            card.setProductCount(null);
             card.setFactoryCount(null);
+            card.setProductCount(null);
         }
         return card;
     }
@@ -534,58 +557,109 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
     private BrandProductCardDTO buildBrandProductCard(BizSearchHistory history, String category, LocalDate today, int rank) {
         Long brandId = history.getBrandId();
         Integer productId = history.getProductId() != null ? history.getProductId().intValue() : null;
+        log.info("[DEBUG] buildBrandProductCard historyId={} searchWord={} brandId={} productId={}",
+                history.getHistoryId(), history.getSearchWord(), brandId, productId);
 
+        // 如果 history 没有 brandId，从 searchWord 中提取品牌名（不能用 searchByKeyword 直接查 searchWord，
+        // 因为 SQL LIKE pattern 是 brand_name LIKE '%keyword%'，品牌名短于 searchWord 时匹配失败）
+        // 注意：品牌全名可能是"巴西JBS"，搜索词是"JBS前腱"，用全名匹配会失败。
+        // 必须用品牌简称（空格后的部分，如"JBS"）去包含匹配，才能处理短形式搜索。
         if (brandId == null) {
-            brandMapper.findByName(history.getSearchWord()).ifPresent(b -> {
-                if (b.getBrandId() != null) {
-                    history.setBrandId(b.getBrandId().longValue());
+            String searchWord = history.getSearchWord();
+            if (searchWord != null) {
+                List<DictBrand> allBrands = brandMapper.selectAll();
+                String searchWordNoSpace = searchWord.replace(" ", "");
+                for (DictBrand b : allBrands) {
+                    if (b.getBrandId() == null) continue;
+                    String bn = b.getBrandName();
+                    if (bn == null) continue;
+                    // 提取品牌简称（"巴西JBS" → "JBS"，"JBS" → "JBS"）
+                    String brandShortName = bn.contains(" ") ? bn.substring(bn.indexOf(" ") + 1).trim() : bn;
+                    String brandShortNoSpace = brandShortName.replace(" ", "");
+                    // 用简称去匹配：短形式搜索"JBS前腱" contains "JBS" → true
+                    // 全形式搜索"巴西JBS 前腱"不经过此逻辑（brandId 已有值）
+                    if (searchWordNoSpace.contains(brandShortNoSpace)) {
+                        brandId = b.getBrandId().longValue();
+                        log.info("[DEBUG] buildBrandProductCard brandId extracted searchWord={} -> brandId={} brandName={} brandShort={}",
+                                searchWord, brandId, bn, brandShortName);
+                        break;
+                    }
                 }
-            });
-            brandId = history.getBrandId();
-        }
-        if (productId == null && history.getProductName() != null) {
-            String productName = history.getProductName();
-            // 如果产品名包含"别名："格式，提取标准产品名（括号前的部分）
-            if (productName.contains("(别名：")) {
-                int idx = productName.indexOf("(别名：");
-                productName = productName.substring(0, idx);
-            }
-            DictProduct product = productMapper.selectByProductName(productName);
-            if (product != null) {
-                productId = product.getProductId();
             }
         }
-        if (brandId == null || productId == null) return null;
 
-        // 直接从 biz_offer 聚合查询，不依赖 stat_brand_product 表（2天窗口，和首页口径一致）
-        BrandProductStatDTO statData = bizOfferMapper.aggregateByBrandProductById(today, brandId.intValue(), productId);
-        if (statData == null) return null;
+        // 如果 history 没有 productId，从 searchWord 中解析产品名
+        if (productId == null) {
+            String searchWord = history.getSearchWord();
+            if (searchWord != null && brandId != null) {
+                DictBrand brand = brandMapper.selectById(brandId.intValue());
+                if (brand != null && brand.getBrandName() != null) {
+                    String bn = brand.getBrandName();
+                    String brandNameOnly = bn.contains(" ") ? bn.substring(bn.indexOf(" ") + 1).trim() : bn;
+                    String productNameForSearch;
+                    if (searchWord.contains(brandNameOnly)) {
+                        // 取品牌名之后的内容作为产品名
+                        int brandIdx = searchWord.indexOf(brandNameOnly);
+                        productNameForSearch = searchWord.substring(brandIdx + brandNameOnly.length()).trim();
+                    } else {
+                        productNameForSearch = searchWord;
+                    }
+                    // 去掉"别名："格式
+                    if (productNameForSearch.contains("(别名：")) {
+                        int idx = productNameForSearch.indexOf("(别名：");
+                        productNameForSearch = productNameForSearch.substring(0, idx);
+                    }
+                    if (!productNameForSearch.isEmpty()) {
+                        DictProduct product = productMapper.selectByProductName(productNameForSearch);
+                        if (product != null) {
+                            productId = product.getProductId();
+                        }
+                    }
+                }
+            }
+        }
+
+        if (brandId == null || productId == null) {
+            log.info("[DEBUG] buildBrandProductCard returning NULL: brandId={} productId={} searchWord={}", brandId, productId, history.getSearchWord());
+            return null;
+        }
+
+        // 获取品牌名和产品名（用于聚合查询）
+        String brandNameForStat = null;
+        String productNameForStat = null;
+        DictBrand brand = brandMapper.selectById(brandId.intValue());
+        if (brand != null) {
+            brandNameForStat = brand.getBrandName();
+        }
+        DictProduct product = productMapper.selectById(productId.longValue());
+        if (product != null) {
+            productNameForStat = product.getProductName();
+        }
+        if (brandNameForStat == null || productNameForStat == null) return null;
+
+        // 从 stat_brand_product 表聚合查询（一个品牌名可能对应多条 brand_id 记录）
+        StatBrandProduct stat = statBrandProductMapper.selectAggregatedByBrandNameAndProductName(brandNameForStat, productNameForStat);
+        log.info("[DEBUG] buildBrandProductCard stat query brandName={} productName={} -> stat={}", brandNameForStat, productNameForStat, stat);
+        if (stat == null) return null;
 
         BrandProductCardDTO card = new BrandProductCardDTO();
         card.setCardType("brandProduct");
         card.setRank(rank);
         card.setHistoryId(history.getHistoryId());
-        card.setBrandId(statData.getBrandId());
-        card.setBrandName(statData.getBrandName());
-        card.setProductId(statData.getProductId());
-        card.setProductName(statData.getProductName());
-        card.setPriceMin(statData.getPriceMin());
-        card.setPriceMax(statData.getPriceMax());
-        // 计算涨跌
-        if (statData.getAvgPrice() != null && statData.getAvgPriceYesterday() != null
-                && statData.getAvgPriceYesterday().compareTo(java.math.BigDecimal.ZERO) > 0) {
-            java.math.BigDecimal priceChange = statData.getAvgPrice().subtract(statData.getAvgPriceYesterday());
-            java.math.BigDecimal rate = priceChange
-                    .divide(statData.getAvgPriceYesterday(), 4, java.math.RoundingMode.HALF_UP)
-                    .multiply(java.math.BigDecimal.valueOf(100))
-                    .setScale(2, java.math.RoundingMode.HALF_UP);
-            card.setPriceChange(priceChange);
-            card.setPriceChangeRate(rate);
-        }
-        card.setTodayOfferCount(statData.getTodayOfferCount());
+        card.setBrandId(stat.getBrandId());
+        card.setBrandName(stat.getBrandName());
+        card.setProductId(stat.getProductId());
+        card.setProductName(stat.getProductName());
+        card.setPriceMin(stat.getPriceMin());
+        card.setPriceMax(stat.getPriceMax());
+        card.setPriceChange(stat.getPriceChange());
+        card.setPriceChangeRate(stat.getPriceChangeRate());
+        card.setTodayOfferCount(stat.getTodayOfferCount());
+        card.setFactoryCount(stat.getTodayFactoryCount());
 
-        // 热门工厂
-        List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, brandId.intValue(), productId);
+        // 热门工厂（通过 dict_brand.brand_name 匹配，一个品牌有多个 brandId）
+        List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, brandNameForStat, productId);
+        log.info("[DEBUG] buildBrandProductCard hotFactory query brandName={} productId={} -> count={}", brandNameForStat, productId, factoryStats.size());
         List<BrandProductCardDTO.HotFactoryDTO> hotFactories = new ArrayList<>();
         for (FactoryStatWithPriceDTO fs : factoryStats) {
             BrandProductCardDTO.HotFactoryDTO dto = new BrandProductCardDTO.HotFactoryDTO();
@@ -596,6 +670,26 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
             hotFactories.add(dto);
         }
         card.setHotFactories(hotFactories);
+
+        // 7日价格趋势：从 stat_brand_product 历史数据读取
+        try {
+            List<StatBrandProduct> trendRows = statBrandProductMapper.selectTrendByBrandNameAndProductName(brandNameForStat, productNameForStat);
+            if (trendRows != null && !trendRows.isEmpty()) {
+                List<BrandProductCardDTO.TrendPointDTO> trendPointDTOs = new ArrayList<>();
+                for (StatBrandProduct tp : trendRows) {
+                    BrandProductCardDTO.TrendPointDTO dto = new BrandProductCardDTO.TrendPointDTO();
+                    dto.setDate(tp.getStatDate() != null ? tp.getStatDate().toString() : "");
+                    dto.setAvgPrice(tp.getAvgPrice() != null ? tp.getAvgPrice().doubleValue() : null);
+                    trendPointDTOs.add(dto);
+                }
+                card.setTrendPoints(trendPointDTOs);
+                log.info("[DEBUG] buildBrandProductCard trend loaded brandName={} productName={} -> count={}", brandNameForStat, productNameForStat, trendPointDTOs.size());
+            }
+        } catch (Exception e) {
+            log.warn("获取品牌产品价格趋势失败: {}", e.getMessage());
+        }
+
+        log.info("[DEBUG] buildBrandProductCard SUCCESS brandName={} productName={} hotFactoryCount={}", card.getBrandName(), card.getProductName(), hotFactories.size());
         return card;
     }
 

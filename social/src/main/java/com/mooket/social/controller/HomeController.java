@@ -3,6 +3,7 @@ package com.mooket.social.controller;
 import com.mooket.social.common.ApiResponse;
 import com.mooket.social.dto.HomeCardsResponseDTO;
 import com.mooket.social.service.HomeStatService;
+import com.mooket.social.service.SearchHistoryService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,9 +17,21 @@ import java.util.Map;
 public class HomeController {
 
     private final HomeStatService homeStatService;
+    private final SearchHistoryService searchHistoryService;
 
-    public HomeController(HomeStatService homeStatService) {
+    public HomeController(HomeStatService homeStatService, SearchHistoryService searchHistoryService) {
         this.homeStatService = homeStatService;
+        this.searchHistoryService = searchHistoryService;
+    }
+
+    private Long extractUserId(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) return null;
+        try {
+            String token = authHeader.substring(7);
+            return com.mooket.social.common.JwtUtil.getUserId(token);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -43,10 +56,26 @@ public class HomeController {
 
     /**
      * 获取首页卡片数据（瀑布流8种卡片）
+     * @param tab 0=热门统计卡片 1=历史搜索卡片
      */
     @GetMapping("/cards")
     public ApiResponse<HomeCardsResponseDTO> getHomeCards(
-            @RequestParam(required = false, defaultValue = "牛") String category) {
+            @RequestParam(required = false, defaultValue = "牛") String category,
+            @RequestParam(required = false, defaultValue = "0") Integer tab,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (tab == 1) {
+            // 历史搜索数据：需要用户身份，从 searchHistoryService 获取
+            Long userId = extractUserId(authHeader);
+            if (userId == null) {
+                HomeCardsResponseDTO empty = new HomeCardsResponseDTO();
+                empty.setCards(List.of());
+                empty.setUpdateTime(null);
+                return ApiResponse.success(empty);
+            }
+            HomeCardsResponseDTO cards = searchHistoryService.getRecentSearchCards(userId, category);
+            return ApiResponse.success(cards);
+        }
+        // tab=0 或默认：热门统计卡片
         HomeCardsResponseDTO cards = homeStatService.getHomeCards(category);
         return ApiResponse.success(cards);
     }

@@ -16,6 +16,7 @@ import org.apache.ibatis.annotations.Select;
 public interface StatPriceTrendMapper extends BaseMapper<StatPriceTrend> {
     public static final String DIMENSION_COUNTRY_PRODUCT = "country_product";
     public static final String DIMENSION_COUNTRY_FACTORY_PRODUCT = "country_factory_product";
+    public static final String DIMENSION_BRAND_PRODUCT = "brand_product";
 
     /* loaded from: temp_jar_download.jar:BOOT-INF/classes/com/mooket/social/mapper/StatPriceTrendMapper$PriceTrendPoint.class */
     public static class PriceTrendPoint {
@@ -49,4 +50,8 @@ public interface StatPriceTrendMapper extends BaseMapper<StatPriceTrend> {
     @Select({"SELECT t.stat_date, t.avg_price, COALESCE(cnt.offer_count, 0) as offer_count FROM stat_price_trend t LEFT JOIN (  SELECT data_date as offer_date, COUNT(*) as offer_count   FROM biz_offer   WHERE country = #{country} AND factory_no = #{factoryNo} AND product_name = #{productName}   AND offer_type = #{offerType} AND data_date >= CURRENT_DATE - INTERVAL '29 day'   GROUP BY data_date) cnt ON t.stat_date = cnt.offer_date WHERE t.dimension_type = #{dimensionType} AND t.country = #{country} AND t.product_id = #{productId} AND t.factory_no = #{factoryNo} AND t.offer_type = #{offerType} AND t.stat_date >= CURRENT_DATE - INTERVAL '29 day' ORDER BY t.stat_date ASC"})
     @Results({@Result(property = "date", column = "stat_date"), @Result(property = "avgPrice", column = "avg_price"), @Result(property = "offerCount", column = "offer_count")})
     List<PriceTrendPoint> selectTrendPointsWithOfferCount(@Param("dimensionType") String dimensionType, @Param("country") String country, @Param("productId") Integer productId, @Param("factoryNo") String factoryNo, @Param("productName") String productName, @Param("offerType") String offerType);
+
+    @Select({"SELECT stat_date, avg_price FROM stat_price_trend WHERE dimension_type = #{dimensionType} AND country = #{brandName} AND product_id = #{productId} AND factory_no = '' AND offer_type = #{offerType} AND stat_date >= CURRENT_DATE - INTERVAL '29 day' ORDER BY stat_date ASC"})
+    @Results({@Result(property = "date", column = "stat_date"), @Result(property = "avgPrice", column = "avg_price")})
+    List<PriceTrendPoint> selectTrendPointsByBrandProduct(@Param("dimensionType") String dimensionType, @Param("brandName") String brandName, @Param("productId") Integer productId, @Param("offerType") String offerType);
 }

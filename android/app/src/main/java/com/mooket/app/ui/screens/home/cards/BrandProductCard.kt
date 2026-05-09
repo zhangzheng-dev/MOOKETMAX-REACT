@@ -32,10 +32,20 @@ fun BrandProductCard(
     onClick: (() -> Unit)? = null,
     isExample: Boolean = false
 ) {
-    // 涨跌颜色（绿色跌/红色涨，和 FactoryProductCard 相反）
-    // 示例时强制红色涨
-    val changeBgColor = if (isExample) Color(0xFFE67F5A).copy(alpha = 0.12f) else Color(0xFF47BB58).copy(alpha = 0.1f)
-    val changeTextColor = if (isExample) Color(0xFFA53321) else Color(0xFF0E8D41)
+    // 涨跌颜色（正涨红，负跌绿）
+    val priceChange = card.priceChange
+    val isUp = priceChange != null && priceChange > 0
+    val isDown = priceChange != null && priceChange < 0
+    val changeBgColor = when {
+        isUp -> Color(0xFFE67F5A).copy(alpha = 0.12f)  // 涨：红底
+        isDown -> Color(0xFF47BB58).copy(alpha = 0.1f) // 跌：绿底
+        else -> Color(0xFFE3EAE7).copy(alpha = 0.1f)   // 平：无色
+    }
+    val changeTextColor = when {
+        isUp -> Color(0xFFA53321)   // 涨：红字
+        isDown -> Color(0xFF0E8D41)  // 跌：绿字
+        else -> TextSecondary       // 平：灰字
+    }
 
     Box(
         modifier = Modifier
@@ -110,7 +120,6 @@ fun BrandProductCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             // 涨跌标签
-            val priceChange = card.priceChange
             val priceChangeRate = card.priceChangeRate
             if (priceChange != null || priceChangeRate != null) {
                 Row(
@@ -119,10 +128,6 @@ fun BrandProductCard(
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 涨跌图标/符号
-                    val isUp = priceChange != null && priceChange > 0
-                    val isDown = priceChange != null && priceChange < 0
-
                     // 示例卡片：显示红色向上箭头
                     if (isExample && isUp) {
                         Image(
@@ -135,8 +140,8 @@ fun BrandProductCard(
 
                     Text(
                         text = when {
-                            isUp -> "+${String.format("%.1f", priceChange)}"
-                            isDown -> String.format("%.1f", priceChange)
+                            isUp -> "+${String.format("%.2f", priceChange)}"
+                            isDown -> String.format("%.2f", priceChange)
                             else -> "0"
                         },
                         fontSize = 12.sp,
@@ -146,7 +151,7 @@ fun BrandProductCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = when {
-                            priceChangeRate != null -> "${if (priceChangeRate > 0) "+" else ""}${String.format("%.1f", priceChangeRate)}%"
+                            priceChangeRate != null -> "${if (priceChangeRate > 0) "+" else ""}${String.format("%.2f", priceChangeRate)}%"
                             else -> ""
                         },
                         fontSize = 12.sp,
@@ -196,7 +201,7 @@ fun BrandProductCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             // 热门工厂列表
-            card.topFactories?.take(3)?.forEach { factory ->
+            card.hotFactories?.take(3)?.forEach { factory ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
