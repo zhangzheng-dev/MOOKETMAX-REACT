@@ -352,6 +352,10 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
                 long productCount = aggList.size();
                 card.setFactoryCount((int) factoryCount);
                 card.setProductCount((int) productCount);
+
+                // 查今日报盘数（stat_brand 里没有时，通过 biz_offer 实时聚合）
+                BizOfferMapper.BrandStatByType brandStat = bizOfferMapper.countByBrandIdsAndType(allBrandIds, category, "报盘");
+                card.setTodayOfferCount(brandStat != null && brandStat.todayCount != null ? brandStat.todayCount.intValue() : null);
             }
         } catch (Exception e) {
             log.warn("获取品牌统计失败: brandId={}, error={}", brandId, e.getMessage());
