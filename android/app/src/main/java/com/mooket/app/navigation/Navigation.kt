@@ -657,7 +657,8 @@ fun MooketNavHost(
                     safePopBackStack()
                 },
                 onSaveSuccess = {
-                    safePopBackStack()
+                    // 返回个人中心时刷新（通过 popUpTo + navigate 实现新实例）
+                    safeNavigateWithPopUp(Screen.Profile.route, Screen.EditProfile.route, true)
                 }
             )
         }

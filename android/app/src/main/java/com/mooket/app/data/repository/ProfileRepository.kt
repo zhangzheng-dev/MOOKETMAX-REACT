@@ -33,9 +33,9 @@ class ProfileRepository(private val apiService: ApiService) {
     /**
      * 更新用户资料
      */
-    suspend fun updateProfile(nickname: String?, realName: String?): Result<Unit> {
+    suspend fun updateProfile(nickname: String?, realName: String?, identityTags: List<String>? = null): Result<Unit> {
         return try {
-            val response = apiService.updateProfile(UpdateProfileRequest(nickname, realName))
+            val response = apiService.updateProfile(UpdateProfileRequest(nickname, realName, identityTags))
             if (response.code == 200) {
                 Result.success(Unit)
             } else {

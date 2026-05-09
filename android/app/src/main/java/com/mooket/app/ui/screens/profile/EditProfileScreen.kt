@@ -1,14 +1,24 @@
 package com.mooket.app.ui.screens.profile
 
+import android.Manifest
+import android.content.Context
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIos
@@ -23,10 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.mooket.app.ui.theme.*
 
 /**
@@ -38,12 +50,79 @@ fun EditProfileScreen(
     onBackClick: () -> Unit,
     onSaveSuccess: () -> Unit
 ) {
+    val context = LocalContext.current
     val repository = remember { com.mooket.app.data.repository.ProfileRepository(com.mooket.app.data.api.RetrofitClient.apiService) }
     val viewModel: EditProfileViewModel = remember { EditProfileViewModel(repository) }
     val uiState by viewModel.uiState.collectAsState()
 
     // 行业身份选择弹窗
     var showIdentitySheet by remember { mutableStateOf(false) }
+    // 头像选择弹窗
+    var showAvatarSheet by remember { mutableStateOf(false) }
+    // 等待相机权限通过后启动相机
+    var pendingCameraLaunch by remember { mutableStateOf(false) }
+
+    // 临时编辑状态（未保存）
+    var tempNickname by remember { mutableStateOf("") }
+    var tempAvatarUrl by remember { mutableStateOf<String?>(null) }
+    var tempIdentityTags by remember { mutableStateOf<List<String>>(emptyList()) }
+    val focusManager = LocalFocusManager.current
+
+    // 初始化临时状态
+    LaunchedEffect(Unit) {
+        viewModel.loadProfile()
+    }
+
+    // 同步后端数据到临时状态（只要有一个字段为空就同步）
+    LaunchedEffect(uiState.nickname, uiState.identityTags) {
+        if (tempNickname.isEmpty() && uiState.nickname.isNotEmpty()) {
+            tempNickname = uiState.nickname
+        }
+        if (tempAvatarUrl == null && uiState.avatarUrl != null) {
+            tempAvatarUrl = uiState.avatarUrl
+        }
+        if (tempIdentityTags.isEmpty() && uiState.identityTags.isNotEmpty()) {
+            tempIdentityTags = uiState.identityTags
+        }
+    }
+
+    // 拍照选择器
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            // 拍照成功，上传临时文件
+            viewModel.uploadAvatar(context)
+        }
+    }
+
+    // 相册选择器
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            viewModel.setSelectedImageUri(it)
+            viewModel.uploadAvatar(context)
+        }
+    }
+
+    // 权限请求
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted && pendingCameraLaunch) {
+            pendingCameraLaunch = false
+            viewModel.clearSelectedImage()
+            val tempFile = viewModel.getTempImageFile(context)
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                tempFile
+            )
+            viewModel.setTempFileUri(context, tempFile)
+            cameraLauncher.launch(uri)
+        }
+    }
 
     // Loading overlay
     if (uiState.isLoading) {
@@ -61,11 +140,17 @@ fun EditProfileScreen(
             .background(Background)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { focusManager.clearFocus() }
     ) {
         // Header
         EditProfileHeader(
             onBackClick = onBackClick,
-            onSaveClick = { viewModel.saveProfile() }
+            onSaveClick = {
+                viewModel.saveProfile(tempNickname, tempIdentityTags)
+            }
         )
 
         // 基本信息 Section Title
@@ -89,15 +174,25 @@ fun EditProfileScreen(
                     .size(64.dp)
                     .clip(CircleShape)
                     .background(PrimaryLight)
-                    .clickable { /* TODO: 选择图片 */ },
+                    .clickable {
+                        showAvatarSheet = true
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.CameraAlt,
-                    contentDescription = "头像",
-                    tint = Primary,
-                    modifier = Modifier.size(28.dp)
-                )
+                if (!tempAvatarUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = tempAvatarUrl,
+                        contentDescription = "头像",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = "头像",
+                        tint = Primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
             }
         }
 
@@ -115,8 +210,8 @@ fun EditProfileScreen(
             Column {
                 // 昵称行
                 NicknameRow(
-                    nickname = uiState.nickname,
-                    onNicknameChange = { viewModel.updateNickname(it) }
+                    nickname = tempNickname,
+                    onNicknameChange = { tempNickname = it }
                 )
 
                 InfoDivider()
@@ -163,7 +258,7 @@ fun EditProfileScreen(
             // 行业身份 - 点击弹出选择器
             IdentityTagRow(
                 label = "行业身份",
-                selectedTags = uiState.identityTags,
+                selectedTags = tempIdentityTags,
                 onClick = { showIdentitySheet = true }
             )
         }
@@ -178,17 +273,130 @@ fun EditProfileScreen(
         }
     }
 
+    // 头像选择 BottomSheet
+    if (showAvatarSheet) {
+        AvatarSelectionSheet(
+            onDismiss = { showAvatarSheet = false },
+            onCameraClick = {
+                showAvatarSheet = false
+                pendingCameraLaunch = true
+                permissionLauncher.launch(Manifest.permission.CAMERA)
+            },
+            onGalleryClick = {
+                showAvatarSheet = false
+                galleryLauncher.launch("image/*")
+            }
+        )
+    }
+
     // 行业身份选择 BottomSheet
     if (showIdentitySheet) {
         IdentitySelectionSheet(
-            selectedTags = uiState.identityTags,
-            availableTags = listOf("贸易商", "采购商", "供应商", "服务商", "其他"),
+            selectedTags = tempIdentityTags,
+            availableTags = listOf("海外服务商", "贸易商", "加工厂/商超", "其他"),
             onDismiss = { showIdentitySheet = false },
             onConfirm = { selected ->
-                viewModel.updateIdentityTags(selected)
+                tempIdentityTags = selected
                 showIdentitySheet = false
             }
         )
+    }
+}
+
+/**
+ * 头像选择 BottomSheet
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AvatarSelectionSheet(
+    onDismiss: () -> Unit,
+    onCameraClick: () -> Unit,
+    onGalleryClick: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Surface,
+        windowInsets = WindowInsets(0)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp)
+        ) {
+            Text(
+                text = "选择头像",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                modifier = Modifier.padding(bottom = 20.dp)
+            )
+
+            // 拍照
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCameraClick() }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "拍照",
+                    tint = Primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "拍照",
+                    fontSize = 14.sp,
+                    color = TextPrimary
+                )
+            }
+
+            Divider(color = Border, thickness = 0.5.dp)
+
+            // 从相册选择
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onGalleryClick() }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "相册",
+                    tint = Primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "从相册选择",
+                    fontSize = 14.sp,
+                    color = TextPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 取消按钮
+            Button(
+                onClick = { onDismiss() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Background),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, Border)
+            ) {
+                Text(
+                    text = "取消",
+                    fontSize = 16.sp,
+                    color = TextPrimary
+                )
+            }
+        }
     }
 }
 
@@ -238,7 +446,7 @@ private fun IdentitySelectionSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 标签选项
             availableTags.forEach { tag ->
@@ -344,13 +552,15 @@ private fun NicknameRow(
     nickname: String,
     onNicknameChange: (String) -> Unit
 ) {
-    var isEditing by remember { mutableStateOf(false) }
-    var textValue by remember(nickname) { mutableStateOf(nickname) }
+    val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { isEditing = true }
+            .clickable {
+                focusRequester.requestFocus()
+            }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -365,41 +575,32 @@ private fun NicknameRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End
         ) {
-            if (isEditing) {
-                BasicTextField(
-                    value = textValue,
-                    onValueChange = { newValue ->
-                        textValue = newValue
-                        onNicknameChange(newValue)
-                    },
-                    modifier = Modifier.widthIn(max = 200.dp),
-                    textStyle = LocalTextStyle.current.copy(
-                        fontSize = 14.sp,
-                        color = TextPrimary,
-                        textAlign = TextAlign.End
-                    ),
-                    decorationBox = { innerTextField ->
-                        Box(contentAlignment = Alignment.CenterEnd) {
-                            if (textValue.isEmpty()) {
-                                Text(
-                                    text = "请输入昵称",
-                                    fontSize = 14.sp,
-                                    color = TextHint
-                                )
-                            }
-                            innerTextField()
-                        }
-                    },
-                    singleLine = true,
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Primary)
-                )
-            } else {
-                Text(
-                    text = nickname.ifEmpty { "请输入昵称" },
+            BasicTextField(
+                value = nickname,
+                onValueChange = { onNicknameChange(it) },
+                modifier = Modifier
+                    .widthIn(max = 200.dp)
+                    .focusRequester(focusRequester),
+                textStyle = LocalTextStyle.current.copy(
                     fontSize = 14.sp,
-                    color = if (nickname.isEmpty()) TextHint else TextPrimary
-                )
-            }
+                    color = TextPrimary,
+                    textAlign = TextAlign.End
+                ),
+                decorationBox = { innerTextField ->
+                    Box(contentAlignment = Alignment.CenterEnd) {
+                        if (nickname.isEmpty()) {
+                            Text(
+                                text = "请输入昵称",
+                                fontSize = 14.sp,
+                                color = TextHint
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
+                singleLine = true,
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(Primary)
+            )
 
             Spacer(modifier = Modifier.width(8.dp))
 

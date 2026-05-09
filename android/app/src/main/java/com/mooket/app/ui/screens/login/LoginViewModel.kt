@@ -107,6 +107,8 @@ class LoginViewModel : ViewModel() {
                     response.data.userId?.let { SessionManager.userId = it }
                     val nickname = response.data.nickname
                     val needsProfile = nickname.isNullOrBlank()
+                    // 只有需要完善资料时才标记，注册成功后的老用户不需要
+                    SessionManager.needsProfile = needsProfile
                     if (needsProfile) {
                         // 昵称为空=未完善资料，跳转到注册页面
                         _uiState.value = _uiState.value.copy(
@@ -162,6 +164,7 @@ class LoginViewModel : ViewModel() {
                 )
                 if (response.code == 200) {
                     SessionManager.nickname = nickname
+                    SessionManager.needsProfile = false  // 注册完成，标记为已完善资料
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         screen = LoginScreen.Home,

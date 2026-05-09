@@ -12,6 +12,7 @@ object SessionManager {
     private const val KEY_TOKEN = "auth_token"
     private const val KEY_USER_ID = "user_id"
     private const val KEY_NICKNAME = "nickname"
+    private const val KEY_NEEDS_PROFILE = "needs_profile"
 
     private lateinit var prefs: SharedPreferences
 
@@ -44,7 +45,20 @@ object SessionManager {
             prefs.edit().putString(KEY_NICKNAME, value).apply()
         }
 
-    fun isLoggedIn(): Boolean = !token.isNullOrBlank()
+    /**
+     * 标记用户是否需要完善资料（注册流程未完成）
+     * 登录成功后写入，注册完成后清除
+     */
+    var needsProfile: Boolean
+        get() = prefs.getBoolean(KEY_NEEDS_PROFILE, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_NEEDS_PROFILE, value).apply()
+        }
+
+    /**
+     * 只有已完成注册（资料完整）的用户才算已登录
+     */
+    fun isLoggedIn(): Boolean = !token.isNullOrBlank() && !needsProfile
 
     fun clearSession() {
         prefs.edit().clear().apply()

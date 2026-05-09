@@ -101,7 +101,7 @@ public class AuthController {
 
         boolean isNewUser = (user == null);
         if (isNewUser) {
-            // 自动注册
+            // 自动注册（仅插入手机号，等待注册接口完善资料）
             user = new DictUser();
             user.setPhone(phone);
             user.setCreateTime(java.time.LocalDateTime.now());

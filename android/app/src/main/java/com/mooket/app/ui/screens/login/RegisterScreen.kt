@@ -177,16 +177,16 @@ fun RegisterScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Figma row: 海外供应商 w=115, 贸易商 w=85, 服务商 w=85, gap=16, total=315
+            // Figma row: 海外服务商 w=115, 贸易商 w=85, gap=16
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 IdentityChip(
-                    text = "海外供应商",
-                    selected = selectedTags.contains("海外供应商"),
-                    onClick = { onTagToggle("海外供应商") },
-                    modifier = Modifier.widthIn(min = 80.dp)
+                    text = "海外服务商",
+                    selected = selectedTags.contains("海外服务商"),
+                    onClick = { onTagToggle("海外服务商") },
+                    modifier = Modifier.widthIn(min = 100.dp)
                 )
                 IdentityChip(
                     text = "贸易商",
@@ -194,31 +194,25 @@ fun RegisterScreen(
                     onClick = { onTagToggle("贸易商") },
                     modifier = Modifier.widthIn(min = 65.dp)
                 )
-                IdentityChip(
-                    text = "服务商",
-                    selected = selectedTags.contains("服务商"),
-                    onClick = { onTagToggle("服务商") },
-                    modifier = Modifier.widthIn(min = 65.dp)
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Figma: 加工厂/商场 w=123, 其它 w=70, gap=16
+            // Figma: 加工厂/商超 w=123, 其他 w=70, gap=16
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 IdentityChip(
-                    text = "加工厂/商场",
-                    selected = selectedTags.contains("加工厂/商场"),
-                    onClick = { onTagToggle("加工厂/商场") },
-                    modifier = Modifier.widthIn(min = 90.dp)
+                    text = "加工厂/商超",
+                    selected = selectedTags.contains("加工厂/商超"),
+                    onClick = { onTagToggle("加工厂/商超") },
+                    modifier = Modifier.widthIn(min = 100.dp)
                 )
                 IdentityChip(
-                    text = "其它",
-                    selected = selectedTags.contains("其它"),
-                    onClick = { onTagToggle("其它") },
+                    text = "其他",
+                    selected = selectedTags.contains("其他"),
+                    onClick = { onTagToggle("其他") },
                     modifier = Modifier.widthIn(min = 55.dp)
                 )
             }
