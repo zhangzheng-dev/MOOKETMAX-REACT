@@ -37,3 +37,4 @@ target/
 bin/
 .idea/
 *.iml
+sync_log.txt
