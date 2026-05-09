@@ -182,7 +182,10 @@ fun CountryProductScreen(
                     modifier = Modifier.fillMaxSize(),
                     state = listState
                 ) {
-                    itemsIndexed(uiState.factories) { index, factory ->
+                    itemsIndexed(
+                        items = uiState.factories,
+                        key = { _, factory -> factory.factoryNo ?: factory.hashCode() }
+                    ) { index, factory ->
                         FactoryItem(
                             factory = factory,
                             country = country,

@@ -1,7 +1,6 @@
 package com.mooket.app.ui.screens.country
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -273,7 +272,6 @@ private fun CountryDashboard(
             .fillMaxWidth()
             .background(Color.White)
             .padding(16.dp)
-            .animateContentSize()
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

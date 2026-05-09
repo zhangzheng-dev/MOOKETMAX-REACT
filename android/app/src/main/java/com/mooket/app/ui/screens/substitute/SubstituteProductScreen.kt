@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -172,7 +171,6 @@ fun SubstituteProductScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .animateContentSize()
                     ) {
                         // 平替产品信息卡片
                         SubstituteProductInfoCard(
@@ -303,7 +301,10 @@ fun SubstituteProductScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 state = listState
                             ) {
-                                itemsIndexed(filteredMerchantOffers) { index, merchantGroup ->
+                                itemsIndexed(
+                                    items = filteredMerchantOffers,
+                                    key = { _, merchantGroup -> merchantGroup.merchantId ?: merchantGroup.hashCode() }
+                                ) { index, merchantGroup ->
                                     Column {
                                         MerchantOfferItemSubstitute(
                                             merchantGroup = merchantGroup,
@@ -1500,8 +1501,10 @@ private fun MerchantFilterSheet(
                 .weight(1f, fill = false)
                 .heightIn(max = 400.dp)
         ) {
-            items(filteredMerchants.size) { index ->
-                val merchant = filteredMerchants[index]
+            itemsIndexed(
+                items = filteredMerchants,
+                key = { _, merchant -> merchant.id ?: merchant.hashCode() }
+            ) { index, merchant ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -391,7 +391,10 @@ fun CountryFactoryProductScreen(
                             state = listState
                         ) {
                             // 报盘列表（按商家分组）
-                            itemsIndexed(filteredMerchantOffers) { index, merchantGroup ->
+                            itemsIndexed(
+                                items = filteredMerchantOffers,
+                                key = { _, merchantGroup -> merchantGroup.merchantId ?: merchantGroup.hashCode() }
+                            ) { index, merchantGroup ->
                                 Column {
                                     MerchantOfferItem(
                                         merchantGroup = merchantGroup,

@@ -207,7 +207,10 @@ fun BrandProductDetailScreen(
                         }
                     }
 
-                    itemsIndexed(uiState.currentSummaries) { index, summary ->
+                    itemsIndexed(
+                        items = uiState.currentSummaries,
+                        key = { index, summary -> summary.productId * 10000 + (uiState.currentPage - 1) * 10 + index }
+                    ) { index, summary ->
                         LaunchedEffect(index) {
                             if (index >= uiState.currentSummaries.size - 3 && uiState.hasMorePages && !uiState.isLoadingMore) {
                                 viewModel.loadMore()

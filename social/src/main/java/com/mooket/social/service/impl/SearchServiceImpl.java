@@ -319,11 +319,13 @@ public class SearchServiceImpl implements SearchService {
             parsed.factoryNoInput = bestMatchInput;
         }
 
-        // 3. 解析品牌（支持别名）
+        // 3. 解析品牌（支持别名，大小写不敏感）
         for (DictBrand brand : allBrands) {
             // 检查标准品牌名（双向匹配：keyword包含品牌名 或 品牌名包含keyword）
             String brandNameNoSpace = brand.getBrandName().replace(" ", "");
-            if (keyword.contains(brandNameNoSpace) || brandNameNoSpace.contains(keyword)) {
+            String keywordUpper = keyword.toUpperCase();
+            String brandNameUpper = brandNameNoSpace.toUpperCase();
+            if (keywordUpper.contains(brandNameUpper) || brandNameUpper.contains(keywordUpper)) {
                 parsed.brandName = brand.getBrandName();
                 parsed.brandInput = brand.getBrandName();
                 parsed.brandAlias = null; // 用户输入的是标准名，没有别名
@@ -335,7 +337,7 @@ public class SearchServiceImpl implements SearchService {
                 // 优先精确匹配
                 for (String alias : aliases) {
                     String aliasNoSpace = alias.replace(" ", "");
-                    if (keyword.equals(aliasNoSpace)) {
+                    if (aliasNoSpace.equalsIgnoreCase(keyword)) {
                         parsed.brandName = brand.getBrandName();
                         parsed.brandInput = keyword; // 用户输入的原始关键词
                         parsed.brandAlias = alias.trim(); // 记录匹配到的别名
@@ -346,8 +348,9 @@ public class SearchServiceImpl implements SearchService {
                 if (parsed.brandName == null) {
                     for (String alias : aliases) {
                         String aliasNoSpace = alias.replace(" ", "");
-                        if (aliasNoSpace.startsWith(keyword) ||
-                            (keyword.length() <= aliasNoSpace.length() && aliasNoSpace.contains(keyword))) {
+                        String aliasUpper = aliasNoSpace.toUpperCase();
+                        if (aliasUpper.startsWith(keywordUpper) ||
+                            (keyword.length() <= aliasNoSpace.length() && aliasUpper.contains(keywordUpper))) {
                             parsed.brandName = brand.getBrandName();
                             parsed.brandInput = keyword; // 用户输入的原始关键词
                             parsed.brandAlias = alias.trim(); // 记录匹配到的别名

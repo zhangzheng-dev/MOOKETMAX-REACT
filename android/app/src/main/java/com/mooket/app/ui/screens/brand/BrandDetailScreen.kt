@@ -179,7 +179,10 @@ fun BrandDetailScreen(
                         }
                     }
 
-                    itemsIndexed(uiState.currentSummaries) { index, summary ->
+                    itemsIndexed(
+                        items = uiState.currentSummaries,
+                        key = { _, summary -> summary.productId ?: summary.hashCode() }
+                    ) { index, summary ->
                         BrandProductItem(
                             summary = summary,
                             isInquiryTab = uiState.selectedTab == 1,
@@ -256,7 +259,6 @@ private fun BrandDashboard(
             .fillMaxWidth()
             .background(Color.White)
             .padding(16.dp)
-            .animateContentSize()
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
