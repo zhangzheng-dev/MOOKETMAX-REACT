@@ -42,6 +42,7 @@ import com.mooket.app.ui.screens.login.SmsVerifyScreen
 import com.mooket.app.ui.screens.login.OneClickLoginScreen
 import com.mooket.app.ui.screens.login.RegisterScreen
 import com.mooket.app.ui.screens.profile.ProfileScreen
+import com.mooket.app.ui.screens.profile.EditProfileScreen
 
 /**
  * 导航路由
@@ -90,6 +91,7 @@ sealed class Screen(val route: String) {
             "brand-product/${java.net.URLEncoder.encode(brandName, "UTF-8")}/${java.net.URLEncoder.encode(productName, "UTF-8")}/$category"
     }
     object Profile : Screen("profile")
+    object EditProfile : Screen("profile/edit")
 }
 
 @Composable
@@ -641,6 +643,21 @@ fun MooketNavHost(
                 },
                 onNavigateToLogin = {
                     safeNavigateWithPopUp(Screen.Login.route, Screen.Home.route, true)
+                },
+                onNavigateToEditProfile = {
+                    safeNavigate(Screen.EditProfile.route)
+                }
+            )
+        }
+
+        // 编辑资料页
+        composable(Screen.EditProfile.route) {
+            EditProfileScreen(
+                onBackClick = {
+                    safePopBackStack()
+                },
+                onSaveSuccess = {
+                    safePopBackStack()
                 }
             )
         }

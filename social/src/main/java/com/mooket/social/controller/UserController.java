@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -53,6 +54,14 @@ public class UserController {
         data.put("realNameStatus", user.getRealNameStatus());
         data.put("realName", user.getRealName());
 
+        // 返回行业身份标签
+        String identityTagsStr = user.getIdentityTags();
+        if (identityTagsStr != null && !identityTagsStr.isEmpty()) {
+            data.put("identityTags", Arrays.asList(identityTagsStr.split(",")));
+        } else {
+            data.put("identityTags", Arrays.asList());
+        }
+
         return ApiResponse.success(data);
     }
 
@@ -62,7 +71,7 @@ public class UserController {
     @PostMapping("/profile/update")
     public ApiResponse<Map<String, String>> updateProfile(
             @RequestHeader("Authorization") String authHeader,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, Object> request) {
 
         String token = authHeader.replace("Bearer ", "");
         if (!JwtUtil.validateToken(token)) {
@@ -75,8 +84,10 @@ public class UserController {
             return ApiResponse.error(404, "用户不存在");
         }
 
-        String nickname = request.get("nickname");
-        String realName = request.get("realName");
+        String nickname = (String) request.get("nickname");
+        // realName 不允许自行修改，只能通过实名认证
+        @SuppressWarnings("unchecked")
+        java.util.List<String> identityTags = (java.util.List<String>) request.get("identityTags");
 
         if (nickname != null) {
             if (nickname.length() < 2 || nickname.length() > 20) {
@@ -85,8 +96,9 @@ public class UserController {
             user.setNickname(nickname);
         }
 
-        if (realName != null) {
-            user.setRealName(realName);
+        // 更新行业身份标签
+        if (identityTags != null) {
+            user.setIdentityTags(String.join(",", identityTags));
         }
 
         user.setUpdateTime(java.time.LocalDateTime.now());

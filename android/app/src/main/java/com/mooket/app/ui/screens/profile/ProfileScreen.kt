@@ -41,7 +41,8 @@ import com.mooket.app.ui.theme.*
 @Composable
 fun ProfileScreen(
     onBackClick: () -> Unit,
-    onNavigateToLogin: () -> Unit
+    onNavigateToLogin: () -> Unit,
+    onNavigateToEditProfile: () -> Unit = {}
 ) {
     val repository = remember { ProfileRepository(RetrofitClient.apiService) }
     val viewModel: ProfileViewModel = viewModel { ProfileViewModel(repository) }
@@ -74,7 +75,7 @@ fun ProfileScreen(
                 mooketId = uiState.profile?.mooketId,
                 realNameStatus = uiState.profile?.realNameStatus,
                 realName = uiState.profile?.realName,
-                onEditClick = { /* TODO: 编辑资料 */ }
+                onEditClick = onNavigateToEditProfile
             )
 
             Spacer(modifier = Modifier.height(16.dp))

@@ -602,7 +602,8 @@ data class UserProfile(
     val avatarUrl: String?,
     val mooketId: String?,
     val realNameStatus: String?,  // 实名状态: pending/approved/rejected
-    val realName: String?         // 真实姓名（如果已实名）
+    val realName: String?,         // 真实姓名（如果已实名）
+    val identityTags: List<String>? // 行业身份标签
 )
 
 /**
@@ -610,7 +611,8 @@ data class UserProfile(
  */
 data class UpdateProfileRequest(
     val nickname: String?,
-    val realName: String?
+    val realName: String?,
+    val identityTags: List<String>? = null
 )
 
 /**
