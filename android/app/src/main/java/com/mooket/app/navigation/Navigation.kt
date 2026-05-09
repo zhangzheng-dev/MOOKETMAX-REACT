@@ -582,6 +582,9 @@ fun MooketNavHost(
                 onProductClick = { productId, cat, productName ->
                     safeNavigate(Screen.Product.createRoute(productId, cat, productName))
                 },
+                onBrandProductClick = { bn, pn, cat ->
+                    safeNavigate(Screen.BrandProduct.createRoute(bn, pn, cat))
+                },
                 onSearchDelete = { cat ->
                     safeNavigateWithPopUp(Screen.Search.route + "/$cat", Screen.Search.route, true)
                 },

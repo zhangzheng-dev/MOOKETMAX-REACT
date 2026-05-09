@@ -45,6 +45,7 @@ fun BrandDetailScreen(
     category: String,
     onBackClick: () -> Unit,
     onProductClick: (Int, String, String) -> Unit,
+    onBrandProductClick: (String, String, String) -> Unit,
     onSearchDelete: (String) -> Unit,
     viewModel: BrandDetailViewModel = viewModel()
 ) {
@@ -182,7 +183,7 @@ fun BrandDetailScreen(
                         BrandProductItem(
                             summary = summary,
                             isInquiryTab = uiState.selectedTab == 1,
-                            onClick = { onProductClick(summary.productId ?: 0, category, summary.productName ?: "") }
+                            onClick = { onBrandProductClick(brandName, summary.productName ?: "", category) }
                         )
                     }
 
