@@ -57,6 +57,7 @@ public class UserController {
         data.put("nickname", user.getNickname());
         data.put("phone", user.getPhone());
         data.put("mooketId", user.getMooketId());
+        data.put("mooketNo", user.getMooketNo());
         data.put("realNameStatus", user.getRealNameStatus());
         data.put("realName", user.getRealName());
 

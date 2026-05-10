@@ -86,7 +86,7 @@ fun ProfileScreen(
                 avatarUrl = uiState.profile?.avatarUrl,
                 nickname = uiState.profile?.nickname ?: "未登录",
                 phone = uiState.profile?.phone ?: "",
-                mooketId = uiState.profile?.mooketId,
+                mooketNo = uiState.profile?.mooketNo,
                 realNameStatus = uiState.profile?.realNameStatus,
                 realName = uiState.profile?.realName,
                 onEditClick = onNavigateToEditProfile
@@ -436,7 +436,7 @@ private fun UserInfoCard(
     avatarUrl: String?,
     nickname: String,
     phone: String,
-    mooketId: String?,
+    mooketNo: String?,
     realNameStatus: String?,
     realName: String?,
     onEditClick: () -> Unit
@@ -475,35 +475,14 @@ private fun UserInfoCard(
 
         // Avatar + Name/Phone Row
         Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(PrimaryLight),
-                contentAlignment = Alignment.Center
+            // 左侧：昵称 + 手机号 + 牧集号
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
-                if (!avatarUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = avatarUrl,
-                        contentDescription = "头像",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "头像",
-                        tint = Primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = nickname,
@@ -533,12 +512,38 @@ private fun UserInfoCard(
                     fontSize = 14.sp,
                     color = TextSecondary
                 )
-                if (!mooketId.isNullOrEmpty()) {
+                if (!mooketNo.isNullOrEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "牧集号: $mooketId",
+                        text = "牧集号: $mooketNo",
                         fontSize = 12.sp,
                         color = TextHint
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 右侧：头像
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryLight),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!avatarUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = "头像",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "头像",
+                        tint = Primary,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }

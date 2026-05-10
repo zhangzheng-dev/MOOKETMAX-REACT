@@ -609,6 +609,7 @@ data class UserProfile(
     val nickname: String?,
     val avatarUrl: String?,
     val mooketId: String?,
+    val mooketNo: String?,      // 牧集号（来自UAC user_muji_no）
     val realNameStatus: String?,  // 实名状态: pending/approved/rejected
     val realName: String?,         // 真实姓名（如果已实名）
     val identityTags: List<String>? // 行业身份标签
