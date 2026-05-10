@@ -35,11 +35,20 @@ class ProfileViewModel(
     private val repository: ProfileRepository
 ) : ViewModel() {
 
+    companion object {
+        private const val AVATAR_BASE_URL = "http://43.139.56.124:8080"
+    }
+
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     init {
         loadProfile()
+    }
+
+    private fun makeAvatarFullUrl(relativePath: String?): String? {
+        if (relativePath.isNullOrEmpty()) return null
+        return if (relativePath.startsWith("http")) relativePath else "$AVATAR_BASE_URL$relativePath"
     }
 
     /**
@@ -50,7 +59,14 @@ class ProfileViewModel(
             _uiState.update { it.copy(isLoading = true, error = null) }
             repository.getUserProfile()
                 .onSuccess { profile ->
-                    _uiState.update { it.copy(isLoading = false, profile = profile) }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            profile = profile.copy(
+                                avatarUrl = makeAvatarFullUrl(profile.avatarUrl)
+                            )
+                        )
+                    }
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoading = false, error = e.message) }

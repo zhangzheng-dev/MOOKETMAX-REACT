@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.mooket.app.R
 import com.mooket.app.data.SessionManager
 import com.mooket.app.data.api.RetrofitClient
@@ -328,12 +329,10 @@ private fun UserInfoCard(
                 contentAlignment = Alignment.Center
             ) {
                 if (!avatarUrl.isNullOrEmpty()) {
-                    // TODO: 使用 Coil 或 Glide 加载头像
-                    Icon(
-                        imageVector = Icons.Default.Person,
+                    AsyncImage(
+                        model = avatarUrl,
                         contentDescription = "头像",
-                        tint = Primary,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.fillMaxSize()
                     )
                 } else {
                     Icon(
