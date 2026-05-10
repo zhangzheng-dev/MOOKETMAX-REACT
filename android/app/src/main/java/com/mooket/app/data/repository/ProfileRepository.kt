@@ -4,6 +4,8 @@ import com.mooket.app.data.api.ApiService
 import com.mooket.app.data.model.AppVersion
 import com.mooket.app.data.model.UpdateProfileRequest
 import com.mooket.app.data.model.UserProfile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -121,6 +123,54 @@ class ProfileRepository(private val apiService: ApiService) {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * 下载并安装 APK（应用内更新）
+     * 返回下载的 APK 文件，供调用方用 Intent 安装
+     * @param onProgress 进度回调 0-100
+     */
+    suspend fun downloadAndInstall(context: Context, updateUrl: String, onProgress: (Int) -> Unit): Result<File> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                val request = okhttp3.Request.Builder()
+                    .url(updateUrl)
+                    .build()
+                val response = client.newCall(request).execute()
+
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception("下载失败: ${response.code}"))
+                }
+
+                val body = response.body
+                val contentLength = body?.contentLength() ?: -1L
+                val apkFile = File(context.cacheDir, "update.apk")
+
+                body?.byteStream()?.use { input ->
+                    apkFile.outputStream().use { output ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Long = 0
+                        var read: Int
+                        while (input.read(buffer).also { read = it } != -1) {
+                            output.write(buffer, 0, read)
+                            bytesRead += read
+                            if (contentLength > 0) {
+                                val progress = ((bytesRead * 100) / contentLength).toInt()
+                                withContext(Dispatchers.Main) { onProgress(progress.coerceIn(0, 100)) }
+                            }
+                        }
+                    }
+                }
+
+                Result.success(apkFile)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
 

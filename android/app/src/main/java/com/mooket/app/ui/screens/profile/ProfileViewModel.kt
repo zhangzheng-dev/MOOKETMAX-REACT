@@ -22,9 +22,14 @@ data class ProfileUiState(
     val profile: UserProfile? = null,
     val error: String? = null,
     val version: String = "1.0",
+    val versionCode: Int = 1,
     val hasUpdate: Boolean = false,
     val isCheckingUpdate: Boolean = false,
+    val isDownloadingUpdate: Boolean = false,
+    val updateDownloadProgress: Int = 0,  // 0-100 下载进度
     val updateMessage: String? = null,
+    val updateUrl: String? = null,
+    val updateDownloadError: String? = null,
     val isLoggingOut: Boolean = false
 )
 
@@ -141,8 +146,10 @@ class ProfileViewModel(
                         it.copy(
                             isCheckingUpdate = false,
                             version = appVersion.version,
+                            versionCode = appVersion.versionCode,
                             hasUpdate = appVersion.hasUpdate,
-                            updateMessage = if (appVersion.hasUpdate) appVersion.updateContent else null
+                            updateMessage = if (appVersion.hasUpdate) appVersion.updateContent else null,
+                            updateUrl = appVersion.updateUrl
                         )
                     }
                 }
@@ -173,6 +180,27 @@ class ProfileViewModel(
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoggingOut = false, error = e.message) }
+                }
+        }
+    }
+
+    /**
+     * 下载 APK 并返回文件路径，供调用方触发安装
+     * @param onProgress 进度回调 0-100
+     */
+    fun downloadApk(context: android.content.Context, updateUrl: String, onProgress: (Int) -> Unit, onApkReady: (File) -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDownloadingUpdate = true, updateDownloadError = null, updateDownloadProgress = 0) }
+            repository.downloadAndInstall(context, updateUrl) { progress ->
+                _uiState.update { it.copy(updateDownloadProgress = progress) }
+                onProgress(progress)
+            }
+                .onSuccess { apkFile ->
+                    _uiState.update { it.copy(isDownloadingUpdate = false, updateDownloadProgress = 100) }
+                    onApkReady(apkFile)
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isDownloadingUpdate = false, updateDownloadError = e.message) }
                 }
         }
     }

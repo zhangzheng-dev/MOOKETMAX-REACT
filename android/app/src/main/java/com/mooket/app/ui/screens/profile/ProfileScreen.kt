@@ -27,6 +27,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import android.widget.Toast
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -48,10 +53,18 @@ fun ProfileScreen(
     val repository = remember { ProfileRepository(RetrofitClient.apiService) }
     val viewModel: ProfileViewModel = viewModel { ProfileViewModel(repository) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
+    val context = LocalContext.current
+    // showUpdateDialog 由 LaunchedEffect + 点击"发现新版本"两种方式触发
     // 控制确认弹窗
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.hasUpdate) {
+        if (uiState.hasUpdate && !uiState.isCheckingUpdate) {
+            showUpdateDialog = true
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -96,7 +109,8 @@ fun ProfileScreen(
                 version = uiState.version,
                 hasUpdate = uiState.hasUpdate,
                 isCheckingUpdate = uiState.isCheckingUpdate,
-                onCheckUpdate = { viewModel.checkUpdate() }
+                onCheckUpdate = { viewModel.checkUpdate() },
+                onShowUpdateDialog = { showUpdateDialog = true }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -142,6 +156,35 @@ fun ProfileScreen(
                     }
                 },
                 onDismiss = { showCancelDialog = false }
+            )
+        }
+
+        // 版本更新弹窗
+        if (showUpdateDialog) {
+            UpdateDialog(
+                version = uiState.version,
+                updateContent = uiState.updateMessage ?: "发现新版本，是否立即更新？",
+                isDownloading = uiState.isDownloadingUpdate,
+                downloadProgress = uiState.updateDownloadProgress,
+                onConfirm = {
+                    uiState.updateUrl?.let { url ->
+                        viewModel.downloadApk(context, url, { progress ->
+                            // 进度在 ViewModel 中更新
+                        }) { apkFile ->
+                            val uri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                apkFile
+                            )
+                            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "application/vnd.android.package-archive")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(installIntent)
+                        }
+                    }
+                },
+                onDismiss = { showUpdateDialog = false }
             )
         }
     }
@@ -223,6 +266,120 @@ private fun ConfirmDialog(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(text = confirmText, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 版本更新弹窗（带下载进度条）
+ */
+@Composable
+private fun UpdateDialog(
+    version: String,
+    updateContent: String,
+    isDownloading: Boolean = false,
+    downloadProgress: Int = 0,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = { if (!isDownloading) onDismiss() }) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (isDownloading) "正在下载更新..." else "发现新版本 v$version",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (isDownloading) {
+                    // 下载进度条
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        LinearProgressIndicator(
+                            progress = downloadProgress / 100f,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                            color = Primary,
+                            trackColor = PrimaryLight
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "$downloadProgress%",
+                            fontSize = 14.sp,
+                            color = TextSecondary
+                        )
+                    }
+                } else {
+                    Text(
+                        text = updateContent,
+                        fontSize = 14.sp,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (!isDownloading) {
+                        Button(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Background,
+                                contentColor = TextPrimary
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Border)
+                        ) {
+                            Text(text = "稍后", fontSize = 14.sp)
+                        }
+                    }
+
+                    Button(
+                        onClick = onConfirm,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        enabled = !isDownloading,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Primary,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        if (isDownloading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Text(text = "立即更新", fontSize = 14.sp)
+                        }
                     }
                 }
             }
@@ -477,7 +634,8 @@ private fun AppUpdateSection(
     version: String,
     hasUpdate: Boolean,
     isCheckingUpdate: Boolean,
-    onCheckUpdate: () -> Unit
+    onCheckUpdate: () -> Unit,
+    onShowUpdateDialog: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -506,13 +664,24 @@ private fun AppUpdateSection(
                     strokeWidth = 2.dp,
                     color = Primary
                 )
+            } else if (hasUpdate) {
+                // 有更新本地状态，直接弹窗，不需要再调 API
+                Text(
+                    text = "发现新版本",
+                    fontSize = 12.sp,
+                    color = Primary,
+                    modifier = Modifier
+                        .background(PrimaryLight, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .clickable { onShowUpdateDialog() }
+                )
             } else {
                 Text(
-                    text = if (hasUpdate) "发现新版本" else "检查更新",
+                    text = "检查更新",
                     fontSize = 12.sp,
-                    color = if (hasUpdate) Primary else TextHint,
+                    color = TextHint,
                     modifier = Modifier
-                        .background(if (hasUpdate) PrimaryLight else Color(0xFFF0F0F0), RoundedCornerShape(4.dp))
+                        .background(Color(0xFFF0F0F0), RoundedCornerShape(4.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                         .clickable { onCheckUpdate() }
                 )
