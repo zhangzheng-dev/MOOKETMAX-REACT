@@ -12,6 +12,14 @@ data class ApiResponse<T>(
 )
 
 /**
+ * 头像上传响应
+ */
+data class AvatarUploadResponse(
+    @SerializedName("avatarUrl") val avatarUrl: String,
+    @SerializedName("message") val message: String
+)
+
+/**
  * 商家详情
  */
 data class MerchantDetail(
