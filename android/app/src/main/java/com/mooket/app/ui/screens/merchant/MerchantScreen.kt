@@ -1005,7 +1005,9 @@ private fun TabSection(
     onSortByRecommendToggle: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
     ) {
         // 分隔背景
         Box(
