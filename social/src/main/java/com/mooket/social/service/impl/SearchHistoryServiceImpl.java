@@ -453,6 +453,10 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
             latestOfferDTOs.add(dto);
         }
         card.setLatestOffers(latestOfferDTOs);
+        // 无最新报盘数据则不显示该卡片
+        if (latestOfferDTOs.isEmpty()) {
+            return null;
+        }
         return card;
     }
 
