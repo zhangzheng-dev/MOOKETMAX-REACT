@@ -327,7 +327,7 @@ fun SearchScreen(
                                         historyItem
                                     }
                                     viewModel.updateKeyword(standardKeyword, category)
-                                    viewModel.addToHistory(historyItem)
+                                    viewModel.addToHistory(standardKeyword)
                                 }
                             )
                         }
