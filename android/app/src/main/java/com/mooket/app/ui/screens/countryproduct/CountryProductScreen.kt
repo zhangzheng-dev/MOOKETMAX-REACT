@@ -69,7 +69,7 @@ fun CountryProductScreen(
     }
 
     // Infinite scroll - detect when near bottom
-    val shouldLoadMore = !listState.canScrollForward
+    val shouldLoadMore = !listState.canScrollForward && uiState.factories.isNotEmpty()
 
     LaunchedEffect(shouldLoadMore, uiState.hasMorePages, uiState.isLoadingMore) {
         if (shouldLoadMore && uiState.hasMorePages && !uiState.isLoadingMore) {
