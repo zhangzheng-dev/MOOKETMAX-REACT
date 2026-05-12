@@ -199,7 +199,7 @@ fun CountryProductScreen(
                 // 厂号列表
                 itemsIndexed(
                     items = uiState.factories,
-                    key = { _, factory -> factory.factoryNo ?: factory.hashCode() }
+                    key = { _, factory -> "${factory.country ?: ""}_${factory.factoryNo ?: ""}" }
                 ) { index, factory ->
                     FactoryItem(
                         factory = factory,
