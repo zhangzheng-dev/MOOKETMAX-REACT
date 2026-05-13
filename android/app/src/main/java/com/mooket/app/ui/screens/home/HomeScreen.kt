@@ -75,6 +75,7 @@ fun HomeScreen(
     onBrandProductClick: (String, String, String) -> Unit,
     onHomeCardsClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onInventoryClick: () -> Unit = {},
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -212,7 +213,11 @@ fun HomeScreen(
                     contentDescription = "MooketMax Logo",
                     modifier = Modifier.height(14.645.dp).width(90.dp)
                 )
-                Icon(imageVector = Icons.Outlined.Person, contentDescription = "个人中心", tint = TextPrimary, modifier = Modifier.size(24.dp).clickable { onProfileClick() })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Inventory2, contentDescription = "库存", tint = Primary, modifier = Modifier.size(24.dp).clickable { onInventoryClick() })
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Icon(imageVector = Icons.Outlined.Person, contentDescription = "个人中心", tint = TextPrimary, modifier = Modifier.size(24.dp).clickable { onProfileClick() })
+                }
             }
 
             // 搜索框
