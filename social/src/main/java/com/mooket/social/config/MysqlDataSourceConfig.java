@@ -23,7 +23,7 @@ public class MysqlDataSourceConfig {
     @Bean(name = "mysqlDataSource")
     public DataSource mysqlDataSource() {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:mysql://43.136.78.41:32106/mallee_muji_uac?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai");
+        config.setJdbcUrl("jdbc:mysql://43.136.78.41:32106/mallee_muji_social?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai");
         config.setUsername("read");
         config.setPassword("MF#20&25Er6");
         config.setDriverClassName("com.mysql.cj.jdbc.Driver");
