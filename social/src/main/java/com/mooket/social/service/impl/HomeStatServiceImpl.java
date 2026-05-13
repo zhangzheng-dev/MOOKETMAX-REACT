@@ -789,7 +789,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         }
 
         // 5. 品牌 - 取前1个
-        List<StatBrandMapper.HotBrand> hotBrands = statBrandMapper.findHotBrands(today, 3);
+        List<StatBrandMapper.HotBrand> hotBrands = statBrandMapper.findHotBrands(today, 3, category);
         for (StatBrandMapper.HotBrand b : hotBrands) {
             if (result.size() >= 5) break;
             String coreElement = "brand:" + b.brandId;
@@ -927,7 +927,7 @@ public class HomeStatServiceImpl implements HomeStatService {
         }
 
         // 3. 品牌卡片 - 取前3个
-        List<StatBrandMapper.HotBrand> hotBrands = statBrandMapper.findHotBrands(today, 3);
+        List<StatBrandMapper.HotBrand> hotBrands = statBrandMapper.findHotBrands(today, 3, category);
         for (StatBrandMapper.HotBrand b : hotBrands) {
             BrandCardDTO card = new BrandCardDTO();
             card.setCardType("brand");
@@ -958,7 +958,7 @@ public class HomeStatServiceImpl implements HomeStatService {
             }
             card.setTodayOfferCount(m.todayOfferCount);
             // 最新报盘需要单独查询
-            List<BizOffer> latestOffers = bizOfferMapper.findLatestByMerchant(m.merchantId, 2);
+            List<BizOffer> latestOffers = bizOfferMapper.findLatestByMerchant(m.merchantId, 2, category);
             List<MerchantCardDTO.LatestOfferDTO> latestOfferDTOs = new ArrayList<>();
             for (BizOffer offer : latestOffers) {
                 MerchantCardDTO.LatestOfferDTO dto = new MerchantCardDTO.LatestOfferDTO();
@@ -1023,7 +1023,7 @@ public class HomeStatServiceImpl implements HomeStatService {
             card.setTodayOfferCount(bp.getTodayOfferCount());
             card.setFactoryCount(bp.getTodayFactoryCount());
             // 热门工厂（通过 dict_brand.brand_name 匹配，一个品牌有多个 brandId）
-            List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, bp.getBrandName(), bp.getProductId());
+            List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, bp.getBrandName(), bp.getProductId(), category);
             List<BrandProductCardDTO.HotFactoryDTO> hotFactories = new ArrayList<>();
             for (FactoryStatWithPriceDTO fs : factoryStats) {
                 BrandProductCardDTO.HotFactoryDTO dto = new BrandProductCardDTO.HotFactoryDTO();
@@ -1129,7 +1129,7 @@ public class HomeStatServiceImpl implements HomeStatService {
                 log.warn("获取价格趋势失败: {}", e.getMessage());
             }
             // 热门商家（带价格）- 使用新查询按厂号产品筛选
-            List<MerchantStatWithPriceDTO> merchantStats = bizOfferMapper.aggregateByMerchantForFactoryProduct(today, fp.getFactoryId(), fp.getProductId());
+            List<MerchantStatWithPriceDTO> merchantStats = bizOfferMapper.aggregateByMerchantForFactoryProduct(today, fp.getFactoryId(), fp.getProductId(), category);
             List<FactoryProductCardDTO.HotMerchantDTO> hotMerchantsList = new ArrayList<>();
             for (MerchantStatWithPriceDTO ms : merchantStats) {
                 FactoryProductCardDTO.HotMerchantDTO dto = new FactoryProductCardDTO.HotMerchantDTO();
@@ -1161,7 +1161,7 @@ public class HomeStatServiceImpl implements HomeStatService {
             card.setPriceMax(cp.getPriceMax());
             card.setTodayOfferCount(cp.getTodayOfferCount());
             // 前3工厂报价 - 使用新查询按国家产品筛选
-            List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForCountryProduct(today, cp.getCountry(), cp.getProductId());
+            List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForCountryProduct(today, cp.getCountry(), cp.getProductId(), category);
             List<CountryProductCardDTO.FactoryPriceDTO> topFactories = new ArrayList<>();
             for (FactoryStatWithPriceDTO fs : factoryStats) {
                 CountryProductCardDTO.FactoryPriceDTO dto = new CountryProductCardDTO.FactoryPriceDTO();

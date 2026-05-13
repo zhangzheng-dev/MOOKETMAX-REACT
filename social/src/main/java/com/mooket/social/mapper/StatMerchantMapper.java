@@ -35,6 +35,6 @@ public interface StatMerchantMapper extends BaseMapper<StatMerchant> {
     @Results({@Result(property = "merchantId", column = "merchant_id"), @Result(property = "todayOfferCount", column = "today_offer_count")})
     List<HotMerchant> findHotMerchants(@Param("statDate") LocalDate statDate, @Param("limit") int limit);
 
-    @Select({"SELECT stat_date, merchant_id, today_offer_count, today_inquiry_count, today_product_count, today_factory_count, update_time FROM stat_merchant WHERE merchant_id = #{merchantId} AND stat_date = #{statDate}"})
-    StatMerchant selectByMerchantIdAndDate(@Param("merchantId") Long merchantId, @Param("statDate") LocalDate statDate);
+    @Select({"SELECT stat_date, merchant_id, today_offer_count, today_inquiry_count, today_product_count, today_factory_count, update_time FROM stat_merchant WHERE merchant_id = #{merchantId} AND stat_date = #{statDate} AND category = #{category}"})
+    StatMerchant selectByMerchantIdAndDate(@Param("merchantId") Long merchantId, @Param("statDate") LocalDate statDate, @Param("category") String category);
 }

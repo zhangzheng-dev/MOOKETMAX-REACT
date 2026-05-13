@@ -250,7 +250,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
                     return buildBrandCard(history, category, today, rank);
                 }
                 case "商家":
-                    return buildMerchantCard(history, today, rank);
+                    return buildMerchantCard(history, today, rank, category);
                 case "国家厂号":
                     return buildFactoryCard(history, category, today, rank);
                 case "国家产品":
@@ -408,7 +408,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         card.setBrandId(brandId.intValue());
 
         // 优先从 stat_brand 查今日统计（满足 today_offer_count >= 10 才在 hotBrands 里）
-        List<StatBrandMapper.HotBrand> hotBrands = statBrandMapper.findHotBrands(today, 100);
+        List<StatBrandMapper.HotBrand> hotBrands = statBrandMapper.findHotBrands(today, 100, category);
         for (StatBrandMapper.HotBrand hb : hotBrands) {
             if (hb.brandId != null && hb.brandId.equals(brandId.intValue())) {
                 card.setBrandName(hb.brandName);
@@ -458,7 +458,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         return card;
     }
 
-    private MerchantCardDTO buildMerchantCard(BizSearchHistory history, LocalDate today, int rank) {
+    private MerchantCardDTO buildMerchantCard(BizSearchHistory history, LocalDate today, int rank, String category) {
         Long merchantId = history.getMerchantId();
         if (merchantId == null) {
             String searchWord = history.getSearchWord();
@@ -474,7 +474,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         }
         if (merchantId == null) return null;
 
-        StatMerchant stat = statMerchantMapper.selectByMerchantIdAndDate(merchantId, today);
+        StatMerchant stat = statMerchantMapper.selectByMerchantIdAndDate(merchantId, today, category);
 
         DictMerchant merchant = merchantMapper.selectById(merchantId);
         MerchantCardDTO card = new MerchantCardDTO();
@@ -492,7 +492,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
 
         // 最新报盘
-        List<BizOffer> latestOffers = bizOfferMapper.findLatestByMerchant(merchantId, 2);
+        List<BizOffer> latestOffers = bizOfferMapper.findLatestByMerchant(merchantId, 2, category);
         List<MerchantCardDTO.LatestOfferDTO> latestOfferDTOs = new ArrayList<>();
         for (BizOffer offer : latestOffers) {
             MerchantCardDTO.LatestOfferDTO dto = new MerchantCardDTO.LatestOfferDTO();
@@ -553,8 +553,8 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         card.setFactoryNo(stat != null && stat.getFactoryNo() != null ? stat.getFactoryNo() : factoryNo);
         card.setTodayOfferCount(stat != null ? stat.getTodayOfferCount() : null);
 
-        // 热门产品（按 country + factoryNo 精确过滤）
-        List<FactoryProductStatDTO> factoryProducts = bizOfferMapper.aggregateByFactoryProductFiltered(today, card.getCountry(), card.getFactoryNo());
+        // 热门产品（按 country + factoryNo + category 精确过滤）
+        List<FactoryProductStatDTO> factoryProducts = bizOfferMapper.aggregateByFactoryProductFiltered(today, card.getCountry(), card.getFactoryNo(), category);
         List<FactoryCardDTO.HotProductDTO> hotProductsList = new ArrayList<>();
         for (FactoryProductStatDTO fp : factoryProducts) {
             FactoryCardDTO.HotProductDTO dto = new FactoryCardDTO.HotProductDTO();
@@ -644,7 +644,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
 
         // 查询热门工厂
         try {
-            List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForCountryProduct(today, country, productId);
+            List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForCountryProduct(today, country, productId, category);
             if (factoryStats != null && !factoryStats.isEmpty()) {
                 List<CountryProductCardDTO.FactoryPriceDTO> topFactories = new ArrayList<>();
                 for (FactoryStatWithPriceDTO fs : factoryStats) {
@@ -766,7 +766,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         card.setFactoryCount(stat != null ? stat.getTodayFactoryCount() : null);
 
         // 热门工厂（通过 dict_brand.brand_name 匹配，一个品牌有多个 brandId）
-        List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, brandNameForStat, productId);
+        List<FactoryStatWithPriceDTO> factoryStats = bizOfferMapper.aggregateByFactoryForBrandProduct(today, brandNameForStat, productId, category);
         log.info("[DEBUG] buildBrandProductCard hotFactory query brandName={} productId={} -> count={}", brandNameForStat, productId, factoryStats.size());
         List<BrandProductCardDTO.HotFactoryDTO> hotFactories = new ArrayList<>();
         for (FactoryStatWithPriceDTO fs : factoryStats) {
@@ -876,7 +876,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
             factoryId = factories.get(0).getFactoryId();
         }
 
-        StatFactoryProduct stat = statFactoryProductMapper.selectByFactoryNoAndProductId(factoryNo, productId);
+        StatFactoryProduct stat = statFactoryProductMapper.selectByFactoryNoAndProductId(factoryNo, productId, category);
 
         // 获取产品名用于 IQR 过滤查询
         String productName = stat != null ? stat.getProductName() : null;
@@ -987,7 +987,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
 
         // 热门商家（SQL 已 JOIN dict_merchant 返回 merchantName）
         if (factoryId != null) {
-            List<MerchantStatWithPriceDTO> merchantStats = bizOfferMapper.aggregateByMerchantForFactoryProduct(today, factoryId, productId);
+            List<MerchantStatWithPriceDTO> merchantStats = bizOfferMapper.aggregateByMerchantForFactoryProduct(today, factoryId, productId, category);
             List<FactoryProductCardDTO.HotMerchantDTO> hotMerchants = new ArrayList<>();
             for (MerchantStatWithPriceDTO ms : merchantStats) {
                 FactoryProductCardDTO.HotMerchantDTO dto = new FactoryProductCardDTO.HotMerchantDTO();
