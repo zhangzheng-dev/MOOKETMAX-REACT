@@ -829,12 +829,8 @@ private fun HomeCardItemView(
             )
             "brandProduct" -> com.mooket.app.ui.screens.home.cards.BrandProductCard(
                 card = card,
-                onClick = if (isExample) null else ({
-                    card.brandName?.let { brandName ->
-                        card.productName?.let { productName ->
-                            onBrandProductClick(brandName, productName, category)
-                        }
-                    }
+                onClick = if (isExample || card.brandName == null || card.productName == null) null else ({
+                    onBrandProductClick(card.brandName!!, card.productName!!, category)
                 }),
                 isExample = isExample
             )
@@ -853,12 +849,8 @@ private fun HomeCardItemView(
             )
             "countryProduct" -> com.mooket.app.ui.screens.home.cards.CountryProductCard(
                 card = card,
-                onClick = if (isExample) null else ({
-                    card.country?.let { country ->
-                        card.productName?.let { productName ->
-                            onCountryProductClick(country, productName, category)
-                        }
-                    }
+                onClick = if (isExample || card.country == null || card.productName == null) null else ({
+                    onCountryProductClick(card.country!!, card.productName!!, category)
                 })
             )
             else -> {
