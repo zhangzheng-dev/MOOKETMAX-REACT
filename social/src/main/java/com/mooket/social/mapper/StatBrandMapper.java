@@ -25,7 +25,7 @@ public interface StatBrandMapper extends BaseMapper<StatBrand> {
         public Integer productCount;
     }
 
-    @Insert({"<script>INSERT INTO stat_brand (stat_date, brand_id, brand_name, today_offer_count, today_factory_count, today_product_count, price_min, price_max, update_time) VALUES <foreach collection='list' item='item' separator=','>(#{item.statDate}, #{item.brandId}, #{item.brandName}, #{item.todayOfferCount}, #{item.todayFactoryCount}, #{item.todayProductCount}, #{item.priceMin}, #{item.priceMax}, #{item.updateTime})</foreach> ON CONFLICT (stat_date, brand_id) DO UPDATE SET today_offer_count = EXCLUDED.today_offer_count, today_factory_count = EXCLUDED.today_factory_count, today_product_count = EXCLUDED.today_product_count, price_min = EXCLUDED.price_min, price_max = EXCLUDED.price_max, update_time = EXCLUDED.update_time</script>"})
+    @Insert({"<script>INSERT INTO stat_brand (stat_date, brand_id, brand_name, category, today_offer_count, today_factory_count, today_product_count, price_min, price_max, update_time) VALUES <foreach collection='list' item='item' separator=','>(#{item.statDate}, #{item.brandId}, #{item.brandName}, #{item.category}, #{item.todayOfferCount}, #{item.todayFactoryCount}, #{item.todayProductCount}, #{item.priceMin}, #{item.priceMax}, #{item.updateTime})</foreach> ON CONFLICT (stat_date, brand_id, category) DO UPDATE SET today_offer_count = EXCLUDED.today_offer_count, today_factory_count = EXCLUDED.today_factory_count, today_product_count = EXCLUDED.today_product_count, price_min = EXCLUDED.price_min, price_max = EXCLUDED.price_max, update_time = EXCLUDED.update_time</script>"})
     void batchUpsert(@Param("list") List<StatBrand> stats);
 
     @Delete({"DELETE FROM stat_brand WHERE stat_date = #{statDate}"})

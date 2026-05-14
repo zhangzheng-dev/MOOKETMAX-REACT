@@ -9,6 +9,8 @@ import com.mooket.social.service.BrandService;
 import com.mooket.social.service.SearchHistoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -81,6 +83,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
     private BrandService brandService;
 
     @Override
+    @CacheEvict(value = {"recentSearchCards", "selfSelectCards"}, allEntries = true)
     @Transactional
     public void addSearchHistory(Long userId, String searchWord, String searchType) {
         Long existingId = searchHistoryMapper.findExistingHistory(userId, searchWord, searchType);
@@ -104,12 +107,14 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
     }
 
     @Override
+    @Cacheable(value = "recentSearchCards", key = "#userId + '_' + #category")
     public HomeCardsResponseDTO getRecentSearchCards(Long userId, String category) {
         List<BizSearchHistory> histories = searchHistoryMapper.findRecentSearches(userId, 50);
         return buildCardsFromHistory(histories, category);
     }
 
     @Override
+    @Cacheable(value = "selfSelectCards", key = "#userId + '_' + #category")
     public HomeCardsResponseDTO getSelfSelectCards(Long userId, String category) {
         List<BizSearchHistory> histories = searchHistoryMapper.findSelfSelectSearches(userId, 50);
         return buildCardsFromHistory(histories, category);
@@ -127,6 +132,10 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         for (BizSearchHistory history : histories) {
             HomeCardItemDTO card = buildCardFromHistory(history, category, today, rank);
             if (card != null) {
+                // 过滤：无有效统计数据的卡片不显示（用户选择猪大类后，无数据的卡片应隐藏）
+                if (!hasValidStatData(card)) {
+                    continue;
+                }
                 // 去重：根据卡片的实体类型和 ID 过滤重复
                 String entityKey = getCardEntityKey(card);
                 if (entityKey != null && !seenEntityKeys.contains(entityKey)) {
@@ -747,7 +756,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         if (brandNameForStat == null || productNameForStat == null) return null;
 
         // 从 stat_brand_product 表聚合查询（一个品牌名可能对应多条 brand_id 记录）
-        StatBrandProduct stat = statBrandProductMapper.selectAggregatedByBrandNameAndProductName(brandNameForStat, productNameForStat);
+        StatBrandProduct stat = statBrandProductMapper.selectAggregatedByBrandNameAndProductName(brandNameForStat, productNameForStat, category);
         log.info("[DEBUG] buildBrandProductCard stat query brandName={} productName={} -> stat={}", brandNameForStat, productNameForStat, stat);
 
         BrandProductCardDTO card = new BrandProductCardDTO();
@@ -781,7 +790,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
 
         // 7日价格趋势：从 stat_brand_product 历史数据读取
         try {
-            List<StatBrandProduct> trendRows = statBrandProductMapper.selectTrendByBrandNameAndProductName(brandNameForStat, productNameForStat);
+            List<StatBrandProduct> trendRows = statBrandProductMapper.selectTrendByBrandNameAndProductName(brandNameForStat, productNameForStat, category);
             if (trendRows != null && !trendRows.isEmpty()) {
                 List<BrandProductCardDTO.TrendPointDTO> trendPointDTOs = new ArrayList<>();
                 for (StatBrandProduct tp : trendRows) {
@@ -1046,18 +1055,21 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
     }
 
     @Override
+    @CacheEvict(value = {"recentSearchCards", "selfSelectCards"}, allEntries = true)
     @Transactional
     public void deleteSearchHistory(Long historyId) {
         searchHistoryMapper.deleteById(historyId);
     }
 
     @Override
+    @CacheEvict(value = {"recentSearchCards", "selfSelectCards"}, allEntries = true)
     @Transactional
     public void batchDeleteSearchHistory(List<Long> historyIds) {
         searchHistoryMapper.batchDelete(historyIds);
     }
 
     @Override
+    @CacheEvict(value = {"recentSearchCards", "selfSelectCards"}, allEntries = true)
     @Transactional
     public void addSelfSelect(Long userId, String searchWord, String searchType) {
         Long existingId = searchHistoryMapper.findExistingHistory(userId, searchWord, searchType);
@@ -1072,6 +1084,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
     }
 
     @Override
+    @CacheEvict(value = {"recentSearchCards", "selfSelectCards"}, allEntries = true)
     @Transactional
     public void cancelSelfSelect(Long historyId) {
         BizSearchHistory history = new BizSearchHistory();
@@ -1081,6 +1094,7 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
     }
 
     @Override
+    @CacheEvict(value = {"recentSearchCards", "selfSelectCards"}, allEntries = true)
     @Transactional
     public void moveToSelfSelect(Long historyId) {
         BizSearchHistory history = new BizSearchHistory();
