@@ -283,6 +283,7 @@ public class AuthController {
             user.setMooketNo(uacUser.getUserMujiNo());
             user.setMooketId(String.valueOf(uacUser.getId()));
             user.setNickname(uacUser.getNickName());
+            user.setRealName(uacUser.getUserName());
             // 头像URL：优先取 face_url，没有则取 anonymous_face_url
             String faceUrl = uacUser.getFaceUrl();
             user.setAvatarUrl(faceUrl != null && !faceUrl.isBlank() ? faceUrl : uacUser.getAnonymousFaceUrl());
