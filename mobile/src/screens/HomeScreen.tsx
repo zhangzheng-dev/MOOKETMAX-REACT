@@ -1,0 +1,807 @@
+import React, {useCallback, useRef, useState} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  SectionList,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import Svg, {Path, Circle} from 'react-native-svg';
+import {SvgXml} from 'react-native-svg';
+import {useFocusEffect} from '@react-navigation/native';
+import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {mooketApi} from '../api/mooketApi';
+import {HomeCardSwitcher} from '../components/home/cards';
+import {UpdateModal} from '../components/common/UpdateModal';
+import {MooketMaxLogo} from '../components/login/LoginIcons';
+import {CURRENT_APP_VERSION_CODE, DEFAULT_CATEGORY} from '../config/env';
+import type {RootStackParamList} from '../navigation/routes';
+import {colors} from '../theme/colors';
+import {fonts} from '../theme/typography';
+import type {AppVersionInfo, HomeCardItem, HomeStatData, HotSearchItem} from '../types/api';
+import {openHomeCard, openHotSearch} from '../utils/navigation';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+
+const categories = ['牛', '羊', '猪', '鸡', '水产'];
+
+// 28x28 右上角「加入自选」角标icon (Figma 263:3139 即archive-add)
+const archiveAddIconXml = `<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.51562 6.98914H6.23438" stroke="#171D1C" stroke-width="1.125" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.875 5.38782V8.66907" stroke="#171D1C" stroke-width="1.125" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.0382 1.3125H4.71196C3.31415 1.3125 2.17883 2.45438 2.17883 3.84563V13.0922C2.17883 14.2734 3.0254 14.7722 4.06227 14.2012L7.26477 12.4228C7.60602 12.2325 8.15727 12.2325 8.49196 12.4228L11.6945 14.2012C12.7313 14.7787 13.5779 14.28 13.5779 13.0922V3.84563C13.5713 2.45438 12.436 1.3125 11.0382 1.3125Z" stroke="#171D1C" stroke-width="1.125" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+// 18x18 主色「移除删除」icon
+const archiveDelIconXml = `<svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path d="M12.6152 1.5C14.2125 1.50013 15.5098 2.80482 15.5176 4.39453V14.9629C15.5174 16.32 14.5499 16.8901 13.3652 16.2305L9.70508 14.1973C9.32267 13.9798 8.69274 13.9799 8.30273 14.1973L4.64258 16.2305C3.45775 16.8828 2.49042 16.3126 2.49023 14.9629V4.39453C2.49049 2.80482 3.78753 1.50012 5.38477 1.5H12.6152ZM7.125 7.4248C6.81756 7.4248 6.5626 7.67989 6.5625 7.9873C6.5625 8.2948 6.8175 8.5498 7.125 8.5498H10.875C11.1825 8.5498 11.4375 8.2948 11.4375 7.9873C11.4374 7.67989 11.1824 7.4248 10.875 7.4248H7.125Z" fill="#006A61"/></svg>`;
+
+async function loadCardFeed(category: string, tab: 0 | 1) {
+  if (tab === 0) return mooketApi.getSelfSelectCards(category);
+  return mooketApi.getRecentSearchCards(category);
+}
+
+/** 估算卡片高度（px），用于瀑布流平衡分列 */
+function estimateCardHeight(card: HomeCardItem): number {
+  switch (card.cardType) {
+    case 'factoryProduct':
+    case 'brandProduct':
+      return 280; // 价格 + 趋势图 + 表格 + 底栏
+    case 'merchant':
+      return 200; // 商家名 + 最新报盘 + 底栏
+    case 'factory':
+      return 180; // 排名列表
+    case 'countryProduct':
+      return 160; // 表格 + 底栏
+    case 'country':
+      return 150; // 双列表格
+    case 'product':
+    case 'brand':
+      return 130; // 简洁统计
+    default:
+      return 150;
+  }
+}
+
+export function HomeScreen({navigation}: Props) {
+  const insets = useSafeAreaInsets();
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
+  const [tab, setTab] = useState<0 | 1>(0);
+  const [stat, setStat] = useState<HomeStatData | null>(null);
+  const [hotSearches, setHotSearches] = useState<HotSearchItem[]>([]);
+  const [cards, setCards] = useState<HomeCardItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<AppVersionInfo | null>(null);
+  const [showUpdate, setShowUpdate] = useState(false);
+  const updateCheckedRef = useRef(false);
+  const sectionListRef = useRef<SectionList>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [statData, hotData, cardData] = await Promise.all([
+        mooketApi.getHomeStatData(category),
+        mooketApi.getHotSearchRecommendations(category),
+        loadCardFeed(category, tab),
+      ]);
+      setStat(statData);
+      setHotSearches(hotData);
+      setCards(cardData.cards ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, [category, tab]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load().catch(() => undefined);
+      // Auto-check for update once per session
+      if (!updateCheckedRef.current) {
+        updateCheckedRef.current = true;
+        mooketApi.getAppVersion().then(info => {
+          if (info && info.hasUpdate && (info.versionCode ?? 0) > CURRENT_APP_VERSION_CODE) {
+            setUpdateInfo(info);
+            setShowUpdate(true);
+          }
+        }).catch(() => undefined);
+      }
+    }, [load]),
+  );
+
+  function switchCategory(value: string) {
+    setCategory(value);
+    setMenuOpen(false);
+    setEditMode(false);
+  }
+
+  function switchTab(value: 0 | 1) {
+    setTab(value);
+    setEditMode(false);
+  }
+
+  async function deleteHistory(historyId: number) {
+    const previous = cards;
+    setCards(prev => prev.filter(item => item.historyId !== historyId));
+    try {
+      await mooketApi.deleteSearchHistory(historyId);
+    } catch (error) {
+      setCards(previous);
+      Alert.alert('删除失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }
+
+  async function moveToSelfSelect(historyId: number) {
+    const previous = cards;
+    setCards(prev => prev.filter(item => item.historyId !== historyId));
+    try {
+      await mooketApi.moveToSelfSelect(historyId);
+    } catch (error) {
+      setCards(previous);
+      Alert.alert('添加失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }
+
+  async function cancelSelfSelect(historyId: number) {
+    const previous = cards;
+    setCards(prev => prev.filter(item => item.historyId !== historyId));
+    try {
+      await mooketApi.cancelSelfSelect(historyId);
+    } catch (error) {
+      setCards(previous);
+      Alert.alert('移出失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }
+
+  function onArchiveAdd(card: HomeCardItem) {
+    if (!card.historyId) return;
+    Alert.alert('加入自选', '确定加入自选吗？', [
+      {text: '取消', style: 'cancel'},
+      {text: '确定', onPress: () => moveToSelfSelect(card.historyId!).catch(() => undefined)},
+    ]);
+  }
+
+  function onArchiveDelete(card: HomeCardItem) {
+    if (!card.historyId) return;
+    if (tab === 0) {
+      Alert.alert('移出自选', '确定移出自选吗？', [
+        {text: '取消', style: 'cancel'},
+        {text: '移出', style: 'destructive', onPress: () => cancelSelfSelect(card.historyId!).catch(() => undefined)},
+      ]);
+    } else {
+      Alert.alert('删除记录', '确定删除这条历史搜索吗？', [
+        {text: '取消', style: 'cancel'},
+        {text: '删除', style: 'destructive', onPress: () => deleteHistory(card.historyId!).catch(() => undefined),},
+      ]);
+    }
+  }
+
+  // 把卡片按估算高度平衡分配到左右两列（瀑布流）
+  const leftColumn: HomeCardItem[] = [];
+  const rightColumn: HomeCardItem[] = [];
+  let leftH = 0;
+  let rightH = 0;
+  cards.forEach(card => {
+    const h = estimateCardHeight(card);
+    if (leftH <= rightH) {
+      leftColumn.push(card);
+      leftH += h;
+    } else {
+      rightColumn.push(card);
+      rightH += h;
+    }
+  });
+
+  // 用 SectionList 实现 sticky tab bar：section header 固定在mooketmax栏下方
+  const sections = [{key: 'cards', data: [{leftColumn, rightColumn}]}];
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
+      <View style={[styles.safeTop, {height: insets.top}]} />
+
+      {/* 永远吸顶的 Logo + 用户图标 */}
+      <View style={styles.fixedTop}>
+        <View style={styles.headerRow}>
+          <MooketMaxLogo width={90} height={14.6451} />
+          <View style={styles.headerIcons}>
+            <Pressable
+              onPress={() => navigation.navigate('Inventory')}
+              hitSlop={8}
+              style={styles.headerIconButton}>
+              <InventoryIcon />
+            </Pressable>
+            <Pressable
+              onPress={() => navigation.navigate('Profile')}
+              hitSlop={8}
+              style={styles.headerIconButton}>
+              <UserSquareIcon />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      <SectionList
+        ref={sectionListRef}
+        sections={sections}
+        keyExtractor={(_, index) => `cards-${index}`}
+        stickySectionHeadersEnabled
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y;
+          setShowScrollTop(y > 100);
+        }}
+        scrollEventThrottle={16}
+        ListHeaderComponent={
+          <View style={styles.scrollableTop}>
+            {/* 50dp 搜索栏 */}
+            <View style={styles.searchWrap}>
+              <View style={styles.searchBox}>
+                <Pressable onPress={() => setMenuOpen(prev => !prev)} style={styles.searchCategory}>
+                  <Text style={styles.searchCategoryText}>{category}</Text>
+                  <ChevronDownSmall />
+                </Pressable>
+                <View style={styles.searchVDivider} />
+                <Pressable
+                  style={styles.searchPlaceholder}
+                  onPress={() => navigation.navigate('Search', {category})}>
+                  <Text style={styles.searchPlaceholderText} numberOfLines={1}>
+                    搜索国家、厂号、产品、商家、品牌
+                  </Text>
+                </Pressable>
+                <View style={styles.searchIcon}>
+                  <SearchIcon24 />
+                </View>
+              </View>
+              {/* menu rendered at root level */}
+            </View>
+
+            {/* 热门搜索 */}
+            <View style={styles.hotRow}>
+              <Text style={styles.hotLabel}>热门搜索</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.hotList}>
+                {hotSearches.length === 0 ? (
+                  <Text style={styles.hotEmpty}>暂无热门搜索</Text>
+                ) : (
+                  hotSearches.slice(0, 8).map(item => (
+                    <Pressable
+                      key={`${item.dimension}-${item.keyword}`}
+                      onPress={() => openHotSearch(navigation, category, item)}
+                      style={styles.hotChip}>
+                      <Text style={styles.hotChipText} numberOfLines={1}>
+                        {item.keyword}
+                      </Text>
+                    </Pressable>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        }
+        renderSectionHeader={() => (
+          <View style={styles.stickyBlock}>
+            {/* 深色 stat bar */}
+            <View style={styles.statBar}>
+              <View style={styles.statBarLeft}>
+                <View style={styles.statBadge}>
+                  <Text style={styles.statBadgeText}>近两日数据</Text>
+                </View>
+                <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} />
+                <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} />
+                <StatItem label="商家" value={stat?.merchantCount ?? '--'} />
+              </View>
+              <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
+            </View>
+
+            {/* Tabs + 编辑 按钮 */}
+            <View style={styles.tabsBar}>
+              <Tab
+                text="自选数据"
+                active={tab === 0}
+                icon={<CandleIcon active={tab === 0} />}
+                onPress={() => switchTab(0)}
+              />
+              <Tab
+                text="历史搜索数据"
+                active={tab === 1}
+                icon={<ClockIcon active={tab === 1} />}
+                onPress={() => switchTab(1)}
+              />
+              <View style={styles.tabsSpace} />
+              <Pressable onPress={() => setEditMode(prev => !prev)} style={styles.editButton}>
+                {editMode ? (
+                  <View style={styles.editDoneBadge}>
+                    <Text style={styles.editDoneText}>完成</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.editText}>编辑</Text>
+                )}
+              </Pressable>
+            </View>
+
+            {editMode ? (
+              <View style={styles.editHint}>
+                <Text style={styles.editHintText}>长按可移动数据模块位置</Text>
+              </View>
+            ) : null}
+          </View>
+        )}
+        renderItem={({item}) => {
+          if (loading && cards.length === 0) {
+            return <ActivityIndicator color={colors.primary} style={styles.cardsLoading} />;
+          }
+          if (cards.length === 0) {
+            return <Text style={styles.empty}>{tab === 0 ? '暂无自选数据' : '暂无历史搜索数据'}</Text>;
+          }
+          return (
+            <View style={styles.gridRow}>
+              <View style={styles.gridCol}>
+                {item.leftColumn.map((card: HomeCardItem, index: number) => (
+                  <CardWithEdit
+                    key={`l-${card.cardType}-${card.historyId ?? index}`}
+                    card={card}
+                    editMode={editMode}
+                    tab={tab}
+                    onPress={() => openHomeCard(navigation, category, card)}
+                    onArchiveAdd={() => onArchiveAdd(card)}
+                    onArchiveDelete={() => onArchiveDelete(card)}
+                  />
+                ))}
+              </View>
+              <View style={styles.gridCol}>
+                {item.rightColumn.map((card: HomeCardItem, index: number) => (
+                  <CardWithEdit
+                    key={`r-${card.cardType}-${card.historyId ?? index}`}
+                    card={card}
+                    editMode={editMode}
+                    tab={tab}
+                    onPress={() => openHomeCard(navigation, category, card)}
+                    onArchiveAdd={() => onArchiveAdd(card)}
+                    onArchiveDelete={() => onArchiveDelete(card)}
+                  />
+                ))}
+              </View>
+            </View>
+          );
+        }}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {menuOpen ? (
+        <View style={styles.categoryMenuOverlay}>
+          <Pressable style={styles.categoryMenuBackdrop} onPress={() => setMenuOpen(false)} />
+          <View style={styles.categoryMenu}>
+            {categories.map(item => (
+              <Pressable key={item} onPress={() => switchCategory(item)} style={styles.categoryMenuItem}>
+                <Text style={[styles.categoryMenuText, item === category && styles.categoryMenuTextActive]}>
+                  {item}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {showScrollTop ? (
+        <Pressable
+          style={styles.scrollTopButton}
+          onPress={() => sectionListRef.current?.scrollToLocation({sectionIndex: 0, itemIndex: 0, animated: true, viewOffset: 0})}>
+          <Svg width={28} height={28} viewBox="0 0 28 28" fill="none">
+            <Path d="M12.2499 22.1666C17.7267 22.1666 22.1666 17.7268 22.1666 12.25C22.1666 6.77316 17.7267 2.33331 12.2499 2.33331C6.77309 2.33331 2.33325 6.77316 2.33325 12.25C2.33325 17.7268 6.77309 22.1666 12.2499 22.1666Z" stroke="white" strokeWidth={1.5} strokeLinejoin="round"/>
+            <Path d="M19.3795 19.3794L24.3292 24.3291" stroke="white" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
+          </Svg>
+        </Pressable>
+      ) : null}
+
+      {updateInfo ? (
+        <UpdateModal
+          visible={showUpdate}
+          versionInfo={updateInfo}
+          onClose={() => setShowUpdate(false)}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function Tab({
+  text,
+  active,
+  icon,
+  onPress,
+}: {
+  text: string;
+  active: boolean;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={tabStyles.wrap}>
+      <View style={tabStyles.row}>
+        {icon}
+        <Text style={[tabStyles.text, active && tabStyles.textActive]}>{text}</Text>
+      </View>
+      <View style={[tabStyles.indicator, active && tabStyles.indicatorActive]} />
+    </Pressable>
+  );
+}
+
+function StatItem({label, value}: {label: string; value: string | number}) {
+  return (
+    <View style={styles.statItem}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+    </View>
+  );
+}
+
+function CardWithEdit({
+  card,
+  editMode,
+  tab,
+  onPress,
+  onArchiveAdd,
+  onArchiveDelete,
+}: {
+  card: HomeCardItem;
+  editMode: boolean;
+  tab: 0 | 1;
+  onPress: () => void;
+  onArchiveAdd: () => void;
+  onArchiveDelete: () => void;
+}) {
+  return (
+    <View style={styles.cardWrap}>
+      <HomeCardSwitcher card={card} onPress={editMode ? undefined : onPress} />
+      {editMode && card.historyId ? (
+        <>
+          {tab === 1 ? (
+            // 历史搜索：右上角添加 + 下方删除，垂直排列
+            <View style={styles.editIconColumn}>
+              <Pressable hitSlop={4} onPress={onArchiveAdd} style={styles.editIconAdd}>
+                <SvgXml xml={archiveAddIconXml} width={16} height={16} />
+              </Pressable>
+              <Pressable hitSlop={4} onPress={onArchiveDelete} style={styles.editIconDel}>
+                <SvgXml xml={archiveDelIconXml} width={16} height={16} />
+              </Pressable>
+            </View>
+          ) : (
+            // 自选：仅右上角删除
+            <Pressable hitSlop={4} onPress={onArchiveDelete} style={styles.editIconSingle}>
+              <SvgXml xml={archiveDelIconXml} width={16} height={16} />
+            </Pressable>
+          )}
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+/* ===== Inline icons ===== */
+
+function InventoryIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M3.17 7.44L12 12.55l8.77-5.08M12 21.61V12.54"
+        stroke="#006A61"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9.93 2.48L4.59 5.44c-1.21.67-2.2 2.35-2.2 3.73v5.65c0 1.38.99 3.06 2.2 3.73l5.34 2.97c1.14.63 3.01.63 4.15 0l5.34-2.97c1.21-.67 2.2-2.35 2.2-3.73V9.17c0-1.38-.99-3.06-2.2-3.73l-5.34-2.97c-1.15-.63-3.01-.63-4.15.01Z"
+        stroke="#006A61"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function UserSquareIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M9 22h6c5 0 7-2 7-7V9c0-5-2-7-7-7H9C4 2 2 4 2 9v6c0 5 2 7 7 7Z"
+        stroke="#171D1C"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 12c1.93 0 3.5-1.57 3.5-3.5S13.93 5 12 5 8.5 6.57 8.5 8.5 10.07 12 12 12Z"
+        stroke="#171D1C"
+        strokeWidth={1.5}
+      />
+      <Path
+        d="M18.71 19.51c-.96-2.09-3.18-3.51-5.71-3.51-2.53 0-4.75 1.42-5.71 3.51"
+        stroke="#171D1C"
+        strokeWidth={1.5}
+      />
+    </Svg>
+  );
+}
+
+function SearchIcon24() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Circle cx={11.5} cy={11.5} r={7} stroke="#006A61" strokeWidth={1.6} />
+      <Path d="M22 22L18 18" stroke="#006A61" strokeWidth={1.6} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function ChevronDownSmall() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+      <Path d="M4 6L8 10L12 6" stroke="#171D1C" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function CandleIcon({active}: {active: boolean}) {
+  const color = active ? colors.primary : '#9DA4A3';
+  return (
+    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+      <Path d="M4.33325 14.6667V10" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M4.33325 3.33337V1.33337" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M11.6667 14.6666V12.6666" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M11.6667 6.00004V1.33337" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M6.33325 4.66671V8.66671C6.33325 9.40004 5.99992 10 4.99992 10H3.66659C2.66659 10 2.33325 9.40004 2.33325 8.66671V4.66671C2.33325 3.93337 2.66659 3.33337 3.66659 3.33337H4.99992C5.99992 3.33337 6.33325 3.93337 6.33325 4.66671Z" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M13.6667 7.33333V11.3333C13.6667 12.0667 13.3334 12.6667 12.3334 12.6667H11.0001C10.0001 12.6667 9.66675 12.0667 9.66675 11.3333V7.33333C9.66675 6.6 10.0001 6 11.0001 6H12.3334C13.3334 6 13.6667 6.6 13.6667 7.33333Z" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+
+function ClockIcon({active}: {active: boolean}) {
+  const color = active ? colors.primary : '#3C4947';
+  return (
+    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+      <Circle cx={8} cy={8} r={6} stroke={color} strokeWidth={1.5} />
+      <Path d="M8 5v3l2 1" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {flex: 1, backgroundColor: '#F4FBF8'},
+  safeTop: {backgroundColor: '#FFFFFF'},
+  // 永远吸顶的 Logo+用户 栏
+  fixedTop: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    zIndex: 100,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerIcons: {flexDirection: 'row', alignItems: 'center', gap: 16},
+  headerIconButton: {width: 24, height: 24, alignItems: 'center', justifyContent: 'center'},
+
+  // ScrollView 顶部（搜索框 + 热门搜索）：跟随滚动
+  scrollableTop: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    zIndex: 20,
+    overflow: 'visible',
+  },
+  searchWrap: {position: 'relative', zIndex: 30, overflow: 'visible'},
+  searchBox: {
+    height: 50,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: '#EFF5F3',
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowColor: 'rgba(0,106,97,0.15)',
+    shadowOpacity: 1,
+    shadowRadius: 5,
+    shadowOffset: {width: 0, height: 3},
+    elevation: 2,
+  },
+  searchCategory: {
+    width: 60,
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  searchCategoryText: {color: colors.text, fontSize: 14, fontWeight: '600'},
+  searchVDivider: {width: 0.8, height: 24, backgroundColor: colors.border},
+  searchPlaceholder: {flex: 1, justifyContent: 'center', paddingHorizontal: 12},
+  searchPlaceholderText: {color: 'rgba(108,122,119,0.5)', fontSize: 14},
+  searchIcon: {width: 42, height: 42, alignItems: 'center', justifyContent: 'center'},
+  categoryMenuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+    elevation: 999,
+  },
+  categoryMenuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+  },
+  categoryMenu: {
+    position: 'absolute',
+    top: 110,
+    left: 16,
+    width: 78,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: {width: 0, height: 4},
+  },
+  categoryMenuItem: {paddingHorizontal: 12, paddingVertical: 10},
+  categoryMenuText: {color: colors.text, fontSize: 14},
+  categoryMenuTextActive: {color: colors.primary, fontWeight: '700'},
+  hotRow: {flexDirection: 'row', alignItems: 'center', paddingTop: 12, gap: 8},
+  hotLabel: {color: colors.text, fontSize: 11, fontWeight: '400'},
+  hotList: {gap: 8, paddingRight: 8, alignItems: 'center'},
+  hotChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: '#FFFFFF',
+  },
+  hotChipText: {color: colors.text, fontSize: 12, fontWeight: '500', lineHeight: 16},
+  hotEmpty: {color: '#9DA4A3', fontSize: 11, paddingHorizontal: 8},
+
+  // sticky stat + tabs
+  stickyBlock: {
+    backgroundColor: '#F4FBF8',
+  },
+  statBar: {
+    height: 34,
+    backgroundColor: '#3B5C59',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  statBarLeft: {flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1},
+  statBadge: {
+    paddingHorizontal: 4,
+    borderRadius: 2,
+    backgroundColor: '#3F706B',
+    height: 20,
+    justifyContent: 'center',
+  },
+  statBadgeText: {color: '#FFFFFF', fontSize: 11, fontWeight: '500', lineHeight: 20},
+  statItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
+  statLabel: {color: '#FFFFFF', fontSize: 11, lineHeight: 18},
+  statValue: {fontFamily: fonts.manropeBold, color: '#FFFFFF', fontSize: 12, lineHeight: 16},
+  statTime: {color: 'rgba(255,255,255,0.6)', fontSize: 11, lineHeight: 18},
+
+  tabsBar: {
+    height: 42,
+    paddingHorizontal: 16,
+    backgroundColor: '#F4FBF8',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tabsSpace: {flex: 1},
+  editButton: {paddingVertical: 6, paddingLeft: 12, paddingRight: 0},
+  editText: {color: '#9DA4A3', fontSize: 14, lineHeight: 18},
+  editDoneBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 2,
+  },
+  editDoneText: {color: '#FFFFFF', fontSize: 14, lineHeight: 18},
+  editHint: {paddingHorizontal: 16, paddingTop: 4, backgroundColor: '#F4FBF8'},
+  editHintText: {color: colors.text, fontSize: 12, lineHeight: 18},
+
+  content: {paddingBottom: 32},
+  cardsLoading: {marginTop: 32},
+  empty: {marginTop: 48, textAlign: 'center', color: '#9DA4A3', fontSize: 14},
+  gridRow: {flexDirection: 'row', paddingHorizontal: 16, paddingTop: 12, gap: 12},
+  gridCol: {flex: 1, gap: 12},
+
+  cardWrap: {position: 'relative'},
+  editIconColumn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  editIconAdd: {
+    width: 28,
+    height: 28,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editIconDel: {
+    width: 28,
+    height: 28,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: 'rgba(0,106,97,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  editIconSingle: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  scrollTopButton: {
+    position: 'absolute',
+    bottom: 32,
+    right: 16,
+    width: 52,
+    height: 52,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0A9488',
+    shadowColor: 'rgba(1,106,97,0.4)',
+    shadowOpacity: 1,
+    shadowRadius: 5,
+    shadowOffset: {width: 0, height: 1},
+    elevation: 6,
+    zIndex: 50,
+  },
+});
+
+const tabStyles = StyleSheet.create({
+  wrap: {alignItems: 'center', gap: 2, paddingVertical: 6, marginRight: 24},
+  row: {flexDirection: 'row', alignItems: 'center', gap: 4},
+  text: {color: '#3C4947', fontSize: 14, lineHeight: 18},
+  textActive: {color: colors.primary, fontWeight: '500'},
+  indicator: {height: 3, width: 16, borderRadius: 12, backgroundColor: 'transparent'},
+  indicatorActive: {backgroundColor: colors.primary},
+});

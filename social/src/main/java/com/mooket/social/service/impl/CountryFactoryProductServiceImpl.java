@@ -12,7 +12,9 @@ import com.mooket.social.mapper.BizOfferMapper;
 import com.mooket.social.mapper.DictMerchantMapper;
 import com.mooket.social.mapper.DictProductMapper;
 import com.mooket.social.mapper.FactoryTierMapper;
+import com.mooket.social.mapper.StatFactoryProductMapper;
 import com.mooket.social.mapper.StatPriceTrendMapper;
+import com.mooket.social.entity.StatFactoryProduct;
 import com.mooket.social.service.CountryFactoryProductService;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -35,13 +37,15 @@ private final BizOfferMapper offerMapper;
     private final DictProductMapper productMapper;
     private final DictMerchantMapper merchantMapper;
     private final FactoryTierMapper factoryTierMapper;
+    private final StatFactoryProductMapper statFactoryProductMapper;
 
-        public CountryFactoryProductServiceImpl(BizOfferMapper offerMapper, StatPriceTrendMapper trendMapper, DictProductMapper productMapper, DictMerchantMapper merchantMapper, FactoryTierMapper factoryTierMapper) {
+        public CountryFactoryProductServiceImpl(BizOfferMapper offerMapper, StatPriceTrendMapper trendMapper, DictProductMapper productMapper, DictMerchantMapper merchantMapper, FactoryTierMapper factoryTierMapper, StatFactoryProductMapper statFactoryProductMapper) {
         this.offerMapper = offerMapper;
         this.trendMapper = trendMapper;
         this.productMapper = productMapper;
         this.merchantMapper = merchantMapper;
         this.factoryTierMapper = factoryTierMapper;
+        this.statFactoryProductMapper = statFactoryProductMapper;
     }
 
     @Override
@@ -368,15 +372,39 @@ private final BizOfferMapper offerMapper;
         }
 
         if (todayPrice != null && yesterdayPrice != null && yesterdayPrice.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal change = todayPrice.subtract(yesterdayPrice).setScale(1, RoundingMode.HALF_UP);
+            BigDecimal change = todayPrice.subtract(yesterdayPrice).setScale(2, RoundingMode.HALF_UP);
             BigDecimal changeRate = change.multiply(new BigDecimal("100"))
-                    .divide(yesterdayPrice, 1, RoundingMode.HALF_UP);
+                    .divide(yesterdayPrice, 2, RoundingMode.HALF_UP);
+
+            // If stat_price_trend rounds to 0, prefer stat_factory_product's higher precision data
+            if (change.compareTo(BigDecimal.ZERO) == 0) {
+                try {
+                    StatFactoryProduct stat = statFactoryProductMapper.selectByFactoryNoAndProductId(factoryNo, productId, category);
+                    if (stat != null && stat.getPriceChange() != null && stat.getPriceChange().compareTo(BigDecimal.ZERO) != 0) {
+                        dto.setPriceChange(stat.getPriceChange());
+                        dto.setPriceChangeRate(stat.getPriceChangeRate());
+                        return;
+                    }
+                } catch (Exception ignored) {}
+            }
 
             dto.setPriceChange(change);
             dto.setPriceChangeRate(changeRate);
         } else {
-            dto.setPriceChange(null);
-            dto.setPriceChangeRate(null);
+            // Fallback: use pre-calculated stat_factory_product data
+            try {
+                StatFactoryProduct stat = statFactoryProductMapper.selectByFactoryNoAndProductId(factoryNo, productId, category);
+                if (stat != null && stat.getPriceChange() != null) {
+                    dto.setPriceChange(stat.getPriceChange());
+                    dto.setPriceChangeRate(stat.getPriceChangeRate());
+                } else {
+                    dto.setPriceChange(null);
+                    dto.setPriceChangeRate(null);
+                }
+            } catch (Exception e) {
+                dto.setPriceChange(null);
+                dto.setPriceChangeRate(null);
+            }
         }
     }
 

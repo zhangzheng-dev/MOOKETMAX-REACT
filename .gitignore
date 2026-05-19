@@ -1,40 +1,57 @@
-# Ignore large files
-*.xlsx
-*.xls
-*.png
-*.jpg
+# === Exclude unnecessary directories ===
+android/
+mallee-muji-uni-app/
+mjzd/
+mjzd.rar
+figma-screenshots/
+.claude/
+.kiro/
+.vscode/
 
-# Backup
-backup/
+# === Shell scripts (debugging/temp) ===
+*.sh
 
-# Temp files
-temp_*.py
-~$*
-
-# Figmg images
-figma_images/
-
-# JAR
-*.jar
-
-# OS
-android/app/build/
-android/.gradle/
-android/build/
-
-# Social build
-social/target/
-social/*.log
-
-# OS
-.DS_Store
-Thumbs.db
+# === Build artifacts ===
 *.apk
 *.jar
+*.aar
 build/
 target/
 .gradle/
 bin/
+node_modules/
+
+# === IDE ===
 .idea/
 *.iml
+.DS_Store
+Thumbs.db
+
+# === Social build ===
+social/target/
+social/*.log
+
+# === Mobile build ===
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/node_modules/
+mobile/ios/Pods/
+mobile/ios/build/
+
+# === Large/binary files ===
+*.xlsx
+*.xls
+*.png
+*.jpg
+~$*
+
+# === Temp files ===
+temp_*.py
+query_stat*.py
+verify_sql.py
 sync_log.txt
+brand_data.json
+cards_check.json
+factory_tier_data.sql
+build.gradle.kts

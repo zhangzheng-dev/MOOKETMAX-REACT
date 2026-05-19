@@ -1,0 +1,228 @@
+import React, {useCallback, useEffect, useState} from 'react';
+import {ActivityIndicator, SectionList, RefreshControl, StyleSheet, Text, View} from 'react-native';
+import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {mooketApi} from '../api/mooketApi';
+import {DataDashboard} from '../components/detail/DataDashboard';
+import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {SummaryRowCard} from '../components/detail/SummaryRowCard';
+import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
+import {ErrorState} from '../components/common/ErrorState';
+import type {RootStackParamList} from '../navigation/routes';
+import {colors} from '../theme/colors';
+import type {ProductDetail, ProductSummary} from '../types/api';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'Product'>;
+
+const pageSize = 20;
+
+export function ProductScreen({navigation, route}: Props) {
+  const {productId, category, productName} = route.params;
+  const [data, setData] = useState<ProductDetail | null>(null);
+  const [tab, setTab] = useState<OfferTab>('offer');
+  const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadFirst = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setPage(1);
+      const next = await mooketApi.getProductDetail(
+        productId,
+        category,
+        tab,
+        sortToParam(sort),
+        1,
+        pageSize,
+      );
+      setData(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '加载失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [category, productId, sort, tab]);
+
+  useEffect(() => {
+    loadFirst().catch(() => undefined);
+  }, [loadFirst]);
+
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || !data) return;
+    if (page >= (data.totalPages ?? 1)) return;
+    const next = page + 1;
+    setLoadingMore(true);
+    try {
+      const more = await mooketApi.getProductDetail(
+        productId,
+        category,
+        tab,
+        sortToParam(sort),
+        next,
+        pageSize,
+      );
+      setPage(next);
+      setData(prev => (prev ? {...more, summaries: mergeSummaries(prev.summaries, more.summaries)} : more));
+    } catch {
+      // 静默
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [category, data, loading, loadingMore, page, productId, sort, tab]);
+
+  return (
+    <View style={styles.container}>
+      <DetailTopBar
+        onBack={() => navigation.goBack()}
+        tags={[
+          {
+            text: productName,
+            onClose: () => {
+              navigation.popToTop();
+              navigation.navigate('Search', {category});
+            },
+          },
+        ]}
+      />
+
+      {loading && !data ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : error && !data ? (
+        <ErrorState message={error} onRetry={loadFirst} />
+      ) : data ? (
+        <SectionList
+          sections={[{key: 'items', data: data.summaries}]}
+          keyExtractor={(item, index) => `${item.country ?? ''}-${item.factoryNo ?? ''}-${index}`}
+          stickySectionHeadersEnabled
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+          ListHeaderComponent={
+            <View>
+              <DataDashboard
+                title={data.productName}
+                mainStat={{
+                  label: tab === 'offer' ? '近2日报盘' : '近2日求购',
+                  value: data.offerCount,
+                }}
+                priceRange={{min: data.priceMin, max: data.priceMax}}
+                stats={[
+                  {label: '商家数', value: data.merchantCount},
+                  {label: '工厂数', value: data.factoryCount},
+                ]}
+              />
+              <View style={styles.gap} />
+            </View>
+          }
+          renderSectionHeader={() => (
+            <View style={styles.stickyHeader}>
+              <TabAndSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} />
+            </View>
+          )}
+          renderItem={({item}) => (
+            <SummaryRowCard
+              title={
+                item.countryFactory ||
+                [item.country, item.factoryNo].filter(Boolean).join(' ') ||
+                '--'
+              }
+              merchantNames={item.merchantNames}
+              merchantCount={item.merchantCount}
+              count={item.offerCount}
+              countLabel={tab === 'offer' ? '报盘' : '求购'}
+              priceMin={item.priceMin}
+              priceMax={item.priceMax}
+              onPress={
+                item.country && item.factoryNo
+                  ? () =>
+                      navigation.navigate('CountryFactoryProduct', {
+                        country: item.country!,
+                        factoryNo: item.factoryNo!,
+                        productName: data.productName,
+                        category,
+                      })
+                  : undefined
+              }
+            />
+          )}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={loadFirst} />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={
+            <View style={styles.footer}>
+              {loadingMore ? (
+                <Text style={styles.footerText}>加载中...</Text>
+              ) : page >= (data.totalPages ?? 1) ? (
+                <Text style={styles.footerText}>没有更多了～</Text>
+              ) : null}
+            </View>
+          }
+          ListEmptyComponent={
+            !loading ? <Text style={styles.empty}>暂无数据</Text> : null
+          }
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function sortToParam(sort: SortMode): string {
+  if (sort.kind === 'comprehensive') return 'comprehensive';
+  if (sort.kind === 'publishTime') return 'publish_time';
+  return sort.order === 'asc' ? 'price_asc' : sort.order === 'desc' ? 'price_desc' : 'comprehensive';
+}
+
+function mergeSummaries(prev: ProductSummary[], incoming: ProductSummary[]): ProductSummary[] {
+  const seen = new Set(prev.map(item => `${item.country ?? ''}-${item.factoryNo ?? ''}`));
+  const next = prev.slice();
+  for (const item of incoming) {
+    const key = `${item.country ?? ''}-${item.factoryNo ?? ''}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      next.push(item);
+    }
+  }
+  return next;
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  loading: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  gap: {
+    height: 12,
+    backgroundColor: '#F4FBF8',
+  },
+  footer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  footerText: {
+    color: '#9DA4A3',
+    fontSize: 11,
+    lineHeight: 18,
+  },
+  empty: {
+    textAlign: 'center',
+    paddingVertical: 48,
+    color: '#9DA4A3',
+    fontSize: 14,
+  },
+  stickyHeader: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#DEE4E1',
+    zIndex: 10,
+    elevation: 3,
+  },
+});

@@ -39,4 +39,8 @@ public interface StatBrandProductMapper extends BaseMapper<StatBrandProduct> {
     @Select({"SELECT\n    stat_date,\n    CASE WHEN SUM(today_offer_count) > 0 THEN ROUND(SUM(avg_price * today_offer_count) / SUM(today_offer_count), 4) ELSE 0 END AS avg_price\nFROM stat_brand_product\nWHERE REPLACE(brand_name, ' ', '') LIKE CONCAT('%', REPLACE(#{brandName}, ' ', ''), '%')\n  AND REPLACE(product_name, ' ', '') = REPLACE(#{productName}, ' ', '')\n  AND category = #{category}\n  AND today_offer_count >= 0\n  AND stat_date >= CURRENT_DATE - INTERVAL '7 day'\nGROUP BY stat_date\nORDER BY stat_date ASC"})
     @Results({@Result(property = "statDate", column = "stat_date"), @Result(property = "avgPrice", column = "avg_price")})
     List<StatBrandProduct> selectTrendByBrandNameAndProductName(@Param("brandName") String brandName, @Param("productName") String productName, @Param("category") String category);
+
+    @Select({"SELECT brand_id, product_id, category, avg_price FROM stat_brand_product WHERE stat_date = #{statDate}"})
+    @Results({@Result(property = "brandId", column = "brand_id"), @Result(property = "productId", column = "product_id"), @Result(property = "category", column = "category"), @Result(property = "avgPrice", column = "avg_price")})
+    List<StatBrandProduct> findByDate(@Param("statDate") LocalDate statDate);
 }

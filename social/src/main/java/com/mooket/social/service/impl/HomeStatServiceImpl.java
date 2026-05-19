@@ -412,6 +412,17 @@ public class HomeStatServiceImpl implements HomeStatService {
     public void computeCountryProductStats(LocalDate statDate) {
         log.info("计算国家产品维度统计，日期：{}", statDate);
 
+        // 先查昨天的统计数据，用昨天的 avg_price 作为今天的 avg_price_yesterday
+        LocalDate yesterday = statDate.minusDays(1);
+        List<StatCountryProduct> yesterdayStats = statCountryProductMapper.findByDate(yesterday);
+        Map<String, BigDecimal> yesterdayAvgPriceMap = new HashMap<>();
+        for (StatCountryProduct ys : yesterdayStats) {
+            if (ys.getAvgPrice() != null) {
+                String key = ys.getCountry() + "|" + ys.getProductId();
+                yesterdayAvgPriceMap.put(key, ys.getAvgPrice());
+            }
+        }
+
         // 按 country + productId 去重，stat_country_product 主键是 (stat_date, country, product_id) 不含 category
         Map<String, StatCountryProduct> statsMap = new LinkedHashMap<>();
 
@@ -436,9 +447,6 @@ public class HomeStatServiceImpl implements HomeStatService {
                     if (row.getAvgPrice() != null) {
                         existing.setAvgPrice(row.getAvgPrice());
                     }
-                    if (row.getAvgPriceYesterday() != null) {
-                        existing.setAvgPriceYesterday(row.getAvgPriceYesterday());
-                    }
                 } else {
                     StatCountryProduct stat = new StatCountryProduct();
                     stat.setStatDate(statDate);
@@ -452,20 +460,20 @@ public class HomeStatServiceImpl implements HomeStatService {
                     stat.setPriceMin(row.getPriceMin());
                     stat.setPriceMax(row.getPriceMax());
                     stat.setAvgPrice(row.getAvgPrice());
-                    stat.setAvgPriceYesterday(row.getAvgPriceYesterday());
-                    if (row.getAvgPrice() != null && row.getAvgPriceYesterday() != null
-                            && row.getAvgPriceYesterday().compareTo(BigDecimal.ZERO) > 0) {
-                        BigDecimal priceChange = row.getAvgPrice().subtract(row.getAvgPriceYesterday());
-                        // price_change in DB is DECIMAL(10,2), max |value| < 1000
+                    // 从昨天的统计表中回填 avg_price_yesterday
+                    BigDecimal yesterdayAvg = yesterdayAvgPriceMap.get(key);
+                    stat.setAvgPriceYesterday(yesterdayAvg);
+                    if (row.getAvgPrice() != null && yesterdayAvg != null
+                            && yesterdayAvg.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal priceChange = row.getAvgPrice().subtract(yesterdayAvg);
                         if (priceChange.abs().compareTo(new BigDecimal("999.99")) > 0) {
                             priceChange = priceChange.signum() == 1 ? new BigDecimal("999.99") : new BigDecimal("-999.99");
                         }
                         stat.setPriceChange(priceChange);
                         BigDecimal rate = priceChange
-                                .divide(row.getAvgPriceYesterday(), 4, RoundingMode.HALF_UP)
+                                .divide(yesterdayAvg, 4, RoundingMode.HALF_UP)
                                 .multiply(BigDecimal.valueOf(100))
                                 .setScale(2, RoundingMode.HALF_UP);
-                        // price_change_rate in DB is DECIMAL(5,2), max |value| < 1000
                         if (rate.abs().compareTo(new BigDecimal("999.99")) > 0) {
                             rate = rate.signum() == 1 ? new BigDecimal("999.99") : new BigDecimal("-999.99");
                         }
@@ -492,6 +500,17 @@ public class HomeStatServiceImpl implements HomeStatService {
     public void computeBrandProductStats(LocalDate statDate) {
         log.info("计算品牌产品维度统计，日期：{}", statDate);
 
+        // 先查昨天的统计数据，用昨天的 avg_price 作为今天的 avg_price_yesterday
+        LocalDate yesterday = statDate.minusDays(1);
+        List<StatBrandProduct> yesterdayStats = statBrandProductMapper.findByDate(yesterday);
+        Map<String, BigDecimal> yesterdayAvgPriceMap = new HashMap<>();
+        for (StatBrandProduct ys : yesterdayStats) {
+            if (ys.getAvgPrice() != null) {
+                String key = ys.getBrandId() + "|" + ys.getProductId() + "|" + ys.getCategory();
+                yesterdayAvgPriceMap.put(key, ys.getAvgPrice());
+            }
+        }
+
         // 按 brandId + productId + category 去重，stat_brand_product 主键是 (stat_date, brand_id, product_id, category)
         Map<String, StatBrandProduct> statsMap = new LinkedHashMap<>();
 
@@ -515,9 +534,6 @@ public class HomeStatServiceImpl implements HomeStatService {
                     if (row.getAvgPrice() != null) {
                         existing.setAvgPrice(row.getAvgPrice());
                     }
-                    if (row.getAvgPriceYesterday() != null) {
-                        existing.setAvgPriceYesterday(row.getAvgPriceYesterday());
-                    }
                     recomputePriceChange(existing);
                 } else {
                     StatBrandProduct stat = new StatBrandProduct();
@@ -537,7 +553,9 @@ public class HomeStatServiceImpl implements HomeStatService {
                     stat.setPriceMin(row.getPriceMin());
                     stat.setPriceMax(row.getPriceMax());
                     stat.setAvgPrice(row.getAvgPrice());
-                    stat.setAvgPriceYesterday(row.getAvgPriceYesterday());
+                    // 从昨天的统计表中回填 avg_price_yesterday
+                    BigDecimal yesterdayAvg = yesterdayAvgPriceMap.get(key);
+                    stat.setAvgPriceYesterday(yesterdayAvg);
                     recomputePriceChange(stat);
                     stat.setUpdateTime(LocalDateTime.now());
                     statsMap.put(key, stat);
@@ -583,6 +601,17 @@ public class HomeStatServiceImpl implements HomeStatService {
     public void computeFactoryProductStats(LocalDate statDate) {
         log.info("计算国家厂号产品维度统计，日期：{}", statDate);
 
+        // 先查昨天的统计数据，用昨天的 avg_price 作为今天的 avg_price_yesterday
+        LocalDate yesterday = statDate.minusDays(1);
+        List<StatFactoryProduct> yesterdayStats = statFactoryProductMapper.findByDate(yesterday);
+        Map<String, BigDecimal> yesterdayAvgPriceMap = new HashMap<>();
+        for (StatFactoryProduct ys : yesterdayStats) {
+            if (ys.getAvgPrice() != null) {
+                String key = ys.getFactoryId() + "|" + ys.getProductId() + "|" + ys.getCategory();
+                yesterdayAvgPriceMap.put(key, ys.getAvgPrice());
+            }
+        }
+
         // 按 factoryId + productId + category 去重，stat_factory_product 主键是 (stat_date, factory_id, product_id, category)
         Map<String, StatFactoryProduct> statsMap = new LinkedHashMap<>();
 
@@ -609,9 +638,6 @@ public class HomeStatServiceImpl implements HomeStatService {
                     if (row.getAvgPrice() != null) {
                         existing.setAvgPrice(row.getAvgPrice());
                     }
-                    if (row.getAvgPriceYesterday() != null) {
-                        existing.setAvgPriceYesterday(row.getAvgPriceYesterday());
-                    }
                 } else {
                     StatFactoryProduct stat = new StatFactoryProduct();
                     stat.setStatDate(statDate);
@@ -626,20 +652,20 @@ public class HomeStatServiceImpl implements HomeStatService {
                     stat.setPriceMin(row.getPriceMin());
                     stat.setPriceMax(row.getPriceMax());
                     stat.setAvgPrice(row.getAvgPrice());
-                    stat.setAvgPriceYesterday(row.getAvgPriceYesterday());
-                    if (row.getAvgPrice() != null && row.getAvgPriceYesterday() != null
-                            && row.getAvgPriceYesterday().compareTo(BigDecimal.ZERO) > 0) {
-                        BigDecimal priceChange = row.getAvgPrice().subtract(row.getAvgPriceYesterday());
-                        // price_change in DB is DECIMAL(10,2), max |value| < 1000
+                    // 从昨天的统计表中回填 avg_price_yesterday
+                    BigDecimal yesterdayAvg = yesterdayAvgPriceMap.get(key);
+                    stat.setAvgPriceYesterday(yesterdayAvg);
+                    if (row.getAvgPrice() != null && yesterdayAvg != null
+                            && yesterdayAvg.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal priceChange = row.getAvgPrice().subtract(yesterdayAvg);
                         if (priceChange.abs().compareTo(new BigDecimal("999.99")) > 0) {
                             priceChange = priceChange.signum() == 1 ? new BigDecimal("999.99") : new BigDecimal("-999.99");
                         }
                         stat.setPriceChange(priceChange);
                         BigDecimal rate = priceChange
-                                .divide(row.getAvgPriceYesterday(), 4, RoundingMode.HALF_UP)
+                                .divide(yesterdayAvg, 4, RoundingMode.HALF_UP)
                                 .multiply(BigDecimal.valueOf(100))
                                 .setScale(2, RoundingMode.HALF_UP);
-                        // price_change_rate in DB is DECIMAL(5,2), max |value| < 1000
                         if (rate.abs().compareTo(new BigDecimal("999.99")) > 0) {
                             rate = rate.signum() == 1 ? new BigDecimal("999.99") : new BigDecimal("-999.99");
                         }
