@@ -1,12 +1,12 @@
 # === Exclude unnecessary directories ===
-android/
-mallee-muji-uni-app/
-mjzd/
+/android/
+/mallee-muji-uni-app/
+/mjzd/
 mjzd.rar
-figma-screenshots/
-.claude/
-.kiro/
-.vscode/
+/figma-screenshots/
+/.claude/
+/.kiro/
+/.vscode/
 
 # === Shell scripts (debugging/temp) ===
 *.sh
