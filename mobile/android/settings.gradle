@@ -1,0 +1,15 @@
+pluginManagement {
+    includeBuild("../node_modules/@react-native/gradle-plugin")
+    repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+plugins { id("com.facebook.react.settings") }
+extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+rootProject.name = 'MooketMobile'
+include ':app'
+includeBuild('../node_modules/@react-native/gradle-plugin')

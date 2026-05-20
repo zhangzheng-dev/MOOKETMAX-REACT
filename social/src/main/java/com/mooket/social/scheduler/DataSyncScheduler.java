@@ -15,6 +15,7 @@ import com.mooket.social.service.DataSyncService;
 import com.mooket.social.service.FactorySyncService;
 import com.mooket.social.service.MerchantSyncService;
 import com.mooket.social.service.ProductSyncService;
+import com.mooket.social.service.UserMerchantSyncService;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -37,6 +38,7 @@ public class DataSyncScheduler {
     private final FactorySyncService factorySyncService;
     private final BrandSyncService brandSyncService;
     private final MerchantSyncService merchantSyncService;
+    private final UserMerchantSyncService userMerchantSyncService;
     private final BizOfferMapper bizOfferMapper;
     private final StatProductMapper statProductMapper;
     private final StatMerchantMapper statMerchantMapper;
@@ -59,6 +61,7 @@ public class DataSyncScheduler {
                             FactorySyncService factorySyncService,
                             BrandSyncService brandSyncService,
                             MerchantSyncService merchantSyncService,
+                            UserMerchantSyncService userMerchantSyncService,
                             BizOfferMapper bizOfferMapper,
                             StatProductMapper statProductMapper,
                             StatMerchantMapper statMerchantMapper,
@@ -74,6 +77,7 @@ public class DataSyncScheduler {
         this.factorySyncService = factorySyncService;
         this.brandSyncService = brandSyncService;
         this.merchantSyncService = merchantSyncService;
+        this.userMerchantSyncService = userMerchantSyncService;
         this.bizOfferMapper = bizOfferMapper;
         this.statProductMapper = statProductMapper;
         this.statMerchantMapper = statMerchantMapper;
@@ -149,7 +153,16 @@ public class DataSyncScheduler {
             System.err.println("[DataSyncScheduler] dict_brand 定时同步失败: " + e.getMessage());
         }
 
-        // 3. dict_merchant 同步
+        // 3. rel_user_merchant 同步（必须在 dict_merchant 之前，因为 merchant 同步时要从中取 contact_phone）
+        System.out.println("[DataSyncScheduler] 开始执行 rel_user_merchant 定时同步...");
+        try {
+            int userMerchantCount = userMerchantSyncService.sync(null);
+            System.out.println("[DataSyncScheduler] rel_user_merchant 定时同步完成，共 " + userMerchantCount + " 条");
+        } catch (Exception e) {
+            System.err.println("[DataSyncScheduler] rel_user_merchant 定时同步失败: " + e.getMessage());
+        }
+
+        // 4. dict_merchant 同步（依赖 rel_user_merchant 的 contact_phone）
         System.out.println("[DataSyncScheduler] 开始执行 dict_merchant 定时同步...");
         try {
             int merchantCount = merchantSyncService.sync();

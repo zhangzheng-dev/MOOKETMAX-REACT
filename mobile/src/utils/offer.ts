@@ -56,7 +56,7 @@ export function computePriceRange(
   fallbackMin?: number | null,
   fallbackMax?: number | null,
 ): [string | null, string | null] {
-  const valid = (employeePrices ?? []).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  const valid = (employeePrices ?? []).filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
   if (valid.length > 0) {
     const min = Math.min(...valid);
     const max = Math.max(...valid);
@@ -65,13 +65,13 @@ export function computePriceRange(
     }
     return [`¥ ${min}`, '/kg'];
   }
-  if (fallbackMin != null && fallbackMax != null && fallbackMin !== fallbackMax) {
+  if (fallbackMin != null && fallbackMin > 0 && fallbackMax != null && fallbackMax > 0 && fallbackMin !== fallbackMax) {
     return [`¥ ${fallbackMin} - ${fallbackMax}`, '/kg'];
   }
-  if (fallbackMin != null) {
+  if (fallbackMin != null && fallbackMin > 0) {
     return [`¥ ${fallbackMin}`, '/kg'];
   }
-  return [null, null];
+  return ['协商报价', null];
 }
 
 /**

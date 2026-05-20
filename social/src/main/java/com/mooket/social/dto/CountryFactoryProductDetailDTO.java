@@ -82,6 +82,7 @@ public class CountryFactoryProductDetailDTO {
     public static class EmployeeOfferDTO {
         private Long offerId;         // 报盘ID
         private String userNickname;  // 用户昵称
+        private String contactPhone;  // 联系电话
         private String price;         // 价格
         private String weight;        // 重量
         private String goodsLocation; // 货物所在地

@@ -2,6 +2,7 @@ import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
+import {fonts} from '../../theme/typography';
 import type {EmployeeOffer, OfferSummary} from '../../types/api';
 import {
   colorForTag,
@@ -163,12 +164,14 @@ function EmployeeOfferCard({
                 {weightUnit ? <Text style={styles.weightUnit}>{weightUnit}</Text> : null}
               </View>
             ) : null}
-            {offer.price != null ? (
+            {offer.price != null && offer.price > 0 ? (
               <View style={styles.priceLine}>
                 <Text style={styles.priceValue}>¥{offer.price}</Text>
                 <Text style={styles.priceUnit}>/kg</Text>
               </View>
-            ) : null}
+            ) : (
+              <Text style={styles.negotiateText}>协商报价</Text>
+            )}
           </View>
         </View>
 
@@ -283,6 +286,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginLeft: 1,
     paddingBottom: 1,
+  },
+  negotiateText: {
+    fontFamily: fonts.manropeSemiBold,
+    color: colors.primary,
+    fontSize: 16,
+    lineHeight: 20,
   },
   weightValue: {
     color: colors.text,

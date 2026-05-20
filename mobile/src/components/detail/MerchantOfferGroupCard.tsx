@@ -93,11 +93,11 @@ export function MerchantOfferGroupCard({group, isInquiry, onCopyPhone, onDial, o
             <EmployeeOfferRow
               key={`${offer.offerId ?? `${offer.userNickname}-${index}`}`}
               offer={offer}
-              merchantPhone={onCopyPhone ?? null}
+              merchantPhone={offer.contactPhone ?? onCopyPhone ?? null}
               onCopyPhone={() =>
-                copyToClipboard(onCopyPhone ?? '', '已复制手机号').catch(() => undefined)
+                copyToClipboard(offer.contactPhone ?? onCopyPhone ?? '', '已复制手机号').catch(() => undefined)
               }
-              onDial={() => dialPhone(onDial ?? null)}
+              onDial={() => dialPhone(offer.contactPhone ?? onDial ?? null)}
               onViewOriginalText={onViewOriginalText}
             />
           ))}
@@ -153,8 +153,14 @@ function EmployeeOfferRow({
             </View>
           ) : null}
           <View style={styles.priceLineSmall}>
-            <Text style={styles.priceMain}>¥{offer.price}</Text>
-            <Text style={styles.priceUnitInner}>/kg </Text>
+            {offer.price && !isNaN(Number(offer.price)) && Number(offer.price) > 0 ? (
+              <>
+                <Text style={styles.priceMain}>¥{offer.price}</Text>
+                <Text style={styles.priceUnitInner}>/kg </Text>
+              </>
+            ) : (
+              <Text style={styles.negotiateTextSmall}>协商报价</Text>
+            )}
           </View>
         </View>
       </View>
@@ -267,6 +273,7 @@ const styles = StyleSheet.create({
   priceValue: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 16, lineHeight: 20},
   priceUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20},
   negotiateText: {color: colors.textSecondary, fontSize: 12, lineHeight: 20},
+  negotiateTextSmall: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 16, lineHeight: 20},
   arrow: {width: 16, height: 16, alignItems: 'center', justifyContent: 'center'},
   arrowDown: {},
 

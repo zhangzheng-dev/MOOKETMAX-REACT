@@ -149,12 +149,14 @@ function EmployeeRow({
                 {weightUnit ? <Text style={empStyles.weightUnit}>{weightUnit}</Text> : null}
               </View>
             ) : null}
-            {offer.price != null ? (
+            {offer.price != null && offer.price > 0 ? (
               <View style={empStyles.priceLine}>
                 <Text style={empStyles.price}>¥{offer.price}</Text>
                 <Text style={empStyles.priceUnit}>/kg</Text>
               </View>
-            ) : null}
+            ) : (
+              <Text style={empStyles.negotiate}>协商报价</Text>
+            )}
           </View>
         </View>
 
@@ -333,6 +335,12 @@ const empStyles = StyleSheet.create({
     fontFamily: fonts.manropeRegular,
     color: colors.text,
     fontSize: 10,
+    lineHeight: 20,
+  },
+  negotiate: {
+    fontFamily: fonts.manropeSemiBold,
+    color: colors.primary,
+    fontSize: 16,
     lineHeight: 20,
   },
   tagRow: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8},

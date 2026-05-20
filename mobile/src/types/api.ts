@@ -317,6 +317,7 @@ export type CountryProductDetail = {
 export type EmployeeOfferItem = {
   offerId?: number | null;
   userNickname?: string | null;
+  contactPhone?: string | null;
   price: string;
   weight?: string | null;
   goodsLocation?: string | null;

@@ -275,12 +275,13 @@ private final BizOfferMapper offerMapper;
         EmployeeOfferDTO dto = new EmployeeOfferDTO();
         dto.setOfferId(offer.getOfferId());
         dto.setUserNickname(offer.getUserNickname());
+        dto.setContactPhone(offer.getContactPhone());
         dto.setWeight(offer.getWeight());
         dto.setGoodsLocation(offer.getGoodsLocation());
         dto.setGoodsType(offer.getGoodsType());
         dto.setTags(offer.getTags());
         dto.setOfferType(offer.getOfferType());
-        dto.setOfferOriginalText(null);
+        dto.setOfferOriginalText(offer.getOfferOriginalText());
 
         // 发布时间格式化（返回完整日期时间，前端判断今天/昨天）
         if (offer.getPublishTime() != null) {

@@ -12,6 +12,7 @@ public class EmployeeOfferDTO {
 
     private Long offerId;
     private String userNickname;
+    private String contactPhone;
     private BigDecimal price;
     private BigDecimal priceMax;
     private String weight;
