@@ -75,6 +75,9 @@ export function HomeScreen({navigation}: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [headerSticky, setHeaderSticky] = useState(false);
+  const headerHeightRef = useRef(0);
+  const [fixedTopBottom, setFixedTopBottom] = useState(0);
   const [updateInfo, setUpdateInfo] = useState<AppVersionInfo | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
   const updateCheckedRef = useRef(false);
@@ -204,7 +207,7 @@ export function HomeScreen({navigation}: Props) {
       <View style={[styles.safeTop, {height: insets.top}]} />
 
       {/* 永远吸顶的 Logo + 用户图标 */}
-      <View style={styles.fixedTop}>
+      <View style={styles.fixedTop} onLayout={(e) => { setFixedTopBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height); }}>
         <View style={styles.headerRow}>
           <MooketMaxLogo width={90} height={14.6451} />
           <View style={styles.headerIcons}>
@@ -228,17 +231,18 @@ export function HomeScreen({navigation}: Props) {
         ref={sectionListRef}
         sections={sections}
         keyExtractor={(_, index) => `cards-${index}`}
-        stickySectionHeadersEnabled
+        stickySectionHeadersEnabled={false}
             initialNumToRender={10}
             maxToRenderPerBatch={10}
             windowSize={5}
         onScroll={(e) => {
           const y = e.nativeEvent.contentOffset.y;
           setShowScrollTop(y > 100);
+          setHeaderSticky(y >= headerHeightRef.current);
         }}
         scrollEventThrottle={16}
         ListHeaderComponent={
-          <View style={styles.scrollableTop}>
+          <View style={styles.scrollableTop} onLayout={(e) => { headerHeightRef.current = e.nativeEvent.layout.height; }}>
             {/* 50dp 搜索栏 */}
             <View style={styles.searchWrap}>
               <View style={styles.searchBox}>
@@ -376,6 +380,52 @@ export function HomeScreen({navigation}: Props) {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* 手动吸顶的 stat + tabs 覆盖层 */}
+      {headerSticky ? (
+        <View style={[styles.stickyOverlay, {top: fixedTopBottom}]}>
+          <View style={styles.statBar}>
+            <View style={styles.statBarLeft}>
+              <View style={styles.statBadge}>
+                <Text style={styles.statBadgeText}>近两日数据</Text>
+              </View>
+              <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} />
+              <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} />
+              <StatItem label="商家" value={stat?.merchantCount ?? '--'} />
+            </View>
+            <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
+          </View>
+          <View style={styles.tabsBar}>
+            <Tab
+              text="自选数据"
+              active={tab === 0}
+              icon={<CandleIcon active={tab === 0} />}
+              onPress={() => switchTab(0)}
+            />
+            <Tab
+              text="历史搜索数据"
+              active={tab === 1}
+              icon={<ClockIcon active={tab === 1} />}
+              onPress={() => switchTab(1)}
+            />
+            <View style={styles.tabsSpace} />
+            <Pressable onPress={() => setEditMode(prev => !prev)} style={styles.editButton}>
+              {editMode ? (
+                <View style={styles.editDoneBadge}>
+                  <Text style={styles.editDoneText}>完成</Text>
+                </View>
+              ) : (
+                <Text style={styles.editText}>编辑</Text>
+              )}
+            </Pressable>
+          </View>
+          {editMode ? (
+            <View style={styles.editHint}>
+              <Text style={styles.editHintText}>长按可移动数据模块位置</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {menuOpen ? (
         <View style={styles.categoryMenuOverlay}>
@@ -603,10 +653,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    zIndex: 20,
     overflow: 'visible',
   },
-  searchWrap: {position: 'relative', zIndex: 30, overflow: 'visible'},
+  searchWrap: {position: 'relative', overflow: 'visible'},
   searchBox: {
     height: 50,
     borderRadius: 4,
@@ -688,6 +737,16 @@ const styles = StyleSheet.create({
   // sticky stat + tabs
   stickyBlock: {
     backgroundColor: '#F4FBF8',
+    zIndex: 50,
+    elevation: 10,
+  },
+  stickyOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    backgroundColor: '#F4FBF8',
+    zIndex: 90,
+    elevation: 15,
   },
   statBar: {
     height: 34,
