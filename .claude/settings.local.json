@@ -43,7 +43,14 @@
       "mcp__figma__get_screenshot",
       "Bash(mvn compile:*)",
       "Skill(ssh-skill)",
-      "Bash(\"/c/Users/zhangzheng/AppData/Local/Android/Sdk/platform-tools/adb.exe\" logcat:*)"
+      "Bash(\"/c/Users/zhangzheng/AppData/Local/Android/Sdk/platform-tools/adb.exe\" logcat:*)",
+      "Bash(./gradlew :shared:bundleLibCompileToJarDebug:*)",
+      "Bash(./gradlew :shared:compileDebugKotlin:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "pgsql_mcp",
+    "postgres",
+    "figma"
+  ]
 }

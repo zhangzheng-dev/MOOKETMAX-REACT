@@ -228,7 +228,8 @@ public class DataSyncService {
     }
 
     /**
-     * 批量获取商家信息（优化版：单次SQL IN查询）
+     * 批量获取商家信息（通过 rel_user_merchant 的 mobile→merchant_id 映射）
+     * 这样能覆盖所有员工号码，不仅限于 dict_merchant.contact_phone 中的单一号码
      */
     private Map<String, Long> batchGetMerchants(List<SocialOnlineBusiness> sourceData) {
         Map<String, Long> result = new HashMap<>();
@@ -245,11 +246,29 @@ public class DataSyncService {
             return result;
         }
 
-        // 批量查询（单次SQL）
-        List<DictMerchant> merchants = merchantMapper.selectByPhones(phoneNos);
-        for (DictMerchant merchant : merchants) {
-            if (merchant.getContactPhone() != null) {
-                result.put(merchant.getContactPhone(), merchant.getMerchantId());
+        // 优先从 rel_user_merchant 查（覆盖所有员工号码）
+        try {
+            List<Map<String, Object>> rows = pgJdbcTemplate.queryForList(
+                "SELECT mobile, merchant_id FROM rel_user_merchant WHERE merchant_id IS NOT NULL"
+            );
+            for (Map<String, Object> row : rows) {
+                String mobile = (String) row.get("mobile");
+                Long merchantId = (Long) row.get("merchant_id");
+                if (mobile != null && merchantId != null) {
+                    result.put(mobile, merchantId);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[DataSyncService] rel_user_merchant 查询失败，回退到 dict_merchant: " + e.getMessage());
+        }
+
+        // 补充：dict_merchant.contact_phone（兜底，万一 rel_user_merchant 中没有）
+        if (result.isEmpty()) {
+            List<DictMerchant> merchants = merchantMapper.selectByPhones(phoneNos);
+            for (DictMerchant merchant : merchants) {
+                if (merchant.getContactPhone() != null) {
+                    result.put(merchant.getContactPhone(), merchant.getMerchantId());
+                }
             }
         }
 
