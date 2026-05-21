@@ -198,7 +198,7 @@ export function HomeScreen({navigation}: Props) {
     }
   });
 
-  // 用 SectionList 实现 sticky tab bar：section header 固定在mooketmax栏下方
+  // 用 SectionList：section header 固定在mooketmax栏下方
   const sections = [{key: 'cards', data: [{leftColumn, rightColumn}]}];
 
   return (
@@ -331,11 +331,6 @@ export function HomeScreen({navigation}: Props) {
               </Pressable>
             </View>
 
-            {editMode ? (
-              <View style={styles.editHint}>
-                <Text style={styles.editHintText}>长按可移动数据模块位置</Text>
-              </View>
-            ) : null}
           </View>
         )}
         renderItem={({item}) => {
@@ -419,11 +414,6 @@ export function HomeScreen({navigation}: Props) {
               )}
             </Pressable>
           </View>
-          {editMode ? (
-            <View style={styles.editHint}>
-              <Text style={styles.editHintText}>长按可移动数据模块位置</Text>
-            </View>
-          ) : null}
         </View>
       ) : null}
 
@@ -538,6 +528,16 @@ function CardWithEdit({
 }
 
 /* ===== Inline icons ===== */
+
+function DragHandleIcon() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+      <Path d="M4 5H12" stroke="#9DA4A3" strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M4 8H12" stroke="#9DA4A3" strokeWidth={1.5} strokeLinecap="round" />
+      <Path d="M4 11H12" stroke="#9DA4A3" strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
 
 function InventoryIcon() {
   return (
