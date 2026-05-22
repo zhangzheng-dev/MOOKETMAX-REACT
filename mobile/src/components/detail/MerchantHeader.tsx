@@ -1,5 +1,6 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {SvgXml} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import type {MerchantDetail} from '../../types/api';
@@ -10,16 +11,12 @@ type Props = {
   onBack: () => void;
 };
 
-/**
- * 商家详情页 Header（与 Figma 1421:5195 对齐）
- * 24px 返回 + 24px 商家 logo + 商家名 20px + 知名商家标签 + 右侧占位搜索图标
- */
 export function MerchantHeader({merchant, onBack}: Props) {
-  const isFamous = merchant?.merchantTags?.includes('知名商家');
+  const insets = useSafeAreaInsets();
   const tagText = merchant?.merchantTags?.split('|')?.[0] ?? '';
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, {paddingTop: insets.top + 12, minHeight: insets.top + 48}]}>
       <Pressable hitSlop={8} onPress={onBack} style={styles.backButton}>
         <SvgXml xml={backArrowXml} width={24} height={24} />
       </Pressable>
@@ -47,10 +44,9 @@ export function MerchantHeader({merchant, onBack}: Props) {
 
 const styles = StyleSheet.create({
   bar: {
-    height: 48,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

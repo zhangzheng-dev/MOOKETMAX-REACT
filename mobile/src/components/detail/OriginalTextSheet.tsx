@@ -1,5 +1,6 @@
 import React from 'react';
 import {Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors} from '../../theme/colors';
 
 type Props = {
@@ -9,12 +10,14 @@ type Props = {
   title?: string;
 };
 
-/** 报盘原文底部抽屉 - 与原 Android ModalBottomSheet 视觉对齐 */
 export function OriginalTextSheet({visible, text, onClose, title = '原文内容'}: Props) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <View style={[styles.sheet, {paddingBottom: Math.max(insets.bottom, 24)}]}>
           <View style={styles.handle} />
           <View style={styles.titleRow}>
             <Text style={styles.title}>{title}</Text>
@@ -22,21 +25,27 @@ export function OriginalTextSheet({visible, text, onClose, title = '原文内容
               <Text style={styles.close}>关闭</Text>
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator>
-            <Text style={[styles.text, !text && styles.textMuted]}>
-              {text || '抱歉，暂无原文！'}
-            </Text>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled">
+            <Text style={[styles.text, !text && styles.textMuted]}>{text || '抱歉，暂无原文！'}</Text>
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  overlay: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   sheet: {
@@ -45,7 +54,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 12,
     backgroundColor: '#FFFFFF',
     paddingTop: 8,
-    paddingBottom: 24,
   },
   handle: {
     alignSelf: 'center',
@@ -71,6 +79,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
+  },
+  scroll: {
+    flexGrow: 0,
   },
   content: {
     paddingHorizontal: 20,

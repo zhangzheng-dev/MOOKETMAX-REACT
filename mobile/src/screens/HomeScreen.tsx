@@ -1,4 +1,4 @@
-import React, {useCallback, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -99,20 +99,25 @@ export function HomeScreen({navigation}: Props) {
     }
   }, [category, tab]);
 
+  useEffect(() => {
+    load().catch(() => undefined);
+  }, [load]);
+
   useFocusEffect(
     useCallback(() => {
-      load().catch(() => undefined);
-      // Auto-check for update once per session
       if (!updateCheckedRef.current) {
         updateCheckedRef.current = true;
-        mooketApi.getAppVersion().then(info => {
-          if (info && info.hasUpdate && (info.versionCode ?? 0) > CURRENT_APP_VERSION_CODE) {
-            setUpdateInfo(info);
-            setShowUpdate(true);
-          }
-        }).catch(() => undefined);
+        mooketApi
+          .getAppVersion()
+          .then(info => {
+            if (info && info.hasUpdate && (info.versionCode ?? 0) > CURRENT_APP_VERSION_CODE) {
+              setUpdateInfo(info);
+              setShowUpdate(true);
+            }
+          })
+          .catch(() => undefined);
       }
-    }, [load]),
+    }, []),
   );
 
   function switchCategory(value: string) {
