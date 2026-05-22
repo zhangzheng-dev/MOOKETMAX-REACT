@@ -1,7 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,7 +16,6 @@ import {
   ArrowLeftIcon,
   CheckMarkIcon,
   ClearInputIcon,
-  CtccIcon,
   MooketMaxLogo,
 } from '../components/login/LoginIcons';
 import type {RootStackParamList} from '../navigation/routes';
@@ -37,7 +35,7 @@ async function getDeviceId(): Promise<string> {
 }
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
-type Step = 'phone' | 'verify' | 'oneClick' | 'register';
+type Step = 'phone' | 'verify' | 'register';
 
 const identityOptions = ['海外服务商', '贸易商', '加工厂/商超', '其他'];
 
@@ -164,18 +162,11 @@ export function LoginScreen({navigation}: Props) {
     }
   }
 
-  function handleOneClickEntry() {
-    if (phone.length !== 11) {
-      Alert.alert('提示', '一键登录需要先输入手机号或先经短信验证。');
-      return;
-    }
-    setStep('oneClick');
-  }
 
   function handleBack() {
     if (step === 'register') {
       setStep('verify');
-    } else if (step === 'verify' || step === 'oneClick') {
+    } else if (step === 'verify') {
       setStep('phone');
     }
     setError(null);
@@ -198,7 +189,6 @@ export function LoginScreen({navigation}: Props) {
             }}
             onAgreementToggle={() => setAgreement(prev => !prev)}
             onSubmit={() => handleSendCode()}
-            onOneClick={handleOneClickEntry}
           />
         ) : null}
 
@@ -219,16 +209,6 @@ export function LoginScreen({navigation}: Props) {
             }}
             onResend={() => handleSendCode()}
             onConfirm={() => handleLogin()}
-          />
-        ) : null}
-
-        {step === 'oneClick' ? (
-          <OneClickStep
-            phone={phone}
-            loading={loading}
-            onBack={handleBack}
-            onLogin={() => handleSendCode()}
-            onOtherLogin={handleBack}
           />
         ) : null}
 
@@ -265,7 +245,6 @@ function PhoneStep({
   onPhoneChange,
   onAgreementToggle,
   onSubmit,
-  onOneClick,
 }: {
   phone: string;
   agreement: boolean;
@@ -274,7 +253,6 @@ function PhoneStep({
   onPhoneChange: (value: string) => void;
   onAgreementToggle: () => void;
   onSubmit: () => void;
-  onOneClick: () => void;
 }) {
   const valid = phone.length === 11 && agreement;
   return (
@@ -330,12 +308,6 @@ function PhoneStep({
 
       <View style={styles.flex} />
 
-      <View style={styles.thirdParty}>
-        <Text style={styles.thirdPartyTitle}>第三方登录</Text>
-        <Pressable onPress={onOneClick} style={styles.thirdPartyButton}>
-          <CtccIcon />
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -423,61 +395,6 @@ function VerifyStep({
 
       <View style={styles.flex} />
 
-      <View style={styles.thirdParty}>
-        <Text style={styles.thirdPartyTitle}>第三方登录</Text>
-        <View style={styles.thirdPartyButton}>
-          <CtccIcon />
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function OneClickStep({
-  phone,
-  loading,
-  onBack,
-  onLogin,
-  onOtherLogin,
-}: {
-  phone: string;
-  loading: boolean;
-  onBack: () => void;
-  onLogin: () => void;
-  onOtherLogin: () => void;
-}) {
-  return (
-    <View style={styles.content}>
-      <Pressable hitSlop={8} onPress={onBack} style={styles.backRow}>
-        <ArrowLeftIcon />
-      </Pressable>
-      <View style={[styles.logoWrap, styles.oneClickLogo]}>
-        <MooketMaxLogo />
-      </View>
-
-      <View style={styles.oneClickPhoneWrap}>
-        <Text style={styles.oneClickPhone}>{phone}</Text>
-        <Text style={styles.oneClickHint}>天翼账号提供认证服务</Text>
-      </View>
-
-      <View style={styles.flex} />
-
-      <Pressable
-        onPress={onLogin}
-        disabled={loading}
-        style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}>
-        {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>本机号码一键登录</Text>}
-      </Pressable>
-      <Pressable onPress={onOtherLogin} style={styles.otherLoginButton}>
-        <Text style={styles.otherLoginText}>其他手机号登录</Text>
-      </Pressable>
-
-      <View style={styles.thirdParty}>
-        <Text style={styles.thirdPartyTitle}>第三方登录</Text>
-        <View style={styles.thirdPartyButton}>
-          <CtccIcon />
-        </View>
-      </View>
     </View>
   );
 }
@@ -566,7 +483,6 @@ const styles = StyleSheet.create({
   backRow: {height: 36, justifyContent: 'center'},
   logoSpacer: {height: 84},
   logoWrap: {marginBottom: 8},
-  oneClickLogo: {marginTop: 96, alignSelf: 'center'},
   titleBlock: {marginTop: 56, marginBottom: 24},
   title: {color: colors.text, fontSize: 24, fontWeight: '700'},
   subtitle: {marginTop: 8, color: colors.textSecondary, fontSize: 14},
@@ -624,15 +540,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(247,114,52,0.1)',
   },
   errorBadgeText: {color: '#F77234', fontSize: 12},
-  thirdParty: {alignItems: 'center', paddingVertical: 24},
-  thirdPartyTitle: {color: '#3C4947', fontSize: 14},
-  thirdPartyButton: {
-    marginTop: 12,
-    width: 60,
-    height: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   verifyTopRow: {
     marginTop: 12,
     flexDirection: 'row',
@@ -654,11 +561,6 @@ const styles = StyleSheet.create({
   codeBoxFocused: {borderColor: colors.primary, borderWidth: 2},
   codeText: {fontSize: 30, fontWeight: '500', color: colors.text},
   hiddenInput: {position: 'absolute', width: 1, height: 1, opacity: 0},
-  oneClickPhoneWrap: {marginTop: 64, alignItems: 'center', gap: 12},
-  oneClickPhone: {color: colors.text, fontSize: 23, fontWeight: '600'},
-  oneClickHint: {color: '#3C4947', fontSize: 12},
-  otherLoginButton: {height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 16},
-  otherLoginText: {color: '#3C4947', fontSize: 16},
   registerTitle: {color: colors.text, fontSize: 26, fontWeight: '600', marginTop: 12},
   registerTitleAccent: {color: colors.primary},
   registerBadge: {
