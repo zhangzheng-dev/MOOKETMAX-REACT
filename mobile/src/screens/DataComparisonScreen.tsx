@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Svg, {Circle, Line, Path, Polyline} from 'react-native-svg';
 import {SvgXml} from 'react-native-svg';
@@ -42,6 +43,7 @@ const cardTints = [
 const selectedTickXml = `<svg viewBox="0 0 14 12" xmlns="http://www.w3.org/2000/svg"><path d="M0 0 L14 0 L7 12 Z" fill="#006A61"/><path d="M4.5 4.5 L6.5 6.5 L9.5 3.5" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
 
 export function DataComparisonScreen({navigation, route}: Props) {
+  const insets = useSafeAreaInsets();
   const {country, factoryNos, productName, category, excludeFactoryNo} = route.params;
   const availableFactories = useMemo(
     () => uniqueFactories(factoryNos),
@@ -112,7 +114,7 @@ export function DataComparisonScreen({navigation, route}: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, {paddingTop: insets.top + 12, minHeight: insets.top + 48}]}>
         <Pressable hitSlop={8} onPress={() => navigation.goBack()} style={styles.backButton}>
           <SvgXml xml={backArrowXml} width={24} height={24} />
         </Pressable>
@@ -422,8 +424,8 @@ function formatDate(text?: string | null) {
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: '#FFFFFF'},
   topBar: {
-    height: 48,
     paddingHorizontal: 16,
+    paddingBottom: 12,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',

@@ -29,7 +29,7 @@ public class UserController {
     private com.mooket.social.mapper.BizSearchHistoryMapper bizSearchHistoryMapper;
 
     private static final String AVATAR_DIR = "/tmp/mooket/avatar/";
-    private static final String AVATAR_BASE_URL = "http://43.139.56.124:8080";
+    private static final String AVATAR_BASE_URL = "https://twms.malleeglobal.com/social";
 
     /**
      * 获取用户资料

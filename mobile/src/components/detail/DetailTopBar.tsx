@@ -1,5 +1,6 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {SvgXml} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import {backArrowXml, searchIconXml, tagCloseXml} from './productIcons';
@@ -20,8 +21,10 @@ type Props = {
  * - 4dp gap，含返回 + 类搜索框（绿底 chip + 搜索图标）
  */
 export function DetailTopBar({onBack, tags}: Props) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, {paddingTop: insets.top + 12, minHeight: insets.top + 48}]}>
       <Pressable onPress={onBack} hitSlop={8} style={styles.backButton}>
         <SvgXml xml={backArrowXml} width={24} height={24} />
       </Pressable>
@@ -54,10 +57,9 @@ function SearchTag({text, onPress}: {text: string; onPress: () => void}) {
 
 const styles = StyleSheet.create({
   bar: {
-    height: 48,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

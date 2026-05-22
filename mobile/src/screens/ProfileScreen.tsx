@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Path} from 'react-native-svg';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
@@ -24,6 +25,7 @@ import type {AppVersionInfo, UserProfile} from '../types/api';
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
 
 export function ProfileScreen({navigation}: Props) {
+  const insets = useSafeAreaInsets();
   const {user, setUser, clear} = sessionStore();
   const [profile, setProfile] = useState<UserProfile | null>(user);
   const [versionInfo, setVersionInfo] = useState<AppVersionInfo | null>(null);
@@ -83,7 +85,7 @@ export function ProfileScreen({navigation}: Props) {
 
   return (
     <View style={styles.container}>
-      <Header onBack={() => navigation.goBack()} />
+      <Header onBack={() => navigation.goBack()} topInset={insets.top} />
 
       <ScrollView
         style={styles.scroll}
@@ -166,9 +168,9 @@ export function ProfileScreen({navigation}: Props) {
   );
 }
 
-function Header({onBack}: {onBack: () => void}) {
+function Header({onBack, topInset}: {onBack: () => void; topInset: number}) {
   return (
-    <View style={headerStyles.bar}>
+    <View style={[headerStyles.bar, {paddingTop: topInset, minHeight: topInset + 56}]}>
       <Pressable hitSlop={8} onPress={onBack} style={headerStyles.back}>
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Path
@@ -368,7 +370,6 @@ const styles = StyleSheet.create({
 
 const headerStyles = StyleSheet.create({
   bar: {
-    height: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',

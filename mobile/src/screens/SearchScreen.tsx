@@ -1,9 +1,9 @@
 import React, {useCallback, useMemo, useState} from 'react';
-import {Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Alert, FlatList, Keyboard, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
-import {sessionStore} from '../store/sessionStore';
 import {DeleteIcon, HistoryIcon, SearchIcon} from '../components/common/AppIcons';
 import {ArrowLeftIcon, ClearInputIcon} from '../components/login/LoginIcons';
 import type {RootStackParamList} from '../navigation/routes';
@@ -17,12 +17,13 @@ const examples: Array<[string, string]> = [
   ['SIF504', '查找厂号'],
   ['牛腱', '查找产品'],
   ['巴西 牛腱', '组合搜索'],
-  ['JBS 牛腱', '品牌+产品搜索'],
-  ['河南冠乐牛食品有限公司', '查找商家'],
+  ['JBS 牛腱', '品牌加产品搜索'],
+  ['河南冠乐食品有限公司', '查找商家'],
 ];
 
 export function SearchScreen({route, navigation}: Props) {
   const {category} = route.params;
+  const insets = useSafeAreaInsets();
   const [keyword, setKeyword] = useState('');
   const [suggestions, setSuggestions] = useState<SearchSuggest[]>([]);
   const [histories, setHistories] = useState<SearchHistory[]>([]);
@@ -51,6 +52,7 @@ export function SearchScreen({route, navigation}: Props) {
         setLoading(false);
         return undefined;
       }
+
       setLoading(true);
       const timer = setTimeout(() => {
         mooketApi
@@ -64,16 +66,18 @@ export function SearchScreen({route, navigation}: Props) {
             setLoading(false);
           });
       }, 250);
+
       return () => clearTimeout(timer);
     }, [category, keyword]),
   );
 
-  const historyWords = useMemo(
-    () => uniqueStrings(histories.map(item => item.searchWord).filter(Boolean)),
+  const historyEntries = useMemo(
+    () => uniqueBySearchWord(histories.filter(item => item.searchWord)),
     [histories],
   );
 
   async function handleSelect(item: SearchSuggest) {
+    Keyboard.dismiss();
     const parts = item.text.split(/\s+/).filter(Boolean);
     try {
       await mooketApi.saveSearchHistory({
@@ -86,13 +90,66 @@ export function SearchScreen({route, navigation}: Props) {
         brandId: item.matchType === 'brand' && item.type !== '品牌+产品' ? item.targetId : null,
         merchantId: item.matchType === 'merchant' ? item.targetId : null,
       });
-      // Reload histories after successful save
       await loadHistories();
     } catch (err) {
-      // Show error to user for debugging
       Alert.alert('保存搜索记录失败', err instanceof Error ? err.message : String(err));
     }
     navigateSuggestion(item, parts);
+  }
+
+  function handleHistorySelect(history: SearchHistory) {
+    Keyboard.dismiss();
+    const searchWord = getStandardSearchWord(history.searchWord);
+
+    if (history.merchantId) {
+      navigation.navigate('Merchant', {merchantId: history.merchantId, category});
+      return;
+    }
+
+    if (history.country && history.factoryNo && history.productName) {
+      navigation.navigate('CountryFactoryProduct', {
+        country: history.country,
+        factoryNo: history.factoryNo,
+        productName: history.productName,
+        category,
+      });
+      return;
+    }
+
+    if (history.country && history.productName) {
+      navigation.navigate('CountryProduct', {
+        country: history.country,
+        productName: history.productName,
+        category,
+      });
+      return;
+    }
+
+    if (history.country && history.factoryNo) {
+      navigation.navigate('Factory', {country: history.country, factoryNo: history.factoryNo, category});
+      return;
+    }
+
+    if (history.productId) {
+      navigation.navigate('Product', {
+        productId: history.productId,
+        category,
+        productName: history.productName ?? searchWord,
+      });
+      return;
+    }
+
+    if (history.brandId) {
+      navigation.navigate('Brand', {brandName: searchWord, category});
+      return;
+    }
+
+    if (history.country) {
+      navigation.navigate('Country', {country: history.country, category});
+      return;
+    }
+
+    setKeyword(searchWord);
   }
 
   function navigateSuggestion(item: SearchSuggest, parts: string[]) {
@@ -173,7 +230,7 @@ export function SearchScreen({route, navigation}: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, {paddingTop: insets.top + 8, minHeight: insets.top + 60}]}>
         <Pressable hitSlop={8} onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeftIcon size={18} />
         </Pressable>
@@ -213,11 +270,12 @@ export function SearchScreen({route, navigation}: Props) {
         />
       ) : (
         <FlatList
-          data={historyWords}
-          keyExtractor={(item, index) => `${item}-${index}`}
+          data={historyEntries}
+          keyExtractor={(item, index) => `${item.searchWord}-${index}`}
+          keyboardShouldPersistTaps="always"
           ListHeaderComponent={
             <View>
-              {historyWords.length > 0 ? (
+              {historyEntries.length > 0 ? (
                 <>
                   <View style={styles.historyHeader}>
                     <Text style={styles.historyTitle}>最近搜索</Text>
@@ -227,20 +285,14 @@ export function SearchScreen({route, navigation}: Props) {
                     </Pressable>
                   </View>
                   <View style={styles.historyWrap}>
-                    {historyWords.map((item, index) => (
+                    {historyEntries.map((item, index) => (
                       <Pressable
-                        key={`${item}-${index}`}
-                        onPress={() => {
-                          // 去掉别名后缀，确保搜索联想词能匹配
-                          const standard = item.includes('(别名：')
-                            ? item.substring(0, item.indexOf('(别名：'))
-                            : item;
-                          setKeyword(standard);
-                        }}
+                        key={`${item.searchWord}-${index}`}
+                        onPress={() => handleHistorySelect(item)}
                         style={styles.historyChip}>
                         <HistoryIcon />
                         <Text style={styles.historyChipText} numberOfLines={1}>
-                          {item}
+                          {item.searchWord}
                         </Text>
                       </Pressable>
                     ))}
@@ -262,7 +314,7 @@ export function SearchScreen({route, navigation}: Props) {
                     <SearchIcon size={14} color="#171D1C" />
                     <View style={styles.exampleDivider} />
                     <Text style={styles.exampleWord}>{word}</Text>
-                    <Text style={styles.exampleDesc}>· {desc}</Text>
+                    <Text style={styles.exampleDesc}>- {desc}</Text>
                   </View>
                 ))}
               </View>
@@ -293,7 +345,7 @@ function SuggestionItem({
           <Text style={styles.resultPrimary} numberOfLines={1}>
             {renderHighlight(main, keyword)}
           </Text>
-          {alias ? <Text style={styles.resultAlias}>（{alias}）</Text> : null}
+          {alias ? <Text style={styles.resultAlias}>(别名：{alias})</Text> : null}
         </View>
       </View>
       <Text style={styles.resultType}>{item.type}</Text>
@@ -301,28 +353,28 @@ function SuggestionItem({
   );
 }
 
-/**
- * 解析"标准品名(别名：XXX)"格式
- */
 function parseSuggestionText(text: string): {main: string; alias: string | null} {
-  const match = text.match(/^(.*?)\(?[（(]别名[:：]\s*([^)）]+)[)）]?$/);
-  if (match) {
-    return {main: match[1].trim(), alias: match[2].trim()};
+  const aliasMarker = '(别名：';
+  const index = text.indexOf(aliasMarker);
+  if (index >= 0 && text.endsWith(')')) {
+    return {
+      main: text.slice(0, index).trim(),
+      alias: text.slice(index + aliasMarker.length, -1).trim(),
+    };
   }
   return {main: text, alias: null};
 }
 
-/**
- * 关键词命中高亮（不区分大小写）
- */
 function renderHighlight(text: string, keyword: string): React.ReactNode[] {
   const trimmed = keyword.trim();
   if (!trimmed) return [text];
+
   const lowerText = text.toLowerCase();
   const lowerKeyword = trimmed.toLowerCase();
   const result: React.ReactNode[] = [];
   let cursor = 0;
   let index = lowerText.indexOf(lowerKeyword, cursor);
+
   while (index >= 0) {
     if (index > cursor) result.push(text.slice(cursor, index));
     result.push(
@@ -333,24 +385,29 @@ function renderHighlight(text: string, keyword: string): React.ReactNode[] {
     cursor = index + trimmed.length;
     index = lowerText.indexOf(lowerKeyword, cursor);
   }
+
   if (cursor < text.length) result.push(text.slice(cursor));
   return result;
 }
 
-function uniqueStrings(items: string[]): string[] {
+function uniqueBySearchWord(items: SearchHistory[]): SearchHistory[] {
   const set = new Set<string>();
-  const out: string[] = [];
+  const out: SearchHistory[] = [];
   for (const item of items) {
-    if (!set.has(item)) {
-      set.add(item);
+    if (!set.has(item.searchWord)) {
+      set.add(item.searchWord);
       out.push(item);
     }
   }
   return out;
 }
 
+function getStandardSearchWord(text: string): string {
+  return parseSuggestionText(text).main;
+}
+
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: colors.background, paddingTop: 8},
+  container: {flex: 1, backgroundColor: colors.background},
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

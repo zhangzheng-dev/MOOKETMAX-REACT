@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import {useFocusEffect} from '@react-navigation/native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {ChevronDownIcon, ClockIcon, StarIcon} from '../components/common/AppIcons';
@@ -27,6 +28,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'HomeCards'>;
 const categories = ['牛', '猪', '羊', '禽', '水产'];
 
 export function HomeCardsScreen({navigation, route}: Props) {
+  const insets = useSafeAreaInsets();
   const [category, setCategory] = useState(route.params?.category ?? DEFAULT_CATEGORY);
   const [tab, setTab] = useState<0 | 1>(route.params?.tab ?? 0);
   const [cards, setCards] = useState<HomeCardItem[]>([]);
@@ -104,7 +106,7 @@ export function HomeCardsScreen({navigation, route}: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, {paddingTop: insets.top, minHeight: insets.top + 56}]}>
         <Pressable hitSlop={8} onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
             <Path d="M15 5L8 12L15 19" stroke={colors.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -304,7 +306,6 @@ function confirmCancelSelfSelect(historyId: number | null | undefined, onConfirm
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   header: {
-    height: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',

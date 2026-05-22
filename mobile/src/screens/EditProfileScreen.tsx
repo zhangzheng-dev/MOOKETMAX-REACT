@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Path} from 'react-native-svg';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {launchImageLibrary} from 'react-native-image-picker';
@@ -23,6 +24,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 const identityOptions = ['海外服务商', '贸易商', '加工厂/商超', '其他'];
 
 export function EditProfileScreen({navigation}: Props) {
+  const insets = useSafeAreaInsets();
   const {user, setUser} = sessionStore();
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [identityTags, setIdentityTags] = useState<string[]>(user?.identityTags ?? []);
@@ -98,7 +100,7 @@ export function EditProfileScreen({navigation}: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, {paddingTop: insets.top, minHeight: insets.top + 56}]}>
         <Pressable hitSlop={8} onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
             <Path d="M15 5L8 12L15 19" stroke={colors.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -201,7 +203,6 @@ export function EditProfileScreen({navigation}: Props) {
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   header: {
-    height: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',

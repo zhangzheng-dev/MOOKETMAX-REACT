@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Path} from 'react-native-svg';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SvgXml} from 'react-native-svg';
@@ -33,6 +34,7 @@ type LocalFilterKey = Exclude<FilterKey, 'product'>;
 const pageSize = 10;
 
 export function SubstituteProductScreen({navigation, route}: Props) {
+  const insets = useSafeAreaInsets();
   const {country, factoryNo, productName, category} = route.params;
   const [overview, setOverview] = useState<SubstituteOverview | null>(null);
   const [detail, setDetail] = useState<SubstituteProductDetail | null>(null);
@@ -205,7 +207,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
 
   return (
     <View style={styles.container}>
-      <Header onBack={() => navigation.goBack()} />
+      <Header onBack={() => navigation.goBack()} topInset={insets.top} />
 
       {loading && !overview ? (
         <View style={styles.loading}>
@@ -373,9 +375,9 @@ export function SubstituteProductScreen({navigation, route}: Props) {
   );
 }
 
-function Header({onBack}: {onBack: () => void}) {
+function Header({onBack, topInset}: {onBack: () => void; topInset: number}) {
   return (
-    <View style={headerStyles.bar}>
+    <View style={[headerStyles.bar, {paddingTop: topInset + 12, minHeight: topInset + 48}]}>
       <Pressable hitSlop={8} onPress={onBack} style={headerStyles.backButton}>
         <SvgXml xml={backArrowXml} width={24} height={24} />
       </Pressable>
@@ -582,9 +584,8 @@ const styles = StyleSheet.create({
 
 const headerStyles = StyleSheet.create({
   bar: {
-    height: 48,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
