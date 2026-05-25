@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -110,7 +111,12 @@ export function HomeScreen({navigation}: Props) {
         mooketApi
           .getAppVersion()
           .then(info => {
-            if (info && info.hasUpdate && (info.versionCode ?? 0) > CURRENT_APP_VERSION_CODE) {
+            if (
+              Platform.OS === 'android' &&
+              info &&
+              info.hasUpdate &&
+              (info.versionCode ?? 0) > CURRENT_APP_VERSION_CODE
+            ) {
               setUpdateInfo(info);
               setShowUpdate(true);
             }
@@ -448,7 +454,7 @@ export function HomeScreen({navigation}: Props) {
         </Pressable>
       ) : null}
 
-      {updateInfo ? (
+      {Platform.OS === 'android' && updateInfo ? (
         <UpdateModal
           visible={showUpdate}
           versionInfo={updateInfo}

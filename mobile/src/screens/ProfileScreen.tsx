@@ -4,6 +4,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,7 +17,7 @@ import Svg, {Path} from 'react-native-svg';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {UpdateModal} from '../components/common/UpdateModal';
-import {CURRENT_APP_VERSION, CURRENT_APP_VERSION_CODE} from '../config/env';
+import {CURRENT_APP_VERSION, CURRENT_APP_VERSION_CODE, IOS_APP_STORE_URL} from '../config/env';
 import type {RootStackParamList} from '../navigation/routes';
 import {sessionStore} from '../store/sessionStore';
 import {colors} from '../theme/colors';
@@ -78,10 +79,25 @@ export function ProfileScreen({navigation}: Props) {
       Alert.alert('提示', '当前已是最新版本');
       return;
     }
+
+    if (Platform.OS === 'ios') {
+      try {
+        const supported = await Linking.canOpenURL(IOS_APP_STORE_URL);
+        if (!supported) {
+          Alert.alert('提示', '暂时无法打开 App Store 更新页面');
+          return;
+        }
+        await Linking.openURL(IOS_APP_STORE_URL);
+      } catch (error) {
+        Alert.alert('提示', error instanceof Error ? error.message : '暂时无法打开 App Store 更新页面');
+      }
+      return;
+    }
+
     setShowUpdateModal(true);
   }
 
-  const hasUpdate = versionInfo?.hasUpdate && (versionInfo.versionCode ?? 0) > CURRENT_APP_VERSION_CODE;
+  const hasUpdate = !!versionInfo?.hasUpdate && (versionInfo.versionCode ?? 0) > CURRENT_APP_VERSION_CODE;
 
   return (
     <View style={styles.container}>
@@ -91,37 +107,31 @@ export function ProfileScreen({navigation}: Props) {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
-        <UserCard
-          profile={profile}
-          onEdit={() => navigation.navigate('EditProfile')}
-        />
+        <UserCard profile={profile} onEdit={() => navigation.navigate('EditProfile')} />
 
         <SectionCard>
           <MenuRow label="用户协议" onPress={() => Alert.alert('用户协议', '即将上线')} />
           <MenuRow label="隐私协议" onPress={() => Alert.alert('隐私协议', '即将上线')} />
-          <MenuRow label="关于牧集" onPress={() => Alert.alert('关于牧集', '全球肉类供应链 B2B 商机与行情搜索平台')} />
           <MenuRow
-            label="注销账号"
-            onPress={() => setCancelDialog(true)}
-            danger
-            divider={false}
+            label="关于牧集"
+            onPress={() => Alert.alert('关于牧集', '全球肉类供应链 B2B 商机与行情搜索平台')}
           />
+          <MenuRow label="注销账号" onPress={() => setCancelDialog(true)} danger divider={false} />
         </SectionCard>
 
         <SectionCard>
-          <MenuRow
-            label="版本号"
-            value={`v${CURRENT_APP_VERSION}`}
-            chevron={false}
-            divider={!!hasUpdate}
-          />
+          <MenuRow label="版本号" value={`v${CURRENT_APP_VERSION}`} chevron={false} divider={hasUpdate} />
           {hasUpdate ? (
             <Pressable style={styles.menuRow} onPress={handleUpdate}>
-              <Text style={styles.menuLabel}>检查更新</Text>
+              <Text style={styles.menuLabel}>
+                {Platform.OS === 'ios' ? '前往 App Store 更新' : '检查更新'}
+              </Text>
               <View style={styles.menuValueWrap}>
-                <Text style={styles.menuValueAccent} numberOfLines={1}>
-                  发现新版本 {versionInfo?.version ?? ''}
-                </Text>
+                {Platform.OS === 'android' ? (
+                  <Text style={styles.menuValueAccent} numberOfLines={1}>
+                    发现新版本 {versionInfo?.version ?? ''}
+                  </Text>
+                ) : null}
                 <ChevronRight />
               </View>
             </Pressable>
@@ -144,6 +154,7 @@ export function ProfileScreen({navigation}: Props) {
         }}
         onCancel={() => setLogoutDialog(false)}
       />
+
       <ConfirmDialog
         visible={cancelDialog}
         title="确认注销"
@@ -157,7 +168,7 @@ export function ProfileScreen({navigation}: Props) {
         onCancel={() => setCancelDialog(false)}
       />
 
-      {versionInfo ? (
+      {Platform.OS === 'android' && versionInfo ? (
         <UpdateModal
           visible={showUpdateModal}
           versionInfo={versionInfo}
