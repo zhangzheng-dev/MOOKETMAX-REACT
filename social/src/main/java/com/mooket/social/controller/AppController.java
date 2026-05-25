@@ -15,18 +15,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * APP-level endpoints.
+ * App-level endpoints.
  */
 @RestController
 @RequestMapping("/api/v1/app")
 public class AppController {
 
-    private static final String CURRENT_VERSION = "1.0.0";
-    private static final int CURRENT_VERSION_CODE = 2;
+    private static final String CURRENT_VERSION = "1.0.1";
+    private static final int CURRENT_VERSION_CODE = 3;
     private static final String UPDATE_URL =
             "https://twms.malleeglobal.com/social/api/v1/app/download/apk";
-    private static final String UPDATE_CONTENT =
-            "1. 优化性能，提升加载速度\n2. 修复已知问题\n3. 体验优化";
+    private static final String UPDATE_CONTENT = String.join("\n",
+            "1. 新增同账号异地登录互斥能力，账号在新设备登录后旧设备会收到强制下线提示。",
+            "2. 优化登录安全体验与登录态失效处理，异常状态会自动回到登录页。",
+            "3. 修复已知问题并优化整体稳定性。");
 
     @GetMapping("/version")
     public ApiResponse<Map<String, Object>> getAppVersion() {
@@ -45,9 +47,10 @@ public class AppController {
         if (!file.exists()) {
             return ResponseEntity.notFound().build();
         }
+
         Resource resource = new FileSystemResource(file);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=mooket.apk")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=mooket-max-1.0.1.apk")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(resource);
     }

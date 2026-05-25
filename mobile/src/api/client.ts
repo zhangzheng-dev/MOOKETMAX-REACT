@@ -1,5 +1,7 @@
 import axios, {AxiosError} from 'axios';
+import {Alert} from 'react-native';
 import {API_BASE_URL} from '../config/env';
+import {resetToLogin} from '../navigation/navigationService';
 import {sessionStore} from '../store/sessionStore';
 import type {ApiResponse} from '../types/api';
 
@@ -10,10 +12,8 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
-  // 处理大数字ID（超过JS安全整数范围），将它们转为字符串
   transformResponse: [(data: string) => {
     try {
-      // 把超过15位的整数转为字符串，防止精度丢失
       const fixed = data.replace(/:\s*(\d{16,})/g, ':"$1"');
       return JSON.parse(fixed);
     } catch {
@@ -21,6 +21,34 @@ export const apiClient = axios.create({
     }
   }],
 });
+
+const FORCED_LOGOUT_HINT = '您的账号已在另一台设备登录';
+let handlingAuthFailure = false;
+
+async function handleAuthFailure(message?: string) {
+  if (handlingAuthFailure) {
+    return;
+  }
+  handlingAuthFailure = true;
+
+  try {
+    await sessionStore.getState().clear();
+    resetToLogin();
+
+    if (message?.includes(FORCED_LOGOUT_HINT)) {
+      Alert.alert(
+        '账号已下线',
+        '您的账号已在另一台设备登录，当前设备已自动退出。为保障账号安全，请重新登录；如非本人操作，请及时修改密码。',
+        [{text: '我知道了'}],
+        {cancelable: false},
+      );
+    }
+  } finally {
+    setTimeout(() => {
+      handlingAuthFailure = false;
+    }, 300);
+  }
+}
 
 apiClient.interceptors.request.use(config => {
   const token = sessionStore.getState().token;
@@ -41,6 +69,17 @@ apiClient.interceptors.response.use(
   error => {
     // eslint-disable-next-line no-console
     console.log('[API ERR]', error.config?.url, error.message, error.code, error.response?.status);
+
+    const message =
+      typeof error.response?.data === 'object' && error.response?.data
+        ? ((error.response.data as {message?: string}).message ?? undefined)
+        : undefined;
+    const isAuthRequest =
+      error.config?.url?.includes('api/v1/auth/login') || error.config?.url?.includes('api/v1/auth/send-code');
+
+    if (error.response?.status === 401 && !isAuthRequest) {
+      void handleAuthFailure(message);
+    }
     return Promise.reject(error);
   },
 );
@@ -58,16 +97,14 @@ export async function unwrap<T>(request: Promise<{data: ApiResponse<T>}>): Promi
       const data = error.response?.data;
       const httpStatus = error.response?.status;
 
-      // 优先取后端返回的 message 字段
       let message: string | undefined;
       if (data && typeof data === 'object') {
-        // 后端 ApiResponse 格式: {code, message, data}
         message = (data as {message?: unknown}).message as string | undefined;
-        // message 为 null/undefined/空字符串时视为无效
-        if (!message) message = undefined;
+        if (!message) {
+          message = undefined;
+        }
       }
 
-      // 如果后端没给有效 message，根据 HTTP 状态给用户友好的中文提示
       if (!message) {
         if (httpStatus === 401) {
           message = '登录状态已失效，请重新登录';
@@ -80,7 +117,6 @@ export async function unwrap<T>(request: Promise<{data: ApiResponse<T>}>): Promi
         } else if (httpStatus !== undefined && httpStatus >= 500) {
           message = '服务器繁忙，请稍后重试';
         } else {
-          // 网络层错误（超时、拒绝连接等）
           message = '网络异常，请检查网络后重试';
         }
       }

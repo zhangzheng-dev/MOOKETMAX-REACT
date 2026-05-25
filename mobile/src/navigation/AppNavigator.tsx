@@ -3,6 +3,8 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {ActivityIndicator, StyleSheet, View} from 'react-native';
 import {DEFAULT_CATEGORY} from '../config/env';
+import {BrandProductScreen} from '../screens/BrandProductScreen';
+import {BrandScreen} from '../screens/BrandScreen';
 import {CountryFactoryProductScreen} from '../screens/CountryFactoryProductScreen';
 import {CountryProductScreen} from '../screens/CountryProductScreen';
 import {CountryScreen} from '../screens/CountryScreen';
@@ -18,10 +20,9 @@ import {ProductScreen} from '../screens/ProductScreen';
 import {ProfileScreen} from '../screens/ProfileScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {SubstituteProductScreen} from '../screens/SubstituteProductScreen';
-import {BrandProductScreen} from '../screens/BrandProductScreen';
-import {BrandScreen} from '../screens/BrandScreen';
 import {sessionStore} from '../store/sessionStore';
 import {colors} from '../theme/colors';
+import {navigationRef} from './navigationService';
 import type {RootStackParamList} from './routes';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -42,9 +43,8 @@ export function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
-        initialRouteName={token ? 'Home' : 'Login'}
         screenOptions={{
           headerStyle: {backgroundColor: colors.surface},
           headerTintColor: colors.text,
@@ -52,32 +52,37 @@ export function AppNavigator() {
           headerShadowVisible: false,
           contentStyle: {backgroundColor: colors.background},
         }}>
-        <Stack.Screen name="Login" component={LoginScreen} options={{headerShown: false}} />
-        <Stack.Screen name="Home" component={HomeScreen} options={{headerShown: false}} />
-        <Stack.Screen
-          name="Search"
-          component={SearchScreen}
-          initialParams={{category: DEFAULT_CATEGORY}}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen name="HomeCards" component={HomeCardsScreen} options={{headerShown: false}} />
-        <Stack.Screen name="Merchant" component={MerchantScreen} options={{headerShown: false}} />
-        <Stack.Screen name="Product" component={ProductScreen} options={{headerShown: false}} />
-        <Stack.Screen name="Country" component={CountryScreen} options={{headerShown: false}} />
-        <Stack.Screen name="Factory" component={FactoryScreen} options={{headerShown: false}} />
-        <Stack.Screen name="CountryProduct" component={CountryProductScreen} options={{headerShown: false}} />
-        <Stack.Screen
-          name="CountryFactoryProduct"
-          component={CountryFactoryProductScreen}
-          options={{headerShown: false}}
-        />
-        <Stack.Screen name="SubstituteProduct" component={SubstituteProductScreen} options={{headerShown: false}} />
-        <Stack.Screen name="DataComparison" component={DataComparisonScreen} options={{headerShown: false}} />
-        <Stack.Screen name="Brand" component={BrandScreen} options={{headerShown: false}} />
-        <Stack.Screen name="BrandProduct" component={BrandProductScreen} options={{headerShown: false}} />
-        <Stack.Screen name="Profile" component={ProfileScreen} options={{headerShown: false}} />
-        <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{headerShown: false}} />
-        <Stack.Screen name="Inventory" component={InventoryScreen} options={{headerShown: false}} />
+        {token ? (
+          <>
+            <Stack.Screen name="Home" component={HomeScreen} options={{headerShown: false}} />
+            <Stack.Screen
+              name="Search"
+              component={SearchScreen}
+              initialParams={{category: DEFAULT_CATEGORY}}
+              options={{headerShown: false}}
+            />
+            <Stack.Screen name="HomeCards" component={HomeCardsScreen} options={{headerShown: false}} />
+            <Stack.Screen name="Merchant" component={MerchantScreen} options={{headerShown: false}} />
+            <Stack.Screen name="Product" component={ProductScreen} options={{headerShown: false}} />
+            <Stack.Screen name="Country" component={CountryScreen} options={{headerShown: false}} />
+            <Stack.Screen name="Factory" component={FactoryScreen} options={{headerShown: false}} />
+            <Stack.Screen name="CountryProduct" component={CountryProductScreen} options={{headerShown: false}} />
+            <Stack.Screen
+              name="CountryFactoryProduct"
+              component={CountryFactoryProductScreen}
+              options={{headerShown: false}}
+            />
+            <Stack.Screen name="SubstituteProduct" component={SubstituteProductScreen} options={{headerShown: false}} />
+            <Stack.Screen name="DataComparison" component={DataComparisonScreen} options={{headerShown: false}} />
+            <Stack.Screen name="Brand" component={BrandScreen} options={{headerShown: false}} />
+            <Stack.Screen name="BrandProduct" component={BrandProductScreen} options={{headerShown: false}} />
+            <Stack.Screen name="Profile" component={ProfileScreen} options={{headerShown: false}} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{headerShown: false}} />
+            <Stack.Screen name="Inventory" component={InventoryScreen} options={{headerShown: false}} />
+          </>
+        ) : (
+          <Stack.Screen name="Login" component={LoginScreen} options={{headerShown: false}} />
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
