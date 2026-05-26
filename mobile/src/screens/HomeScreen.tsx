@@ -84,6 +84,20 @@ export function HomeScreen({navigation}: Props) {
   const updateCheckedRef = useRef(false);
   const sectionListRef = useRef<SectionList>(null);
 
+  const scrollHomeToTop = useCallback(() => {
+    setMenuOpen(false);
+    setShowScrollTop(false);
+    setHeaderSticky(false);
+
+    sectionListRef.current?.scrollToOffset?.({offset: 0, animated: true});
+
+    if (Platform.OS === 'ios') {
+      setTimeout(() => {
+        sectionListRef.current?.scrollToOffset?.({offset: 0, animated: true});
+      }, 80);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -446,7 +460,7 @@ export function HomeScreen({navigation}: Props) {
       {showScrollTop ? (
         <Pressable
           style={styles.scrollTopButton}
-          onPress={() => sectionListRef.current?.scrollToLocation({sectionIndex: 0, itemIndex: 0, animated: true, viewOffset: 0})}>
+          onPress={scrollHomeToTop}>
           <Svg width={28} height={28} viewBox="0 0 28 28" fill="none">
             <Path d="M12.2499 22.1666C17.7267 22.1666 22.1666 17.7268 22.1666 12.25C22.1666 6.77316 17.7267 2.33331 12.2499 2.33331C6.77309 2.33331 2.33325 6.77316 2.33325 12.25C2.33325 17.7268 6.77309 22.1666 12.2499 22.1666Z" stroke="white" strokeWidth={1.5} strokeLinejoin="round"/>
             <Path d="M19.3795 19.3794L24.3292 24.3291" stroke="white" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
