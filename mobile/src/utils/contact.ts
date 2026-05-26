@@ -11,31 +11,33 @@ export function notify(message: string) {
   }
 }
 
-/**
- * 兼容 RN 0.85 已移除内建 Clipboard 的环境：
- * - 优先尝试动态加载 @react-native-clipboard/clipboard（如已安装）
- * - 否则使用 Share 让用户自行复制（保证功能可用）
- */
 export async function copyToClipboard(text: string, hint = '已复制') {
   if (!text) {
     return;
   }
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const ClipboardModule = require('@react-native-clipboard/clipboard');
-    const clipboard = ClipboardModule?.default ?? ClipboardModule;
-    if (clipboard?.setString) {
-      clipboard.setString(text);
-      notify(hint);
-      return;
+
+  if (Platform.OS === 'ios') {
+    try {
+      await Share.share({message: text});
+    } catch {
+      Alert.alert('请手动复制', text);
     }
-  } catch {
-    // 模块未安装，回退到 Share
+    return;
   }
+
   try {
-    await Share.share({message: text});
+    // Metro in this project resolves the package's built JS entry more reliably
+    // than the package root when bundling release builds.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ClipboardModule = require('@react-native-clipboard/clipboard/dist/index.js');
+    const clipboard = ClipboardModule?.default ?? ClipboardModule;
+    if (!clipboard?.setString) {
+      throw new Error('Clipboard unavailable');
+    }
+    clipboard.setString(text);
+    notify(hint);
   } catch {
-    Alert.alert('复制', text);
+    Alert.alert('复制失败', text);
   }
 }
 

@@ -1,7 +1,8 @@
 import React, {useEffect} from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {ActivityIndicator, StyleSheet, View} from 'react-native';
+import {ActivityIndicator, AppState, StyleSheet, View} from 'react-native';
+import {apiClient} from '../api/client';
 import {DEFAULT_CATEGORY} from '../config/env';
 import {BrandProductScreen} from '../screens/BrandProductScreen';
 import {BrandScreen} from '../screens/BrandScreen';
@@ -33,6 +34,33 @@ export function AppNavigator() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    const validateSession = () => {
+      apiClient.get('api/v1/user/profile').catch(() => undefined);
+    };
+
+    validateSession();
+
+    const appStateSubscription = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        validateSession();
+      }
+    });
+
+    const interval = setInterval(() => {
+      validateSession();
+    }, 15000);
+
+    return () => {
+      appStateSubscription.remove();
+      clearInterval(interval);
+    };
+  }, [token]);
 
   if (!isHydrated) {
     return (
