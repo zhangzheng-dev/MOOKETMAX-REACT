@@ -86,12 +86,25 @@ export function HomeScreen({navigation}: Props) {
 
   const scrollHomeToTop = useCallback(() => {
     setMenuOpen(false);
-    sectionListRef.current?.scrollToOffset?.({offset: 0, animated: true});
+
+    const list = sectionListRef.current;
+    const scrollResponder = list?.getScrollResponder?.() as
+      | {scrollTo?: (options: {x?: number; y?: number; animated?: boolean}) => void}
+      | undefined;
+
+    scrollResponder?.scrollTo?.({x: 0, y: 0, animated: true});
 
     if (Platform.OS === 'ios') {
       setTimeout(() => {
-        sectionListRef.current?.scrollToOffset?.({offset: 0, animated: false});
-      }, 80);
+        scrollResponder?.scrollTo?.({x: 0, y: 0, animated: false});
+        list?.scrollToLocation?.({
+          sectionIndex: 0,
+          itemIndex: 0,
+          animated: false,
+          viewPosition: 0,
+          viewOffset: 0,
+        });
+      }, 120);
     }
   }, []);
 
