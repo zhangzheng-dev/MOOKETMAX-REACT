@@ -86,14 +86,11 @@ export function HomeScreen({navigation}: Props) {
 
   const scrollHomeToTop = useCallback(() => {
     setMenuOpen(false);
-    setShowScrollTop(false);
-    setHeaderSticky(false);
-
     sectionListRef.current?.scrollToOffset?.({offset: 0, animated: true});
 
     if (Platform.OS === 'ios') {
       setTimeout(() => {
-        sectionListRef.current?.scrollToOffset?.({offset: 0, animated: true});
+        sectionListRef.current?.scrollToOffset?.({offset: 0, animated: false});
       }, 80);
     }
   }, []);
