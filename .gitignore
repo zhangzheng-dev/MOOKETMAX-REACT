@@ -7,6 +7,7 @@ mjzd.rar
 /.claude/
 /.kiro/
 /.vscode/
+/user.keystore
 
 # === Shell scripts (debugging/temp) ===
 *.sh
@@ -35,6 +36,7 @@ social/*.log
 mobile/android/app/build/
 mobile/android/.gradle/
 mobile/android/build/
+mobile/android/keystore.properties
 mobile/node_modules/
 mobile/ios/Pods/
 mobile/ios/build/
