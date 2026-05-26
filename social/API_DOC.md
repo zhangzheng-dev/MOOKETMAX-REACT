@@ -2,7 +2,7 @@
 
 > 全球肉类供应链 B2B 商机与行情搜索平台 API
 
-**Base URL**: `http://{host}:{port}/api/v1`
+**Base URL**: `https://twms.malleeglobal.com/social/api/v1`
 
 **统一响应格式**:
 ```json

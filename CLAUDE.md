@@ -237,7 +237,7 @@ POST /api/v1/sync/biz-offer/full   # 报盘全量同步
 
 ## 注意事项
 
-1. 后端运行端口：**8080**（Android API 指向 `http://43.139.56.124:8080/`）
+1. 后端运行端口：**8080**（App API 指向 `https://twms.malleeglobal.com/social/`）
 2. `mvn spring-boot:run` 前必须先停止旧进程，否则端口冲突
 3. dict_factory 必须在 dict_brand 之前同步；dict_brand 必须在 biz_offer 之前
 4. 默认搜索分类是"牛"；猪肉用"猪"

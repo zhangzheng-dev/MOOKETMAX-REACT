@@ -25,6 +25,22 @@ export const apiClient = axios.create({
 const FORCED_LOGOUT_HINT = '您的账号已在另一台设备登录';
 let handlingAuthFailure = false;
 
+function getBusinessCode(data: unknown): number | undefined {
+  if (!data || typeof data !== 'object') {
+    return undefined;
+  }
+  const value = (data as {code?: unknown}).code;
+  return typeof value === 'number' ? value : undefined;
+}
+
+function getBusinessMessage(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') {
+    return undefined;
+  }
+  const value = (data as {message?: unknown}).message;
+  return typeof value === 'string' ? value : undefined;
+}
+
 async function handleAuthFailure(message?: string) {
   if (handlingAuthFailure) {
     return;
@@ -64,16 +80,23 @@ apiClient.interceptors.response.use(
   response => {
     // eslint-disable-next-line no-console
     console.log('[API RES]', response.config.url, response.status, response.data?.code);
+
+    const businessCode = getBusinessCode(response.data);
+    const isAuthRequest =
+      response.config.url?.includes('api/v1/auth/login') || response.config.url?.includes('api/v1/auth/send-code');
+
+    if (businessCode === 401 && !isAuthRequest) {
+      void handleAuthFailure(getBusinessMessage(response.data));
+      return Promise.reject(new Error(getBusinessMessage(response.data) ?? '登录状态已失效'));
+    }
+
     return response;
   },
   error => {
     // eslint-disable-next-line no-console
     console.log('[API ERR]', error.config?.url, error.message, error.code, error.response?.status);
 
-    const message =
-      typeof error.response?.data === 'object' && error.response?.data
-        ? ((error.response.data as {message?: string}).message ?? undefined)
-        : undefined;
+    const message = getBusinessMessage(error.response?.data);
     const isAuthRequest =
       error.config?.url?.includes('api/v1/auth/login') || error.config?.url?.includes('api/v1/auth/send-code');
 
