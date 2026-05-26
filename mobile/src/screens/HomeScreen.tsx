@@ -22,6 +22,7 @@ import {HomeCardSwitcher} from '../components/home/cards';
 import {UpdateModal} from '../components/common/UpdateModal';
 import {MooketMaxLogo} from '../components/login/LoginIcons';
 import {CURRENT_APP_VERSION_CODE, DEFAULT_CATEGORY} from '../config/env';
+import {getHomeExampleCards} from '../mocks/homeExampleCards';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
@@ -41,6 +42,28 @@ const archiveDelIconXml = `<svg viewBox="0 0 18 18" xmlns="http://www.w3.org/200
 async function loadCardFeed(category: string, tab: 0 | 1) {
   if (tab === 0) return mooketApi.getSelfSelectCards(category);
   return mooketApi.getRecentSearchCards(category);
+}
+
+async function resolveHomeHistoryCards(category: string, tab: 0 | 1) {
+  const [selfSelectData, recentData] = await Promise.all([
+    mooketApi.getSelfSelectCards(category),
+    mooketApi.getRecentSearchCards(category),
+  ]);
+  const selfSelectCards = selfSelectData.cards ?? [];
+  const recentCards = recentData.cards ?? [];
+
+  if (selfSelectCards.length === 0 && recentCards.length === 0) {
+    const fallback = await mooketApi.getHomeCards(category, 0);
+    return {
+      cards: fallback.cards ?? [],
+      preferredTab: 1 as 0 | 1,
+    };
+  }
+
+  return {
+    cards: (tab === 0 ? selfSelectCards : recentCards) ?? [],
+    preferredTab: tab,
+  };
 }
 
 /** 估算卡片高度（px），用于瀑布流平衡分列 */
@@ -73,6 +96,7 @@ export function HomeScreen({navigation}: Props) {
   const [hotSearches, setHotSearches] = useState<HotSearchItem[]>([]);
   const [cards, setCards] = useState<HomeCardItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -82,54 +106,105 @@ export function HomeScreen({navigation}: Props) {
   const [updateInfo, setUpdateInfo] = useState<AppVersionInfo | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
   const updateCheckedRef = useRef(false);
+  const focusRefreshReadyRef = useRef(false);
+  const autoTabSwitchReadyRef = useRef(true);
+  const loadRef = useRef<(mode?: 'initial' | 'refresh' | 'silent') => Promise<void>>(async () => undefined);
   const sectionListRef = useRef<SectionList>(null);
+
+  const performScrollToTop = useCallback((animated: boolean) => {
+    const list = sectionListRef.current as
+      | (SectionList & {
+          scrollToOffset?: (options: {offset: number; animated?: boolean}) => void;
+          getScrollResponder?: () => {
+            scrollTo?: (options: {x?: number; y?: number; animated?: boolean}) => void;
+          };
+          getNativeScrollRef?: () => {
+            scrollTo?: (options: {x?: number; y?: number; animated?: boolean}) => void;
+          };
+        })
+      | null;
+
+    list?.scrollToOffset?.({offset: 0, animated});
+    list?.scrollToLocation?.({
+      sectionIndex: 0,
+      itemIndex: 0,
+      animated,
+      viewPosition: 0,
+      viewOffset: 0,
+    });
+    list?.getNativeScrollRef?.()?.scrollTo?.({x: 0, y: 0, animated});
+    list?.getScrollResponder?.()?.scrollTo?.({x: 0, y: 0, animated});
+  }, []);
 
   const scrollHomeToTop = useCallback(() => {
     setMenuOpen(false);
-
-    const list = sectionListRef.current;
-    const scrollResponder = list?.getScrollResponder?.() as
-      | {scrollTo?: (options: {x?: number; y?: number; animated?: boolean}) => void}
-      | undefined;
-
-    scrollResponder?.scrollTo?.({x: 0, y: 0, animated: true});
+    performScrollToTop(true);
 
     if (Platform.OS === 'ios') {
       setTimeout(() => {
-        scrollResponder?.scrollTo?.({x: 0, y: 0, animated: false});
-        list?.scrollToLocation?.({
-          sectionIndex: 0,
-          itemIndex: 0,
-          animated: false,
-          viewPosition: 0,
-          viewOffset: 0,
-        });
+        performScrollToTop(false);
       }, 120);
+      setTimeout(() => {
+        performScrollToTop(false);
+      }, 260);
     }
-  }, []);
+  }, [performScrollToTop]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
+    if (mode === 'refresh') {
+      setRefreshing(true);
+    } else if (mode === 'initial') {
+      setLoading(true);
+    }
+
     try {
-      const [statData, hotData, cardData] = await Promise.all([
+      const [statData, hotData, selfSelectData, recentData] = await Promise.all([
         mooketApi.getHomeStatData(category),
         mooketApi.getHotSearchRecommendations(category),
-        loadCardFeed(category, tab),
+        mooketApi.getSelfSelectCards(category),
+        mooketApi.getRecentSearchCards(category),
       ]);
+      const selfSelectCards = selfSelectData.cards ?? [];
+      const recentCards = recentData.cards ?? [];
+
       setStat(statData);
       setHotSearches(hotData);
-      setCards(cardData.cards ?? []);
+      if (autoTabSwitchReadyRef.current && selfSelectCards.length === 0) {
+        autoTabSwitchReadyRef.current = false;
+        setTab(1);
+        setCards(recentCards.length > 0 ? recentCards : getHomeExampleCards());
+        return;
+      }
+
+      autoTabSwitchReadyRef.current = false;
+
+      if (tab === 0) {
+        setCards(selfSelectCards);
+      } else {
+        setCards(recentCards.length > 0 ? recentCards : (selfSelectCards.length === 0 ? getHomeExampleCards() : []));
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [category, tab]);
 
   useEffect(() => {
-    load().catch(() => undefined);
+    loadRef.current = load;
+  }, [load]);
+
+  useEffect(() => {
+    load('initial').catch(() => undefined);
   }, [load]);
 
   useFocusEffect(
     useCallback(() => {
+      if (focusRefreshReadyRef.current) {
+        loadRef.current('silent').catch(() => undefined);
+      } else {
+        focusRefreshReadyRef.current = true;
+      }
+
       if (!updateCheckedRef.current) {
         updateCheckedRef.current = true;
         mooketApi
@@ -154,11 +229,13 @@ export function HomeScreen({navigation}: Props) {
     setCategory(value);
     setMenuOpen(false);
     setEditMode(false);
+    autoTabSwitchReadyRef.current = true;
   }
 
   function switchTab(value: 0 | 1) {
     setTab(value);
     setEditMode(false);
+    autoTabSwitchReadyRef.current = false;
   }
 
   async function deleteHistory(historyId: number) {
@@ -384,7 +461,7 @@ export function HomeScreen({navigation}: Props) {
                     card={card}
                     editMode={editMode}
                     tab={tab}
-                    onPress={() => openHomeCard(navigation, category, card)}
+                    onPress={card.isExample ? undefined : () => openHomeCard(navigation, category, card)}
                     onArchiveAdd={() => onArchiveAdd(card)}
                     onArchiveDelete={() => onArchiveDelete(card)}
                   />
@@ -397,7 +474,7 @@ export function HomeScreen({navigation}: Props) {
                     card={card}
                     editMode={editMode}
                     tab={tab}
-                    onPress={() => openHomeCard(navigation, category, card)}
+                    onPress={card.isExample ? undefined : () => openHomeCard(navigation, category, card)}
                     onArchiveAdd={() => onArchiveAdd(card)}
                     onArchiveDelete={() => onArchiveDelete(card)}
                   />
@@ -407,7 +484,7 @@ export function HomeScreen({navigation}: Props) {
           );
         }}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} />}
         showsVerticalScrollIndicator={false}
       />
 
@@ -538,7 +615,12 @@ function CardWithEdit({
   return (
     <View style={styles.cardWrap}>
       <HomeCardSwitcher card={card} onPress={editMode ? undefined : onPress} />
-      {editMode && card.historyId ? (
+      {card.isExample ? (
+        <View style={styles.exampleBadge}>
+          <Text style={styles.exampleBadgeText}>例</Text>
+        </View>
+      ) : null}
+      {editMode && card.historyId && !card.isExample ? (
         <>
           {tab === 1 ? (
             // 历史搜索：右上角添加 + 下方删除，垂直排列
@@ -833,6 +915,19 @@ const styles = StyleSheet.create({
   gridCol: {flex: 1, gap: 12},
 
   cardWrap: {position: 'relative'},
+  exampleBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,106,97,0.85)',
+    zIndex: 2,
+  },
+  exampleBadgeText: {color: '#FFFFFF', fontSize: 9, fontWeight: '700'},
   editIconColumn: {
     position: 'absolute',
     top: 0,

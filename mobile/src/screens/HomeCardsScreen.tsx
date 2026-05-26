@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo, useState} from 'react';
+import React, {useCallback, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,11 +17,11 @@ import {mooketApi} from '../api/mooketApi';
 import {ChevronDownIcon, ClockIcon, StarIcon} from '../components/common/AppIcons';
 import {HomeCardSwitcher} from '../components/home/cards';
 import {DEFAULT_CATEGORY} from '../config/env';
+import {getHomeExampleCards} from '../mocks/homeExampleCards';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {HomeCardItem, HomeCardsResponse} from '../types/api';
 import {openHomeCard} from '../utils/navigation';
-import {sessionStore} from '../store/sessionStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HomeCards'>;
 
@@ -35,11 +35,33 @@ export function HomeCardsScreen({navigation, route}: Props) {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const autoTabSwitchReadyRef = useRef(true);
 
   const loadFn = useCallback(async (cat: string, t: 0 | 1): Promise<HomeCardsResponse> => {
-    const token = sessionStore.getState().token;
-    if (t === 0) return mooketApi.getSelfSelectCards(cat);
-    return mooketApi.getRecentSearchCards(cat);
+    const [selfSelectData, recentData] = await Promise.all([
+      mooketApi.getSelfSelectCards(cat),
+      mooketApi.getRecentSearchCards(cat),
+    ]);
+    const selfSelectCards = selfSelectData.cards ?? [];
+    const recentCards = recentData.cards ?? [];
+
+    if (autoTabSwitchReadyRef.current && selfSelectCards.length === 0) {
+      autoTabSwitchReadyRef.current = false;
+      if (t !== 1) {
+        setTab(1);
+      }
+      return {
+        cards: recentCards.length > 0 ? recentCards : getHomeExampleCards(),
+        updateTime: recentData.updateTime ?? null,
+      };
+    }
+
+    autoTabSwitchReadyRef.current = false;
+
+    return {
+      cards: t === 0 ? selfSelectCards : (recentCards.length > 0 ? recentCards : (selfSelectCards.length === 0 ? getHomeExampleCards() : [])),
+      updateTime: (t === 0 ? selfSelectData.updateTime : recentData.updateTime) ?? null,
+    };
   }, []);
 
   const load = useCallback(async () => {
@@ -62,11 +84,13 @@ export function HomeCardsScreen({navigation, route}: Props) {
     setCategory(value);
     setMenuOpen(false);
     setEditMode(false);
+    autoTabSwitchReadyRef.current = true;
   }
 
   function switchTab(value: 0 | 1) {
     setTab(value);
     setEditMode(false);
+    autoTabSwitchReadyRef.current = false;
   }
 
   async function deleteHistory(historyId: number) {
@@ -175,7 +199,7 @@ export function HomeCardsScreen({navigation, route}: Props) {
                   category={category}
                   tab={tab}
                   editMode={editMode}
-                  onPress={() => openHomeCard(navigation, category, card)}
+                  onPress={card.isExample ? undefined : () => openHomeCard(navigation, category, card)}
                   onDelete={() => confirmDelete(card.historyId, deleteHistory)}
                   onMoveToSelfSelect={() => confirmMoveToSelfSelect(card.historyId, moveToSelfSelect)}
                   onCancelSelfSelect={() => confirmCancelSelfSelect(card.historyId, cancelSelfSelect)}
@@ -190,7 +214,7 @@ export function HomeCardsScreen({navigation, route}: Props) {
                   category={category}
                   tab={tab}
                   editMode={editMode}
-                  onPress={() => openHomeCard(navigation, category, card)}
+                  onPress={card.isExample ? undefined : () => openHomeCard(navigation, category, card)}
                   onDelete={() => confirmDelete(card.historyId, deleteHistory)}
                   onMoveToSelfSelect={() => confirmMoveToSelfSelect(card.historyId, moveToSelfSelect)}
                   onCancelSelfSelect={() => confirmCancelSelfSelect(card.historyId, cancelSelfSelect)}
@@ -225,7 +249,12 @@ function CardWithActions({
   return (
     <View style={styles.cardWrap}>
       <HomeCardSwitcher card={card} onPress={onPress} />
-      {editMode ? (
+      {card.isExample ? (
+        <View style={styles.exampleBadge}>
+          <Text style={styles.exampleBadgeText}>例</Text>
+        </View>
+      ) : null}
+      {editMode && !card.isExample ? (
         <View style={styles.actions}>
           {tab === 0 ? (
             <Pressable style={styles.actionButton} onPress={onCancelSelfSelect}>
@@ -359,7 +388,20 @@ const styles = StyleSheet.create({
   content: {padding: 16, paddingBottom: 32},
   gridRow: {flexDirection: 'row', gap: 12},
   gridColumn: {flex: 1, gap: 12},
-  cardWrap: {gap: 6},
+  cardWrap: {gap: 6, position: 'relative'},
+  exampleBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,106,97,0.85)',
+    zIndex: 2,
+  },
+  exampleBadgeText: {color: '#FFFFFF', fontSize: 9, fontWeight: '700'},
   actions: {flexDirection: 'row', gap: 8, justifyContent: 'flex-end'},
   actionButton: {
     height: 26,

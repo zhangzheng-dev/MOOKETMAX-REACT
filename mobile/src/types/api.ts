@@ -47,6 +47,7 @@ export type SearchHistory = {
 
 export type HomeCardItem = {
   cardType?: string | null;
+  isExample?: boolean;
   rank?: number | null;
   todayOfferCount?: number | null;
   historyId?: number | null;
@@ -174,6 +175,8 @@ export type MerchantDetail = {
   todayFactoryCount: number;
   offers: OfferSummary[];
   inquiries: OfferSummary[];
+  totalOffers?: number | null;
+  totalInquiries?: number | null;
 };
 
 export type MerchantProductPage = {

@@ -55,8 +55,8 @@ export function MerchantScreen({navigation, route}: Props) {
       setInquiries(data.inquiries ?? []);
       setPage({offer: 1, inquiry: 1});
       setHasMore({
-        offer: (data.offers ?? []).length >= pageSize,
-        inquiry: (data.inquiries ?? []).length >= pageSize,
+        offer: (data.totalOffers ?? data.offers?.length ?? 0) > (data.offers?.length ?? 0),
+        inquiry: (data.totalInquiries ?? data.inquiries?.length ?? 0) > (data.inquiries?.length ?? 0),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
@@ -102,30 +102,19 @@ export function MerchantScreen({navigation, route}: Props) {
       list = list.filter(item => factories.has(`${item.country ?? ''}${item.factoryNo ?? ''}`));
     }
     if (regions.size > 0) {
-      list = list.filter(item => {
-        const cities = (item.employeeOffers ?? []).map(emp => extractCity(emp.goodsLocation));
-        return cities.some(city => regions.has(city));
-      });
+      list = list.filter(item => offerRegions(item).some(city => regions.has(city)));
     }
     if (products.size > 0) {
       list = list.filter(item => item.productName != null && products.has(item.productName));
     }
     if (goodsTypes.size > 0) {
-      list = list.filter(item =>
-        (item.employeeOffers ?? []).some(emp => emp.goodsType != null && goodsTypes.has(emp.goodsType)),
-      );
+      list = list.filter(item => offerGoodsTypes(item).some(type => goodsTypes.has(type)));
     }
     if (feedingMethods.size > 0) {
-      list = list.filter(item =>
-        (item.employeeOffers ?? []).some(
-          emp => emp.feedingMethod != null && feedingMethods.has(emp.feedingMethod),
-        ),
-      );
+      list = list.filter(item => offerFeedingMethods(item).some(method => feedingMethods.has(method)));
     }
     if (tagFilters.size > 0) {
-      list = list.filter(item =>
-        (item.employeeOffers ?? []).some(emp => splitTags(emp.tags, 8).some(t => tagFilters.has(t))),
-      );
+      list = list.filter(item => offerTags(item).some(tag => tagFilters.has(tag)));
     }
     if (sort.kind === 'comprehensive') {
       list = list.slice().sort((a, b) => (b.employeeOffers?.length ?? 0) - (a.employeeOffers?.length ?? 0));
@@ -150,12 +139,7 @@ export function MerchantScreen({navigation, route}: Props) {
     [country, currentList],
   );
   const allRegions = useMemo(
-    () =>
-      unique(
-        currentList.flatMap(item =>
-          (item.employeeOffers ?? []).map(emp => extractCity(emp.goodsLocation)),
-        ),
-      ),
+    () => unique(currentList.flatMap(item => offerRegions(item))),
     [currentList],
   );
   const allProductNames = useMemo(
@@ -163,12 +147,7 @@ export function MerchantScreen({navigation, route}: Props) {
     [currentList],
   );
   const allTags = useMemo(
-    () =>
-      unique(
-        currentList.flatMap(item =>
-          (item.employeeOffers ?? []).flatMap(emp => splitTags(emp.tags, 8)),
-        ),
-      ),
+    () => unique(currentList.flatMap(item => offerTags(item))),
     [currentList],
   );
 
@@ -212,7 +191,7 @@ export function MerchantScreen({navigation, route}: Props) {
             <View>
               <DataDashboard
                 stats={[
-                  {label: '今日报价', value: detail.todayOfferCount},
+                  {label: '近2日报盘', value: detail.todayOfferCount},
                   {label: '产品数', value: detail.todayProductCount},
                   {label: '工厂数', value: detail.todayFactoryCount},
                 ]}
@@ -383,6 +362,34 @@ function bestPrice(offer: OfferSummary, mode: 'min' | 'max'): number {
   if (prices.length > 0) return mode === 'min' ? Math.min(...prices) : Math.max(...prices);
   if (offer.price != null) return offer.price;
   return mode === 'min' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+}
+
+function offerRegions(offer: OfferSummary): string[] {
+  return unique([
+    extractCity(offer.goodsLocation),
+    ...(offer.employeeOffers ?? []).map(emp => extractCity(emp.goodsLocation)),
+  ]);
+}
+
+function offerGoodsTypes(offer: OfferSummary): string[] {
+  return unique([
+    offer.goodsType ?? '',
+    ...(offer.employeeOffers ?? []).map(emp => emp.goodsType ?? ''),
+  ]);
+}
+
+function offerFeedingMethods(offer: OfferSummary): string[] {
+  return unique([
+    offer.feedingType ?? '',
+    ...(offer.employeeOffers ?? []).map(emp => emp.feedingMethod ?? ''),
+  ]);
+}
+
+function offerTags(offer: OfferSummary): string[] {
+  return unique([
+    ...splitTags(offer.tags, 8),
+    ...(offer.employeeOffers ?? []).flatMap(emp => splitTags(emp.tags, 8)),
+  ]);
 }
 
 function mergeOffers(prev: OfferSummary[], incoming: OfferSummary[]): OfferSummary[] {

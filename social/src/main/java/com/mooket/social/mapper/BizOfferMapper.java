@@ -220,7 +220,7 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
     @Select({"SELECT * FROM biz_offer WHERE merchant_id = #{merchantId} AND status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' ORDER BY publish_time DESC"})
     List<BizOffer> selectByMerchantId(@Param("merchantId") Long merchantId);
 
-    @Select({"SELECT * FROM biz_offer WHERE merchant_id = #{merchantId} AND offer_type = #{offerType} AND status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' AND (#{category} IS NULL OR category = #{category}) ORDER BY publish_time DESC"})
+    @Select({"<script>SELECT * FROM biz_offer WHERE merchant_id = #{merchantId} AND offer_type = #{offerType} AND status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' <if test='category != null'> AND category = #{category} </if> ORDER BY publish_time DESC</script>"})
     List<BizOffer> selectByMerchantIdAndType(@Param("merchantId") Long merchantId, @Param("offerType") String offerType, @Param("category") String category);
 
     @Select({"SELECT merchant_id, COUNT(*) FILTER (WHERE offer_type = '报盘' AND data_date = CURRENT_DATE) as offer_count, COUNT(*) FILTER (WHERE offer_type = '求购' AND data_date = CURRENT_DATE) as inquiry_count, COUNT(DISTINCT product_name) FILTER (WHERE product_name IS NOT NULL AND product_name != '' AND data_date = CURRENT_DATE) as product_count, COUNT(DISTINCT CONCAT(product_name, '|', country, '|', factory_no)) FILTER (WHERE factory_no IS NOT NULL AND factory_no != '' AND data_date = CURRENT_DATE) as factory_count FROM biz_offer WHERE status = 'ACTIVE' AND data_date = CURRENT_DATE AND merchant_id IS NOT NULL GROUP BY merchant_id"})

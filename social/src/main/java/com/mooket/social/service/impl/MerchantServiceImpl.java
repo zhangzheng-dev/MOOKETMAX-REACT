@@ -4,6 +4,7 @@ import com.mooket.social.dto.EmployeeOfferDTO;
 import com.mooket.social.dto.MerchantDetailDTO;
 import com.mooket.social.dto.MerchantProductPageDTO;
 import com.mooket.social.dto.OfferSummaryDTO;
+import com.mooket.social.entity.BizOffer;
 import com.mooket.social.entity.DictMerchant;
 import com.mooket.social.mapper.BizOfferMapper;
 import com.mooket.social.mapper.DictMerchantMapper;
@@ -11,24 +12,27 @@ import com.mooket.social.service.MerchantService;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.Arrays;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
-/**
- * 商家服务实现
- */
 @Service
 public class MerchantServiceImpl implements MerchantService {
+
+    private static final int DETAIL_INITIAL_PAGE_SIZE = 20;
+    private static final DateTimeFormatter PUBLISH_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final DictMerchantMapper merchantMapper;
     private final BizOfferMapper offerMapper;
 
-    public MerchantServiceImpl(DictMerchantMapper merchantMapper,
-                              BizOfferMapper offerMapper) {
+    public MerchantServiceImpl(DictMerchantMapper merchantMapper, BizOfferMapper offerMapper) {
         this.merchantMapper = merchantMapper;
         this.offerMapper = offerMapper;
     }
@@ -36,83 +40,73 @@ public class MerchantServiceImpl implements MerchantService {
     @Override
     @Cacheable(value = "merchantDetail", key = "#merchantId + '_' + #category")
     public MerchantDetailDTO getMerchantDetail(Long merchantId, String category) {
-        MerchantDetailDTO dto = new MerchantDetailDTO();
-
-        // 获取商家基本信息
         DictMerchant merchant = merchantMapper.selectById(merchantId);
         if (merchant == null) {
             throw new RuntimeException("商家不存在");
         }
+
+        MerchantDetailDTO dto = new MerchantDetailDTO();
         dto.setMerchantId(merchant.getMerchantId());
         dto.setMerchantName(merchant.getMerchantName());
         dto.setMerchantShortName(merchant.getMerchantShortName());
         dto.setMerchantTags(merchant.getMerchantTags());
         dto.setContactPhone(merchant.getContactPhone());
 
-        // 使用SQL聚合查询近2日统计数据（昨天+今天），与首页商家卡片的"今日报盘数"区分开
         BizOfferMapper.MerchantDashboardStats stats = offerMapper.selectMerchantDashboardStats(merchantId, category);
         dto.setTodayOfferCount(stats.recentOfferCount != null ? stats.recentOfferCount.intValue() : 0);
         dto.setTodayInquiryCount(stats.recentInquiryCount != null ? stats.recentInquiryCount.intValue() : 0);
         dto.setTodayProductCount(stats.recentProductCount != null ? stats.recentProductCount.intValue() : 0);
         dto.setTodayFactoryCount(stats.recentFactoryCount != null ? stats.recentFactoryCount.intValue() : 0);
 
-        // 获取报盘列表（只取前10条用于显示）
-        List<BizOfferMapper.MerchantOfferAgg> offerAggs = offerMapper.selectMerchantOfferAgg(merchantId, category, "报盘", 10, 0);
-        dto.setOffers(convertToOfferSummaries(offerAggs, "报盘"));
+        List<BizOfferMapper.MerchantOfferAgg> offerAggs = offerMapper.selectMerchantOfferAgg(
+                merchantId, category, "报盘", DETAIL_INITIAL_PAGE_SIZE, 0);
+        List<BizOfferMapper.MerchantOfferAgg> inquiryAggs = offerMapper.selectMerchantOfferAgg(
+                merchantId, category, "求购", DETAIL_INITIAL_PAGE_SIZE, 0);
 
-        // 获取求购列表（只取前10条用于显示）
-        List<BizOfferMapper.MerchantOfferAgg> inquiryAggs = offerMapper.selectMerchantOfferAgg(merchantId, category, "求购", 10, 0);
-        dto.setInquiries(convertToOfferSummaries(inquiryAggs, "求购"));
+        dto.setOffers(buildOfferSummaries(merchantId, category, "报盘", offerAggs));
+        dto.setInquiries(buildOfferSummaries(merchantId, category, "求购", inquiryAggs));
 
-        // 设置产品总数
-        int totalOffers = offerMapper.countMerchantOfferAgg(merchantId, category, "报盘");
-        int totalInquiries = offerMapper.countMerchantOfferAgg(merchantId, category, "求购");
-        dto.setTotalOffers(totalOffers);
-        dto.setTotalInquiries(totalInquiries);
-
+        dto.setTotalOffers(offerMapper.countMerchantOfferAgg(merchantId, category, "报盘"));
+        dto.setTotalInquiries(offerMapper.countMerchantOfferAgg(merchantId, category, "求购"));
         return dto;
     }
 
     @Override
     @Cacheable(value = "merchantProducts", key = "#merchantId + '_' + #category + '_' + #offerType + '_' + #page + '_' + #pageSize")
     public MerchantProductPageDTO getMerchantProducts(Long merchantId, String category, String offerType, int page, int pageSize) {
-        // 获取商家基本信息（验证商家存在）
         DictMerchant merchant = merchantMapper.selectById(merchantId);
         if (merchant == null) {
             throw new RuntimeException("商家不存在");
         }
 
-        // 确定查询类型
         String dbOfferType = "offer".equalsIgnoreCase(offerType) ? "报盘" : "求购";
-
-        // 获取总数
         int totalCount = offerMapper.countMerchantOfferAgg(merchantId, category, dbOfferType);
         int totalPages = (int) Math.ceil((double) totalCount / pageSize);
-
-        // 分页查询
         int offset = (page - 1) * pageSize;
+
         List<BizOfferMapper.MerchantOfferAgg> aggList = offerMapper.selectMerchantOfferAgg(
                 merchantId, category, dbOfferType, pageSize, offset);
 
-        // 转换结果
-        List<OfferSummaryDTO> products = convertToOfferSummaries(aggList, dbOfferType);
-
-        // 构建返回结果
         MerchantProductPageDTO result = new MerchantProductPageDTO();
-        result.setProducts(products);
+        result.setProducts(buildOfferSummaries(merchantId, category, dbOfferType, aggList));
         result.setTotalCount(totalCount);
         result.setPage(page);
         result.setPageSize(pageSize);
         result.setTotalPages(totalPages);
         result.setOfferType(offerType);
-
         return result;
     }
 
-    private List<OfferSummaryDTO> convertToOfferSummaries(List<BizOfferMapper.MerchantOfferAgg> aggList, String offerType) {
+    private List<OfferSummaryDTO> buildOfferSummaries(Long merchantId,
+                                                      String category,
+                                                      String offerType,
+                                                      List<BizOfferMapper.MerchantOfferAgg> aggList) {
         if (aggList == null || aggList.isEmpty()) {
             return Collections.emptyList();
         }
+
+        Map<String, List<EmployeeOfferDTO>> employeeOfferMap = buildEmployeeOfferMap(
+                offerMapper.selectByMerchantIdAndType(merchantId, offerType, category));
 
         return aggList.stream()
                 .map(agg -> {
@@ -127,23 +121,56 @@ public class MerchantServiceImpl implements MerchantService {
                     summary.setGoodsType(agg.goodsTypes);
                     summary.setFeedingType(agg.feedingTypes);
                     summary.setPublishTime(agg.latestPublishTime);
-
-                    // 构建员工报价明细
-                    EmployeeOfferDTO empOffer = new EmployeeOfferDTO();
-                    empOffer.setUserNickname(agg.userNickname);
-                    empOffer.setPrice(agg.empPrice);
-                    empOffer.setPriceMax(agg.empPriceMax);
-                    empOffer.setWeight(agg.empWeight);
-                    empOffer.setGoodsLocation(agg.empGoodsLocation);
-                    empOffer.setOfferOriginalText(agg.offerOriginalText);
-                    // 格式化发布时间为字符串，供 Android 端解析
-                    if (agg.latestPublishTime != null) {
-                        empOffer.setPublishTime(agg.latestPublishTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-                    }
-                    summary.setEmployeeOffers(Collections.singletonList(empOffer));
-
+                    summary.setEmployeeOffers(employeeOfferMap.getOrDefault(
+                            groupKey(agg.productName, agg.country, agg.factoryNo),
+                            Collections.emptyList()));
                     return summary;
                 })
                 .collect(Collectors.toList());
+    }
+
+    private Map<String, List<EmployeeOfferDTO>> buildEmployeeOfferMap(List<BizOffer> offers) {
+        if (offers == null || offers.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, List<EmployeeOfferDTO>> grouped = new LinkedHashMap<>();
+        for (BizOffer offer : offers) {
+            grouped.computeIfAbsent(groupKey(offer.getProductName(), offer.getCountry(), offer.getFactoryNo()),
+                            key -> new ArrayList<>())
+                    .add(convertToEmployeeOfferDTO(offer));
+        }
+
+        grouped.values().forEach(items ->
+                items.sort(Comparator.comparing(EmployeeOfferDTO::getPublishTime,
+                        Comparator.nullsLast(Comparator.reverseOrder()))));
+        return grouped;
+    }
+
+    private EmployeeOfferDTO convertToEmployeeOfferDTO(BizOffer offer) {
+        EmployeeOfferDTO dto = new EmployeeOfferDTO();
+        dto.setOfferId(offer.getOfferId());
+        dto.setUserNickname(offer.getUserNickname());
+        dto.setContactPhone(offer.getContactPhone());
+        dto.setPrice(offer.getPrice());
+        dto.setPriceMax(offer.getPriceMax());
+        dto.setWeight(offer.getWeight());
+        dto.setGoodsLocation(offer.getGoodsLocation());
+        dto.setTags(offer.getTags());
+        dto.setGoodsType(offer.getGoodsType());
+        dto.setFeedingMethod(offer.getFeedingType());
+        dto.setOfferOriginalText(offer.getOfferOriginalText());
+        if (offer.getPublishTime() != null) {
+            dto.setPublishTime(offer.getPublishTime().format(PUBLISH_TIME_FORMATTER));
+        }
+        return dto;
+    }
+
+    private String groupKey(String productName, String country, String factoryNo) {
+        return String.join("|", nullToEmpty(productName), nullToEmpty(country), nullToEmpty(factoryNo));
+    }
+
+    private String nullToEmpty(String value) {
+        return Objects.toString(value, "");
     }
 }

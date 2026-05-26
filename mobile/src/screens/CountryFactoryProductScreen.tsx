@@ -6,6 +6,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import Svg, {Path} from 'react-native-svg';
@@ -47,6 +48,8 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   const [goodsTypes, setGoodsTypes] = useState<Set<string>>(new Set());
   const [feedingMethods, setFeedingMethods] = useState<Set<string>>(new Set());
   const [tags, setTags] = useState<Set<string>>(new Set());
+  const [priceMinInput, setPriceMinInput] = useState('');
+  const [priceMaxInput, setPriceMaxInput] = useState('');
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -109,6 +112,8 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
 
   const filtered = useMemo(() => {
     const groups = data?.merchantOffers ?? [];
+    const minPrice = parsePriceInput(priceMinInput);
+    const maxPrice = parsePriceInput(priceMaxInput);
     return groups
       .filter(group => {
         if (famousMerchant && !group.isFamousMerchant) return false;
@@ -121,6 +126,9 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
       .map(group => ({
         ...group,
         employeeOffers: (group.employeeOffers ?? []).filter(emp => {
+          const price = parsePriceValue(emp.price);
+          if (minPrice != null && (price == null || price < minPrice)) return false;
+          if (maxPrice != null && (price == null || price > maxPrice)) return false;
           if (regions.size > 0) {
             const city = extractCity(emp.goodsLocation);
             if (!regions.has(city)) return false;
@@ -140,7 +148,17 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         }),
       }))
       .filter(group => group.employeeOffers.length > 0);
-  }, [data?.merchantOffers, famousMerchant, feedingMethods, goodsTypes, merchants, regions, tags]);
+  }, [
+    data?.merchantOffers,
+    famousMerchant,
+    feedingMethods,
+    goodsTypes,
+    merchants,
+    priceMaxInput,
+    priceMinInput,
+    regions,
+    tags,
+  ]);
 
   const allRegions = useMemo(
     () =>
@@ -195,7 +213,11 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     {key: 'famousMerchant' as const, label: '知名商家', hasSelection: famousMerchant, toggle: true},
     {key: 'merchant' as const, label: '商家筛选', hasSelection: merchants.size > 0},
     {key: 'region' as const, label: '地区', hasSelection: regions.size > 0},
-    {key: 'priceRange' as const, label: '价格区间', hasSelection: false},
+    {
+      key: 'priceRange' as const,
+      label: '价格区间',
+      hasSelection: priceMinInput.trim().length > 0 || priceMaxInput.trim().length > 0,
+    },
     {key: 'goodsType' as const, label: '货物类型', hasSelection: goodsTypes.size > 0},
     {key: 'feedingMethod' as const, label: '饲养方式', hasSelection: feedingMethods.size > 0},
     {key: 'tag' as const, label: '标签', hasSelection: tags.size > 0},
@@ -380,9 +402,43 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         visible={activeFilter === 'priceRange'}
         title="价格区间"
         onClose={() => setActiveFilter(null)}
-        onReset={() => setActiveFilter(null)}
+        onReset={() => {
+          setPriceMinInput('');
+          setPriceMaxInput('');
+          setActiveFilter(null);
+        }}
         onConfirm={() => setActiveFilter(null)}>
-        <Text style={styles.placeholder}>暂未实现价格区间筛选</Text>
+        <View style={styles.priceRangeRow}>
+          <View style={styles.priceField}>
+            <Text style={styles.priceFieldLabel}>最低价</Text>
+            <TextInput
+              value={priceMinInput}
+              onChangeText={value => setPriceMinInput(sanitizePriceInput(value))}
+              keyboardType="decimal-pad"
+              placeholder="例如 32"
+              placeholderTextColor="#9DA4A3"
+              style={styles.priceInput}
+            />
+          </View>
+          <Text style={styles.priceRangeSeparator}>-</Text>
+          <View style={styles.priceField}>
+            <Text style={styles.priceFieldLabel}>最高价</Text>
+            <TextInput
+              value={priceMaxInput}
+              onChangeText={value => setPriceMaxInput(sanitizePriceInput(value))}
+              keyboardType="decimal-pad"
+              placeholder="例如 45"
+              placeholderTextColor="#9DA4A3"
+              style={styles.priceInput}
+            />
+          </View>
+        </View>
+        <Text style={styles.priceUnitHint}>单位：元/kg</Text>
+        {data?.priceMin != null || data?.priceMax != null ? (
+          <Text style={styles.priceHint}>
+            当前数据价格范围：{formatPriceRangeHint(data.priceMin, data.priceMax)}
+          </Text>
+        ) : null}
       </FilterPanelSheet>
 
       <FilterPanelSheet
@@ -489,6 +545,33 @@ function toggleSet<T>(set: Set<T>, value: T): Set<T> {
   return next;
 }
 
+function sanitizePriceInput(value: string) {
+  return value.replace(/[^\d.]/g, '');
+}
+
+function parsePriceInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parsePriceValue(value?: string | number | null): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value !== 'string') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatPriceRangeHint(min?: number | null, max?: number | null) {
+  if (min != null && max != null && min !== max) return `楼 ${min} - ${max} /kg`;
+  if (min != null) return `楼 ${min} /kg`;
+  if (max != null) return `楼 ${max} /kg`;
+  return '暂无价格';
+}
+
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   loading: {paddingVertical: 48, alignItems: 'center'},
@@ -502,6 +585,22 @@ const styles = StyleSheet.create({
   empty: {textAlign: 'center', paddingVertical: 48, color: '#9DA4A3', fontSize: 14},
   placeholder: {color: '#9DA4A3', fontSize: 12, padding: 16, textAlign: 'center'},
   stickyHeader: {backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#DEE4E1', zIndex: 10, elevation: 3},
+  priceRangeRow: {flexDirection: 'row', alignItems: 'flex-end', gap: 12},
+  priceField: {flex: 1, gap: 8},
+  priceFieldLabel: {color: colors.textMuted, fontSize: 12, fontWeight: '600'},
+  priceInput: {
+    height: 44,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    color: colors.text,
+    fontSize: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  priceRangeSeparator: {color: colors.textMuted, fontSize: 16, paddingBottom: 12},
+  priceUnitHint: {marginTop: 12, color: '#6C7A77', fontSize: 12},
+  priceHint: {marginTop: 8, color: '#9DA4A3', fontSize: 12},
 
   substituteFab: {
     position: 'absolute',
