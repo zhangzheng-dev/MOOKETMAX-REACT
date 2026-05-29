@@ -21,20 +21,26 @@ import {colors} from '../theme/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditProfile'>;
 
-const identityOptions = ['海外服务商', '贸易商', '加工厂/商超', '其他'];
+const identityOptions = ['海外供应商', '贸易商', '加工厂/商超', '其他'];
+
+function normalizeIdentityTags(tags: string[] | null | undefined) {
+  return (tags ?? []).map(tag => (tag === '海外服务商' ? '海外供应商' : tag));
+}
 
 export function EditProfileScreen({navigation}: Props) {
   const insets = useSafeAreaInsets();
   const {user, setUser} = sessionStore();
   const [nickname, setNickname] = useState(user?.nickname ?? '');
-  const [identityTags, setIdentityTags] = useState<string[]>(user?.identityTags ?? []);
+  const [identityTags, setIdentityTags] = useState<string[]>(
+    normalizeIdentityTags(user?.identityTags),
+  );
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatarUrl ?? null);
 
   useEffect(() => {
     setNickname(user?.nickname ?? '');
-    setIdentityTags(user?.identityTags ?? []);
+    setIdentityTags(normalizeIdentityTags(user?.identityTags));
     setAvatarPreview(user?.avatarUrl ?? null);
   }, [user]);
 
@@ -103,7 +109,13 @@ export function EditProfileScreen({navigation}: Props) {
       <View style={[styles.header, {paddingTop: insets.top, minHeight: insets.top + 56}]}>
         <Pressable hitSlop={8} onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-            <Path d="M15 5L8 12L15 19" stroke={colors.text} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <Path
+              d="M15 5L8 12L15 19"
+              stroke={colors.text}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </Svg>
         </Pressable>
         <Text style={styles.headerTitle}>编辑资料</Text>
@@ -120,7 +132,10 @@ export function EditProfileScreen({navigation}: Props) {
         </Pressable>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled">
         <View style={styles.avatarSection}>
           <Pressable
             disabled={uploading}
@@ -149,8 +164,17 @@ export function EditProfileScreen({navigation}: Props) {
               {user?.realNameStatus === 'verified' || user?.realName ? (
                 <View style={styles.verifiedBadge}>
                   <Svg width={12} height={12} viewBox="0 0 12 12" fill="none">
-                    <Path d="M6 1L7.5 2.5L9.5 2L9 4L11 5.5L9.5 7L10 9L8 8.5L6 10.5L4 8.5L2 9L2.5 7L1 5.5L3 4L2.5 2L4.5 2.5L6 1Z" fill="#006A61"/>
-                    <Path d="M4 6L5.5 7.5L8 4.5" stroke="white" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round"/>
+                    <Path
+                      d="M6 1L7.5 2.5L9.5 2L9 4L11 5.5L9.5 7L10 9L8 8.5L6 10.5L4 8.5L2 9L2.5 7L1 5.5L3 4L2.5 2L4.5 2.5L6 1Z"
+                      fill="#006A61"
+                    />
+                    <Path
+                      d="M4 6L5.5 7.5L8 4.5"
+                      stroke="white"
+                      strokeWidth={1.2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </Svg>
                   <Text style={styles.verifiedText}>已认证</Text>
                 </View>
@@ -261,8 +285,22 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {color: colors.text, fontSize: 14, width: 64},
   fieldValue: {flex: 1, color: colors.textSecondary, fontSize: 14, textAlign: 'right'},
-  fieldValueRow: {flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6},
-  verifiedBadge: {flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 2, backgroundColor: 'rgba(0,106,97,0.08)'},
+  fieldValueRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 2,
+    backgroundColor: 'rgba(0,106,97,0.08)',
+  },
   verifiedText: {color: colors.primary, fontSize: 10, fontWeight: '500'},
   fieldInput: {
     flex: 1,

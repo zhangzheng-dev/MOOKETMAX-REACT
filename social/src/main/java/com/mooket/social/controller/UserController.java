@@ -14,8 +14,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -63,7 +65,7 @@ public class UserController {
         data.put("realName", user.getRealName());
         data.put("identityTags",
                 user.getIdentityTags() != null && !user.getIdentityTags().isEmpty()
-                        ? Arrays.asList(user.getIdentityTags().split(","))
+                        ? normalizeIdentityTags(Arrays.asList(user.getIdentityTags().split(",")))
                         : Arrays.asList());
         return ApiResponse.success(data);
     }
@@ -96,7 +98,7 @@ public class UserController {
             user.setNickname(nickname);
         }
         if (identityTags != null) {
-            user.setIdentityTags(String.join(",", identityTags));
+            user.setIdentityTags(String.join(",", normalizeIdentityTags(identityTags)));
         }
 
         user.setUpdateTime(LocalDateTime.now());
@@ -203,5 +205,26 @@ public class UserController {
                         .eq("phone", phone)
                         .eq("cancellation_status", "active")
         );
+    }
+
+    private List<String> normalizeIdentityTags(List<String> identityTags) {
+        List<String> normalized = new ArrayList<>();
+        for (String tag : identityTags) {
+            if (tag == null) {
+                continue;
+            }
+            String trimmed = tag.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            String mapped = switch (trimmed) {
+                case "海外服务商" -> "海外供应商";
+                default -> trimmed;
+            };
+            if (!normalized.contains(mapped)) {
+                normalized.add(mapped);
+            }
+        }
+        return normalized;
     }
 }

@@ -5,6 +5,7 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,7 +34,7 @@ public class AppController {
 
     private static final String FALLBACK_VERSION = "1.0.3";
     private static final int FALLBACK_VERSION_CODE = 5;
-    private static final String UPDATE_URL =
+    private static final String UPDATE_URL_BASE =
             "https://twms.malleeglobal.com/social/api/v1/app/download/apk";
     private static final String DEFAULT_UPDATE_CONTENT =
             "1. 发现新版本\n2. 点击更新即可下载安装\n3. 如安装失败，请退出后重试";
@@ -55,7 +56,7 @@ public class AppController {
         data.put("version", packageInfo.version());
         data.put("versionCode", packageInfo.versionCode());
         data.put("hasUpdate", hasUpdate);
-        data.put("updateUrl", UPDATE_URL);
+        data.put("updateUrl", buildVersionedUpdateUrl(packageInfo));
         data.put("updateContent", packageInfo.updateContent());
         return ApiResponse.success(data);
     }
@@ -70,10 +71,21 @@ public class AppController {
 
         Resource resource = new FileSystemResource(file);
         return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore().mustRevalidate())
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.EXPIRES, "0")
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=" + packageInfo.fileName())
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(resource);
+    }
+
+    private String buildVersionedUpdateUrl(UpdatePackageInfo packageInfo) {
+        return UPDATE_URL_BASE
+                + "?version="
+                + packageInfo.version()
+                + "&versionCode="
+                + packageInfo.versionCode();
     }
 
     private UpdatePackageInfo resolveUpdatePackage() {
