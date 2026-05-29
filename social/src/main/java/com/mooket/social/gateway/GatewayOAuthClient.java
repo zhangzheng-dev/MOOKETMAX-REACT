@@ -98,16 +98,23 @@ public class GatewayOAuthClient {
 
     /**
      * 完善用户资料（首次注册登录后）
-     * POST /uac/finishBootstrap
+     * POST /finishBootstrap
      */
-    public void finishBootstrap(String accessToken, String nickname, java.util.List<String> identityTags) {
-        String url = UAC_BASE + "/uac/finishBootstrap";
-        Map<String, Object> headers = new HashMap<>();
+    public void finishBootstrap(
+            String accessToken,
+            String nickname,
+            java.util.List<Integer> industryIdentityList,
+            java.util.List<Integer> userLabelIdentityList,
+            java.util.List<Integer> goodsCategoryList) {
+        String url = UAC_BASE + "/finishBootstrap";
+        Map<String, Object> headers = buildHeaders("server");
         headers.put("Authorization", "Bearer " + accessToken);
-        headers.put("Content-Type", "application/json");
+        headers.remove("noAuth");
         Map<String, Object> body = new HashMap<>();
         body.put("nickName", nickname);
-        body.put("userIdentityList", identityTags);
+        body.put("userIdentityList", industryIdentityList);
+        body.put("userLabelIdentityList", userLabelIdentityList);
+        body.put("goodsCategoryList", goodsCategoryList);
         Map<String, Object> response = doPost(url, headers, body);
         if ((Integer) response.getOrDefault("code", 0) != 200) {
             throw new GatewayException("完善资料失败: " + response.get("message"));
@@ -156,19 +163,24 @@ public class GatewayOAuthClient {
             conn.setReadTimeout(10000);
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", BASIC_AUTH);
-            conn.setRequestProperty("noAuth", "1");
-            conn.setRequestProperty("deviceId", headers.get("deviceId").toString());
-            conn.setRequestProperty("deviceType", "Android");
-            conn.setRequestProperty("deviceMac", headers.get("deviceId").toString());
-            conn.setRequestProperty("isPc", "0");
+            if (headers != null) {
+                headers.forEach((key, value) -> {
+                    if (key != null && value != null) {
+                        conn.setRequestProperty(key, String.valueOf(value));
+                    }
+                });
+            }
             if (body != null) {
                 String jsonBody = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(body);
                 conn.getOutputStream().write(jsonBody.getBytes("UTF-8"));
             }
             int responseCode = conn.getResponseCode();
+            java.io.InputStream stream = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            if (stream == null) {
+                throw new GatewayException("网关请求失败: empty response stream, status=" + responseCode);
+            }
             java.io.BufferedReader reader = new java.io.BufferedReader(
-                new java.io.InputStreamReader(conn.getInputStream(), "UTF-8"));
+                new java.io.InputStreamReader(stream, "UTF-8"));
             StringBuilder response = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {

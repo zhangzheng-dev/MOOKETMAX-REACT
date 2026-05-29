@@ -4,13 +4,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {mooketApi} from '../api/mooketApi';
 import {
   ArrowLeftIcon,
@@ -22,7 +24,6 @@ import type {RootStackParamList} from '../navigation/routes';
 import {sessionStore} from '../store/sessionStore';
 import {colors} from '../theme/colors';
 import type {AuthResult, SendCodeResult} from '../types/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 async function getDeviceId(): Promise<string> {
   const key = 'mooket.device_id';
@@ -37,7 +38,22 @@ async function getDeviceId(): Promise<string> {
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 type Step = 'phone' | 'verify' | 'register';
 
-const identityOptions = ['海外服务商', '贸易商', '加工厂/商超', '其他'];
+const industryOptions = [
+  {id: 10, label: '海外供应商'},
+  {id: 20, label: '贸易商'},
+  {id: 30, label: '加工厂/商超'},
+  {id: 50, label: '其他'},
+];
+
+const intentOptions = [
+  {id: 1, label: '买货'},
+  {id: 2, label: '卖货'},
+];
+
+const goodsCategoryOptions = [
+  {id: 1, label: '牛'},
+  {id: 3, label: '猪'},
+];
 
 export function LoginScreen({navigation}: Props) {
   const {setAuth, setUser} = sessionStore();
@@ -49,13 +65,18 @@ export function LoginScreen({navigation}: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nickname, setNickname] = useState('');
-  const [identityTags, setIdentityTags] = useState<string[]>([]);
+  const [industryIdentityIds, setIndustryIdentityIds] = useState<number[]>([]);
+  const [intentLabelIds, setIntentLabelIds] = useState<number[]>([]);
+  const [goodsCategoryIds, setGoodsCategoryIds] = useState<number[]>([]);
   const [pendingAuth, setPendingAuth] = useState<AuthResult | null>(null);
   const [sendCodeResult, setSendCodeResult] = useState<SendCodeResult | null>(null);
   const codeInputRef = useRef<TextInput>(null);
+  const pageBackground = step === 'register' ? '#F6FFFB' : colors.surface;
 
   useEffect(() => {
-    if (step !== 'verify' || countdown <= 0) return;
+    if (step !== 'verify' || countdown <= 0) {
+      return;
+    }
     const timer = setTimeout(() => setCountdown(prev => Math.max(prev - 1, 0)), 1000);
     return () => clearTimeout(timer);
   }, [countdown, step]);
@@ -88,6 +109,7 @@ export function LoginScreen({navigation}: Props) {
       setError('请先阅读并同意服务条款与隐私政策');
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
@@ -109,6 +131,7 @@ export function LoginScreen({navigation}: Props) {
       setError('请输入 6 位验证码');
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
@@ -116,8 +139,10 @@ export function LoginScreen({navigation}: Props) {
       const auth = await mooketApi.login(phone, value, devId);
       if (auth.isNewUser) {
         setPendingAuth(auth);
-        setNickname(auth.nickname ?? '');
-        setIdentityTags([]);
+        setNickname('');
+        setIndustryIdentityIds([]);
+        setIntentLabelIds([]);
+        setGoodsCategoryIds([]);
         setStep('register');
         return;
       }
@@ -136,21 +161,36 @@ export function LoginScreen({navigation}: Props) {
       setError('昵称需要 2-20 个字符');
       return;
     }
-    if (identityTags.length === 0) {
-      setError('请至少选择一个身份标签');
+    if (industryIdentityIds.length === 0) {
+      setError('请至少选择一个行业身份');
+      return;
+    }
+    if (intentLabelIds.length === 0) {
+      setError('请至少选择一个来意');
+      return;
+    }
+    if (goodsCategoryIds.length === 0) {
+      setError('请至少选择一个关注大类');
       return;
     }
     if (!pendingAuth?.token || !pendingAuth.gatewayAccessToken) {
       setError('注册会话已失效，请重新获取验证码');
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
       const auth = await mooketApi.register(pendingAuth.token, {
         nickname: name,
-        identityTags,
+        identityTags: industryOptions
+          .filter(option => industryIdentityIds.includes(option.id))
+          .map(option => option.label),
+        industryIdentityList: industryIdentityIds,
+        userLabelIdentityList: intentLabelIds,
+        goodsCategoryList: goodsCategoryIds,
         gatewayAccessToken: pendingAuth.gatewayAccessToken,
+        gatewayUserId: pendingAuth.gatewayUserId ?? null,
         code,
         clientId: sendCodeResult?.clientId ?? null,
       });
@@ -162,7 +202,6 @@ export function LoginScreen({navigation}: Props) {
     }
   }
 
-
   function handleBack() {
     if (step === 'register') {
       setStep('verify');
@@ -173,9 +212,10 @@ export function LoginScreen({navigation}: Props) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, {backgroundColor: pageBackground}]} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor={pageBackground} translucent={false} />
       <KeyboardAvoidingView
-        style={styles.container}
+        style={[styles.container, {backgroundColor: pageBackground}]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {step === 'phone' ? (
           <PhoneStep
@@ -205,7 +245,9 @@ export function LoginScreen({navigation}: Props) {
               const digits = value.replace(/\D/g, '').slice(0, 6);
               setCode(digits);
               setError(null);
-              if (digits.length === 6) handleLogin(digits);
+              if (digits.length === 6) {
+                handleLogin(digits);
+              }
             }}
             onResend={() => handleSendCode()}
             onConfirm={() => handleLogin()}
@@ -215,7 +257,9 @@ export function LoginScreen({navigation}: Props) {
         {step === 'register' ? (
           <RegisterStep
             nickname={nickname}
-            identityTags={identityTags}
+            industryIdentityIds={industryIdentityIds}
+            intentLabelIds={intentLabelIds}
+            goodsCategoryIds={goodsCategoryIds}
             loading={loading}
             error={error}
             onBack={handleBack}
@@ -223,9 +267,21 @@ export function LoginScreen({navigation}: Props) {
               setNickname(value.slice(0, 20));
               setError(null);
             }}
-            onTagToggle={tag => {
-              setIdentityTags(prev =>
-                prev.includes(tag) ? prev.filter(item => item !== tag) : [...prev, tag],
+            onIndustryToggle={id => {
+              setIndustryIdentityIds(prev =>
+                prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id],
+              );
+              setError(null);
+            }}
+            onIntentToggle={id => {
+              setIntentLabelIds(prev =>
+                prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id],
+              );
+              setError(null);
+            }}
+            onCategoryToggle={id => {
+              setGoodsCategoryIds(prev =>
+                prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id],
               );
               setError(null);
             }}
@@ -255,6 +311,7 @@ function PhoneStep({
   onSubmit: () => void;
 }) {
   const valid = phone.length === 11 && agreement;
+
   return (
     <View style={styles.content}>
       <View style={styles.logoSpacer} />
@@ -263,7 +320,7 @@ function PhoneStep({
       </View>
 
       <View style={styles.titleBlock}>
-        <Text style={styles.title}>欢迎来到MooketMax</Text>
+        <Text style={styles.title}>欢迎来到 MooketMax</Text>
         <Text style={styles.subtitle}>未注册绑定的手机号将自动注册</Text>
       </View>
 
@@ -307,7 +364,6 @@ function PhoneStep({
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <View style={styles.flex} />
-
     </View>
   );
 }
@@ -336,7 +392,9 @@ function VerifyStep({
   onConfirm: () => void;
 }) {
   const masked = useMemo(() => {
-    if (phone.length !== 11) return phone;
+    if (phone.length !== 11) {
+      return phone;
+    }
     return `${phone.slice(0, 3)} ${phone.slice(3, 7)} ${phone.slice(7)}`;
   }, [phone]);
 
@@ -362,9 +420,7 @@ function VerifyStep({
         {[0, 1, 2, 3, 4, 5].map(index => {
           const focused = code.length === index;
           return (
-            <View
-              key={index}
-              style={[styles.codeBox, focused && styles.codeBoxFocused]}>
+            <View key={index} style={[styles.codeBox, focused && styles.codeBoxFocused]}>
               <Text style={styles.codeText}>{code[index] ?? ''}</Text>
             </View>
           );
@@ -394,31 +450,43 @@ function VerifyStep({
       </Pressable>
 
       <View style={styles.flex} />
-
     </View>
   );
 }
 
 function RegisterStep({
   nickname,
-  identityTags,
+  industryIdentityIds,
+  intentLabelIds,
+  goodsCategoryIds,
   loading,
   error,
   onBack,
   onNicknameChange,
-  onTagToggle,
+  onIndustryToggle,
+  onIntentToggle,
+  onCategoryToggle,
   onSubmit,
 }: {
   nickname: string;
-  identityTags: string[];
+  industryIdentityIds: number[];
+  intentLabelIds: number[];
+  goodsCategoryIds: number[];
   loading: boolean;
   error: string | null;
   onBack: () => void;
   onNicknameChange: (value: string) => void;
-  onTagToggle: (tag: string) => void;
+  onIndustryToggle: (id: number) => void;
+  onIntentToggle: (id: number) => void;
+  onCategoryToggle: (id: number) => void;
   onSubmit: () => void;
 }) {
-  const valid = nickname.trim().length >= 2 && identityTags.length > 0;
+  const valid =
+    nickname.trim().length >= 2 &&
+    industryIdentityIds.length > 0 &&
+    intentLabelIds.length > 0 &&
+    goodsCategoryIds.length > 0;
+
   return (
     <View style={styles.registerContent}>
       <Pressable hitSlop={8} onPress={onBack} style={styles.backRow}>
@@ -435,7 +503,7 @@ function RegisterStep({
         <Text style={styles.registerBadgeText}>请填写</Text>
       </View>
 
-      <Text style={[styles.fieldLabel, styles.registerLabelTop]}>您的昵称</Text>
+      <Text style={[styles.fieldLabel, styles.registerLabelTop]}>您的昵称 *</Text>
       <TextInput
         value={nickname}
         onChangeText={onNicknameChange}
@@ -445,16 +513,52 @@ function RegisterStep({
         style={styles.registerInput}
       />
 
-      <Text style={[styles.fieldLabel, styles.registerLabelMid]}>您的行业身份</Text>
+      <Text style={[styles.fieldLabel, styles.registerLabelMid]}>您的行业身份（可多选） *</Text>
       <View style={styles.identityWrap}>
-        {identityOptions.map(tag => {
-          const active = identityTags.includes(tag);
+        {industryOptions.map(option => {
+          const active = industryIdentityIds.includes(option.id);
           return (
             <Pressable
-              key={tag}
-              onPress={() => onTagToggle(tag)}
+              key={option.id}
+              onPress={() => onIndustryToggle(option.id)}
               style={[styles.identityChip, active && styles.identityChipActive]}>
-              <Text style={[styles.identityText, active && styles.identityTextActive]}>{tag}</Text>
+              <Text style={[styles.identityText, active && styles.identityTextActive]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.fieldLabel, styles.registerLabelMid]}>您的来意（可多选） *</Text>
+      <View style={styles.identityWrap}>
+        {intentOptions.map(option => {
+          const active = intentLabelIds.includes(option.id);
+          return (
+            <Pressable
+              key={option.id}
+              onPress={() => onIntentToggle(option.id)}
+              style={[styles.identityChip, active && styles.identityChipActive]}>
+              <Text style={[styles.identityText, active && styles.identityTextActive]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.fieldLabel, styles.registerLabelMid]}>您关注的大类（可多选） *</Text>
+      <View style={styles.identityWrap}>
+        {goodsCategoryOptions.map(option => {
+          const active = goodsCategoryIds.includes(option.id);
+          return (
+            <Pressable
+              key={option.id}
+              onPress={() => onCategoryToggle(option.id)}
+              style={[styles.identityChip, active && styles.identityChipActive]}>
+              <Text style={[styles.identityText, active && styles.identityTextActive]}>
+                {option.label}
+              </Text>
             </Pressable>
           );
         })}
@@ -462,12 +566,14 @@ function RegisterStep({
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <View style={styles.flex} />
-
       <Pressable
         onPress={onSubmit}
         disabled={!valid || loading}
-        style={[styles.primaryButton, (!valid || loading) && styles.primaryButtonDisabled]}>
+        style={[
+          styles.primaryButton,
+          styles.registerSubmitButton,
+          (!valid || loading) && styles.primaryButtonDisabled,
+        ]}>
         {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>确认</Text>}
       </Pressable>
     </View>
@@ -475,10 +581,16 @@ function RegisterStep({
 }
 
 const styles = StyleSheet.create({
-  safeArea: {flex: 1, backgroundColor: colors.surface},
-  container: {flex: 1, backgroundColor: colors.surface},
+  safeArea: {flex: 1},
+  container: {flex: 1},
   content: {flex: 1, paddingHorizontal: 29, paddingTop: 12},
-  registerContent: {flex: 1, paddingHorizontal: 30, paddingTop: 12, backgroundColor: '#F6FFFB'},
+  registerContent: {
+    flex: 1,
+    paddingHorizontal: 30,
+    paddingTop: 12,
+    paddingBottom: 28,
+    backgroundColor: '#F6FFFB',
+  },
   flex: {flex: 1},
   backRow: {height: 36, justifyContent: 'center'},
   logoSpacer: {height: 84},
@@ -601,4 +713,5 @@ const styles = StyleSheet.create({
   },
   identityText: {color: '#3C4947', fontSize: 15},
   identityTextActive: {color: colors.primary},
+  registerSubmitButton: {marginTop: 8},
 });

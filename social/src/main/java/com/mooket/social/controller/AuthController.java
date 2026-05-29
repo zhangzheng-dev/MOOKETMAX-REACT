@@ -133,10 +133,11 @@ public class AuthController {
         String nickname = (String) request.get("nickname");
         @SuppressWarnings("unchecked")
         List<String> identityTags = (List<String>) request.get("identityTags");
+        List<Integer> industryIdentityList = toIntegerList(request.get("industryIdentityList"));
+        List<Integer> userLabelIdentityList = toIntegerList(request.get("userLabelIdentityList"));
+        List<Integer> goodsCategoryList = toIntegerList(request.get("goodsCategoryList"));
         String gatewayAccessToken = (String) request.get("gatewayAccessToken");
-        String code = (String) request.get("code");
-        String clientId = (String) request.get("clientId");
-        String deviceId = (String) request.get("deviceId");
+        String gatewayUserId = request.get("gatewayUserId") != null ? String.valueOf(request.get("gatewayUserId")) : null;
 
         if (nickname == null || nickname.length() < 2 || nickname.length() > 20) {
             return ApiResponse.error(400, "昵称需为 2-20 个字符");
@@ -144,19 +145,35 @@ public class AuthController {
         if (identityTags == null || identityTags.isEmpty()) {
             return ApiResponse.error(400, "请至少选择一个身份标签");
         }
+        if (industryIdentityList == null || industryIdentityList.isEmpty()) {
+            return ApiResponse.error(400, "请至少选择一个行业身份");
+        }
+        if (userLabelIdentityList == null || userLabelIdentityList.isEmpty()) {
+            return ApiResponse.error(400, "请至少选择一个来意");
+        }
+        if (goodsCategoryList == null || goodsCategoryList.isEmpty()) {
+            return ApiResponse.error(400, "请至少选择一个关注大类");
+        }
         if (gatewayAccessToken == null || gatewayAccessToken.isEmpty()) {
             return ApiResponse.error(400, "缺少 gatewayToken");
         }
-        if (code == null) {
-            return ApiResponse.error(400, "参数不完整");
-        }
 
         try {
-            gatewayOAuthClient.finishBootstrap(gatewayAccessToken, nickname, identityTags);
-
-            String realDeviceId = deviceId != null ? deviceId : "server";
-            GatewayOAuthClient.GatewayTokenResult tokenResult =
-                    gatewayOAuthClient.loginWithSmsCode(phone, code, clientId, realDeviceId);
+            try {
+                gatewayOAuthClient.finishBootstrap(
+                        gatewayAccessToken,
+                        nickname,
+                        industryIdentityList,
+                        userLabelIdentityList,
+                        goodsCategoryList
+                );
+            } catch (GatewayOAuthClient.GatewayException e) {
+                String message = e.getMessage() != null ? e.getMessage() : "";
+                if (!message.contains("System error")) {
+                    throw e;
+                }
+                System.out.println("[AuthController] finishBootstrap gateway fallback: " + message);
+            }
 
             DictUser user = dictUserMapper.selectOne(
                     new QueryWrapper<DictUser>()
@@ -181,8 +198,8 @@ public class AuthController {
             data.put("phone", user.getPhone());
             data.put("nickname", nickname);
             data.put("mooketId", user.getMooketId());
-            data.put("gatewayAccessToken", tokenResult.accessToken);
-            data.put("gatewayUserId", tokenResult.userId);
+            data.put("gatewayAccessToken", gatewayAccessToken);
+            data.put("gatewayUserId", gatewayUserId);
             return ApiResponse.success(data);
         } catch (GatewayOAuthClient.GatewayException e) {
             return ApiResponse.error(400, e.getMessage());
@@ -246,5 +263,20 @@ public class AuthController {
         }
 
         return user;
+    }
+
+    private List<Integer> toIntegerList(Object value) {
+        if (!(value instanceof List<?> rawList)) {
+            return java.util.Collections.emptyList();
+        }
+        return rawList.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(item -> {
+                    if (item instanceof Number number) {
+                        return number.intValue();
+                    }
+                    return Integer.parseInt(String.valueOf(item));
+                })
+                .toList();
     }
 }

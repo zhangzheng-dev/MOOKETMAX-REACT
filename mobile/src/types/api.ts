@@ -103,7 +103,11 @@ export type AuthResult = {
 export type RegisterRequest = {
   nickname: string;
   identityTags: string[];
+  industryIdentityList: number[];
+  userLabelIdentityList: number[];
+  goodsCategoryList: number[];
   gatewayAccessToken: string;
+  gatewayUserId?: string | null;
   code: string;
   clientId?: string | null;
   deviceId?: string | null;
