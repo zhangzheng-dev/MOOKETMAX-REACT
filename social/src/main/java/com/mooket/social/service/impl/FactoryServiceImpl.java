@@ -106,7 +106,6 @@ public class FactoryServiceImpl implements FactoryService {
                         List<String> merchantList = Arrays.stream(agg.merchantNames.split(","))
                                 .filter(n -> n != null && !n.isEmpty())
                                 .distinct()
-                                .limit(3)
                                 .map(raw -> {
                                     int sep = raw.indexOf('|');
                                     if (sep > 0) {

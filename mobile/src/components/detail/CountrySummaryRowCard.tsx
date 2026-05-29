@@ -1,32 +1,22 @@
 import React from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
+import {SvgXml} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import {dotXml, rightArrowXml} from './productIcons';
-import {SvgXml} from 'react-native-svg';
 
 type Props = {
-  /** 第一行左侧标题（产品名） */
   title: string;
-  /** 厂号 chip 列表 */
   factoryNos?: string[] | null;
-  /** 厂号数量 */
   factoryCount?: number | null;
-  /** 报盘/求购数量 */
   count?: number | null;
-  /** "报盘" / "求购" */
   countLabel?: string;
   priceMin?: number | null;
   priceMax?: number | null;
   onPress?: () => void;
 };
 
-/**
- * 国家详情页列表卡（与 Figma 1796:3132 对齐）：
- * 上行：产品名 + 价格区间
- * 下行：厂号 chips（带 12px 蓝色 icon）+ 右侧 厂号数·报盘数
- */
 export function CountrySummaryRowCard({
   title,
   factoryNos,
@@ -38,28 +28,37 @@ export function CountrySummaryRowCard({
   onPress,
 }: Props) {
   const priceText = formatPrice(priceMin, priceMax);
+  const hasPress = Boolean(onPress);
 
   return (
-    <Pressable onPress={onPress} disabled={!onPress} style={styles.card}>
+    <View style={styles.card}>
       <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          <View style={styles.priceWrap}>
-            <Text style={[styles.priceValue, !priceText.hasRange && styles.priceMuted]}>
-              {priceText.value}
+        <Pressable
+          onPress={onPress}
+          disabled={!hasPress}
+          style={({pressed}) => [styles.titleRowPressable, pressed && hasPress && styles.pressed]}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
             </Text>
-            {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
+            <View style={styles.priceWrap}>
+              <Text style={[styles.priceValue, !priceText.hasRange && styles.priceMuted]}>
+                {priceText.value}
+              </Text>
+              {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
+            </View>
           </View>
-        </View>
+        </Pressable>
 
         <View style={styles.metaRow}>
           <ScrollView
+            style={styles.factoryScroll}
             horizontal
+            nestedScrollEnabled
+            directionalLockEnabled
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.factoryList}>
-            {(factoryNos ?? []).slice(0, 4).map((factory, index) => (
+            {(factoryNos ?? []).map((factory, index) => (
               <View key={`${factory}-${index}`} style={styles.factoryChip}>
                 <FactoryIcon />
                 <Text style={styles.factoryName} numberOfLines={1}>
@@ -69,34 +68,39 @@ export function CountrySummaryRowCard({
             ))}
           </ScrollView>
 
-          <View style={styles.countRow}>
-            {factoryCount != null ? (
-              <View style={styles.countCell}>
-                <Text style={styles.countValue}>{factoryCount}</Text>
-                <Text style={styles.countLabelText}>厂号</Text>
+          <Pressable
+            onPress={onPress}
+            disabled={!hasPress}
+            style={({pressed}) => [styles.metaAction, pressed && hasPress && styles.pressed]}>
+            <View style={styles.countRow}>
+              {factoryCount != null ? (
+                <View style={styles.countCell}>
+                  <Text style={styles.countValue}>{factoryCount}</Text>
+                  <Text style={styles.countLabelText}>厂号</Text>
+                </View>
+              ) : null}
+              {factoryCount != null && count != null ? (
+                <View style={styles.dotWrap}>
+                  <SvgXml xml={dotXml} width={4} height={4} />
+                </View>
+              ) : null}
+              {count != null ? (
+                <View style={styles.countCell}>
+                  <Text style={styles.countValue}>{count}</Text>
+                  <Text style={styles.countLabelText}>{countLabel}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {hasPress ? (
+              <View style={styles.arrowWrap}>
+                <SvgXml xml={rightArrowXml} width={16} height={16} />
               </View>
             ) : null}
-            {factoryCount != null && count != null ? (
-              <View style={styles.dotWrap}>
-                <SvgXml xml={dotXml} width={4} height={4} />
-              </View>
-            ) : null}
-            {count != null ? (
-              <View style={styles.countCell}>
-                <Text style={styles.countValue}>{count}</Text>
-                <Text style={styles.countLabelText}>{countLabel}</Text>
-              </View>
-            ) : null}
-          </View>
+          </Pressable>
         </View>
       </View>
-
-      {onPress ? (
-        <View style={styles.arrowWrap}>
-          <SvgXml xml={rightArrowXml} width={16} height={16} />
-        </View>
-      ) : null}
-    </Pressable>
+    </View>
   );
 }
 
@@ -136,10 +140,10 @@ function FactoryIcon() {
 
 function formatPrice(min?: number | null, max?: number | null) {
   if (min != null && max != null && min > 0 && max >= min) {
-    if (min === max) return {value: `¥${num(min)}`, unit: '/kg ', hasRange: true};
-    return {value: `¥ ${num(min)} - ${num(max)}`, unit: '/kg ', hasRange: true};
+    if (min === max) return {value: `¥ ${num(min)}`, unit: '/kg', hasRange: true};
+    return {value: `¥ ${num(min)} - ${num(max)}`, unit: '/kg', hasRange: true};
   }
-  if (min != null && min > 0) return {value: `¥${num(min)}`, unit: '/kg ', hasRange: true};
+  if (min != null && min > 0) return {value: `¥ ${num(min)}`, unit: '/kg', hasRange: true};
   return {value: '暂无报价', unit: '', hasRange: false};
 }
 
@@ -161,6 +165,9 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     gap: 8,
+  },
+  titleRowPressable: {
+    borderRadius: 4,
   },
   titleRow: {
     flexDirection: 'row',
@@ -195,6 +202,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
+  factoryScroll: {
+    flex: 1,
+    minWidth: 0,
+  },
   factoryList: {
     gap: 8,
     paddingRight: 8,
@@ -215,6 +226,11 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     maxWidth: 80,
   },
+  metaAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
   countRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -233,5 +249,8 @@ const styles = StyleSheet.create({
   },
   countLabelText: {color: '#3C4947', fontSize: 11, lineHeight: 14},
   dotWrap: {width: 4, height: 4, marginHorizontal: 4, alignItems: 'center', justifyContent: 'center'},
-  arrowWrap: {width: 16, height: 16, alignItems: 'center', justifyContent: 'center'},
+  arrowWrap: {width: 16, height: 16, marginLeft: 8, alignItems: 'center', justifyContent: 'center'},
+  pressed: {
+    opacity: 0.75,
+  },
 });

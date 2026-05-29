@@ -100,7 +100,6 @@ public class ProductServiceImpl implements ProductService {
                     if (agg.merchantNames != null && !agg.merchantNames.isEmpty()) {
                         List<String> names = Arrays.stream(agg.merchantNames.split(","))
                                 .filter(n -> n != null && !n.isEmpty())
-                                .limit(3)
                                 .map(raw -> {
                                     int sep = raw.indexOf('|');
                                     if (sep > 0) {

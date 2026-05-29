@@ -1,3 +1,4 @@
+import {CURRENT_APP_VERSION, CURRENT_APP_VERSION_CODE} from '../config/env';
 import {apiClient, unwrap} from './client';
 import type {
   AppVersionInfo,
@@ -141,7 +142,14 @@ export const mooketApi = {
   },
 
   getAppVersion() {
-    return unwrap<AppVersionInfo>(apiClient.get('api/v1/app/version'));
+    return unwrap<AppVersionInfo>(
+      apiClient.get('api/v1/app/version', {
+        params: {
+          version: CURRENT_APP_VERSION,
+          versionCode: CURRENT_APP_VERSION_CODE,
+        },
+      }),
+    );
   },
 
   getMerchantDetail(merchantId: number | string, category: string) {

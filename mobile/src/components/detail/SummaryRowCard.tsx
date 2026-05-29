@@ -6,27 +6,16 @@ import {fonts} from '../../theme/typography';
 import {dotXml, merchantBuildingXml, rightArrowXml} from './productIcons';
 
 type Props = {
-  /** 第一行左侧标题（如"巴西 SIF1440"） */
   title: string;
-  /** 商家名列表（带前置 logo） */
   merchantNames?: string[] | null;
-  /** 商家数量 */
   merchantCount?: number | null;
-  /** 报盘/求购数量 */
   count?: number | null;
-  /** "报盘" / "求购" */
   countLabel?: string;
-  /** 价格区间 */
   priceMin?: number | null;
   priceMax?: number | null;
   onPress?: () => void;
 };
 
-/**
- * 详情页通用列表卡（与 Figma node-id 1437:3460 对齐）：
- * 上行：标题 + 价格区间（主色 ¥xx-yy + /kg）
- * 下行：商家 chip 横向滚动（左） + 商家数·报盘数（右） + 16px 右箭头
- */
 export function SummaryRowCard({
   title,
   merchantNames,
@@ -38,25 +27,34 @@ export function SummaryRowCard({
   onPress,
 }: Props) {
   const priceText = formatPrice(priceMin, priceMax);
+  const hasPress = Boolean(onPress);
 
   return (
-    <Pressable onPress={onPress} disabled={!onPress} style={styles.card}>
+    <View style={styles.card}>
       <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          <View style={styles.priceWrap}>
-            <Text style={[styles.priceValue, !priceText.hasRange && styles.priceMuted]}>
-              {priceText.value}
+        <Pressable
+          onPress={onPress}
+          disabled={!hasPress}
+          style={({pressed}) => [styles.titleRowPressable, pressed && hasPress && styles.pressed]}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={1}>
+              {title}
             </Text>
-            {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
+            <View style={styles.priceWrap}>
+              <Text style={[styles.priceValue, !priceText.hasRange && styles.priceMuted]}>
+                {priceText.value}
+              </Text>
+              {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
+            </View>
           </View>
-        </View>
+        </Pressable>
 
         <View style={styles.metaRow}>
           <ScrollView
+            style={styles.merchantsScroll}
             horizontal
+            nestedScrollEnabled
+            directionalLockEnabled
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.merchantsRow}>
             {dedupeNames(merchantNames).map((name, index) => (
@@ -69,44 +67,49 @@ export function SummaryRowCard({
             ))}
           </ScrollView>
 
-          <View style={styles.countRow}>
-            {merchantCount != null ? (
-              <View style={styles.countCell}>
-                <Text style={styles.countValue}>{merchantCount}</Text>
-                <Text style={styles.countLabelText}>商家</Text>
+          <Pressable
+            onPress={onPress}
+            disabled={!hasPress}
+            style={({pressed}) => [styles.metaAction, pressed && hasPress && styles.pressed]}>
+            <View style={styles.countRow}>
+              {merchantCount != null ? (
+                <View style={styles.countCell}>
+                  <Text style={styles.countValue}>{merchantCount}</Text>
+                  <Text style={styles.countLabelText}>商家</Text>
+                </View>
+              ) : null}
+              {merchantCount != null && count != null ? (
+                <View style={styles.dotWrap}>
+                  <SvgXml xml={dotXml} width={4} height={4} />
+                </View>
+              ) : null}
+              {count != null ? (
+                <View style={styles.countCell}>
+                  <Text style={styles.countValue}>{count}</Text>
+                  <Text style={styles.countLabelText}>{countLabel}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {hasPress ? (
+              <View style={styles.arrowWrap}>
+                <SvgXml xml={rightArrowXml} width={16} height={16} />
               </View>
             ) : null}
-            {merchantCount != null && count != null ? (
-              <View style={styles.dotWrap}>
-                <SvgXml xml={dotXml} width={4} height={4} />
-              </View>
-            ) : null}
-            {count != null ? (
-              <View style={styles.countCell}>
-                <Text style={styles.countValue}>{count}</Text>
-                <Text style={styles.countLabelText}>{countLabel}</Text>
-              </View>
-            ) : null}
-          </View>
+          </Pressable>
         </View>
       </View>
-
-      {onPress ? (
-        <View style={styles.arrowWrap}>
-          <SvgXml xml={rightArrowXml} width={16} height={16} />
-        </View>
-      ) : null}
-    </Pressable>
+    </View>
   );
 }
 
 function formatPrice(min?: number | null, max?: number | null) {
   if (min != null && max != null && min > 0 && max >= min) {
-    if (min === max) return {value: `¥ ${num(min)}`, unit: '/kg ', hasRange: true};
-    return {value: `¥ ${num(min)} - ${num(max)}`, unit: '/kg ', hasRange: true};
+    if (min === max) return {value: `¥ ${num(min)}`, unit: '/kg', hasRange: true};
+    return {value: `¥ ${num(min)} - ${num(max)}`, unit: '/kg', hasRange: true};
   }
   if (min != null && min > 0) {
-    return {value: `¥ ${num(min)}`, unit: '/kg ', hasRange: true};
+    return {value: `¥ ${num(min)}`, unit: '/kg', hasRange: true};
   }
   return {value: '暂无报价', unit: '', hasRange: false};
 }
@@ -121,8 +124,7 @@ function dedupeNames(names?: string[] | null): string[] {
   const out: string[] = [];
   for (const name of names) {
     const trimmed = name?.trim();
-    if (!trimmed) continue;
-    if (seen.has(trimmed)) continue;
+    if (!trimmed || seen.has(trimmed)) continue;
     seen.add(trimmed);
     out.push(trimmed);
   }
@@ -143,6 +145,9 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     gap: 8,
+  },
+  titleRowPressable: {
+    borderRadius: 4,
   },
   titleRow: {
     flexDirection: 'row',
@@ -177,11 +182,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   metaRow: {
-    height: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+  },
+  merchantsScroll: {
+    flex: 1,
+    minWidth: 0,
   },
   merchantsRow: {
     gap: 8,
@@ -202,6 +210,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     maxWidth: 120,
+  },
+  metaAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
   },
   countRow: {
     flexDirection: 'row',
@@ -234,7 +247,11 @@ const styles = StyleSheet.create({
   arrowWrap: {
     width: 16,
     height: 16,
+    marginLeft: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pressed: {
+    opacity: 0.75,
   },
 });
