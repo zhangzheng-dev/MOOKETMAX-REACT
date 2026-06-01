@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+﻿import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -293,7 +293,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
               {loadingMore ? (
                 <Text style={styles.footerText}>加载中...</Text>
               ) : detail && page >= detail.totalPages ? (
-                <Text style={styles.footerText}>没有更多了～</Text>
+                <Text style={styles.footerText}>没有更多了</Text>
               ) : null}
             </View>
           }
@@ -317,7 +317,6 @@ export function SubstituteProductScreen({navigation, route}: Props) {
           onToggle={value => setRegions(prev => toggle(prev, value))}
         />
       </FilterPanelSheet>
-
       <FilterPanelSheet
         visible={activeFilter === 'goodsType'}
         title="货物类型"
@@ -360,7 +359,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
         }}
         onConfirm={() => setActiveFilter(null)}>
         <MultiSelectChips
-          options={allTags.length ? allTags : ['大日期', '可开票', '整柜', '一口价']}
+          options={allTags.length ? allTags : ['大日龄', '可开证', '整柜', '一口价']}
           selected={tagFilters}
           onToggle={value => setTagFilters(prev => toggle(prev, value))}
         />
@@ -415,7 +414,7 @@ function SubstituteHeaderCard({
           <Text style={cardStyles.titlePart}>{productName}</Text>
         </View>
         <Text style={cardStyles.subtitle}>
-          近2日报盘价格区间：{priceText}
+          近2日报盘价格区间：<Text style={cardStyles.subtitlePrice}>{priceText}</Text>
           {priceText !== '暂无报价' ? <Text style={cardStyles.subtitleUnit}>/kg</Text> : null}
         </Text>
       </View>
@@ -612,6 +611,7 @@ const cardStyles = StyleSheet.create({
   titlePart: {color: colors.text, fontSize: 20, fontWeight: '500', lineHeight: 30},
   dot: {width: 4, height: 4, borderRadius: 2, backgroundColor: '#171D1C'},
   subtitle: {color: colors.text, fontSize: 12, lineHeight: 16},
+  subtitlePrice: {color: colors.price},
   subtitleUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 16},
   compareButton: {
     paddingHorizontal: 6,
@@ -651,8 +651,8 @@ const selectorStyles = StyleSheet.create({
   },
   factoryName: {color: '#3C4947', fontSize: 14, lineHeight: 20, textAlign: 'center'},
   factoryNameActive: {color: colors.primary, fontWeight: '500'},
-  priceText: {fontFamily: fonts.manropeSemiBold, color: '#3C4947', fontSize: 12, lineHeight: 16},
-  priceTextActive: {color: colors.primary},
+  priceText: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 12, lineHeight: 16},
+  priceTextActive: {color: colors.price},
   activeArrow: {},
   arrowWrap: {
     position: 'absolute',
@@ -662,3 +662,5 @@ const selectorStyles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+

@@ -68,7 +68,7 @@ export const sharedStyles = StyleSheet.create({
   // 用 Manrope 显示价格 ¥xxx /kg
   priceMain: {
     fontFamily: fonts.manropeSemiBold,
-    color: colors.primary,
+    color: colors.price,
     fontSize: 14,
     lineHeight: 18,
   },

@@ -545,13 +545,13 @@ const styles = StyleSheet.create({
   },
   priceCardPriceMain: {
     fontFamily: fonts.manropeSemiBold,
-    color: colors.text,
+    color: colors.price,
     fontSize: 14,
     lineHeight: 18,
   },
   priceCardPriceSub: {
     fontFamily: fonts.manropeSemiBold,
-    color: colors.text,
+    color: colors.price,
     fontSize: 14,
     lineHeight: 18,
   },

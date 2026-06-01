@@ -2,7 +2,6 @@ import React, {useState} from 'react';
 import {
   ActivityIndicator,
   Modal,
-  NativeModules,
   Platform,
   Pressable,
   StyleSheet,
@@ -19,10 +18,6 @@ type Props = {
   onClose: () => void;
 };
 
-/**
- * APP 更新弹窗：显示版本信息 + 确定/取消
- * 点击确定后在弹窗内显示下载进度条，完成后自动安装
- */
 export function UpdateModal({visible, versionInfo, onClose}: Props) {
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -33,15 +28,30 @@ export function UpdateModal({visible, versionInfo, onClose}: Props) {
       setError('下载地址为空');
       return;
     }
+
     setDownloading(true);
     setProgress(0);
     setError(null);
 
     try {
       const dirs = ReactNativeBlobUtil.fs.dirs;
-      const filePath = `${dirs.CacheDir}/mooket_update.apk`;
+      const safeVersion = (versionInfo.version ?? 'unknown').replace(/[^0-9A-Za-z._-]/g, '_');
+      const safeVersionCode = String(versionInfo.versionCode ?? '0').replace(/[^0-9]/g, '');
+      const filePath = `${dirs.CacheDir}/mooket_update_${safeVersion}_v${safeVersionCode}.apk`;
 
-      // 先删除旧文件
+      // Remove stale cached packages first. Some Android installers cache APK metadata by path.
+      try {
+        const names = await ReactNativeBlobUtil.fs.ls(dirs.CacheDir);
+        const staleFiles = names.filter(name => /^mooket_update_.*\.apk$/i.test(name));
+        await Promise.all(
+          staleFiles.map(name =>
+            ReactNativeBlobUtil.fs.unlink(`${dirs.CacheDir}/${name}`).catch(() => undefined),
+          ),
+        );
+      } catch {
+        // Ignore cache cleanup failures and continue.
+      }
+
       const exists = await ReactNativeBlobUtil.fs.exists(filePath);
       if (exists) {
         await ReactNativeBlobUtil.fs.unlink(filePath);
@@ -60,7 +70,6 @@ export function UpdateModal({visible, versionInfo, onClose}: Props) {
       const savedPath = res.path();
       setProgress(100);
 
-      // 安装 APK
       if (Platform.OS === 'android') {
         await ReactNativeBlobUtil.android.actionViewIntent(
           savedPath,

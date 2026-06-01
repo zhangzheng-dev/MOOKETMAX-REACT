@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   priceValue: {
-    color: colors.primary,
+    color: colors.price,
     fontSize: 16,
     fontWeight: '600',
   },

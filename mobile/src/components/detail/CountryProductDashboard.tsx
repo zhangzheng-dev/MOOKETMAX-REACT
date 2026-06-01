@@ -297,14 +297,14 @@ const styles = StyleSheet.create({
   priceLine: {flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap'},
   priceValue: {
     fontFamily: fonts.manropeBold,
-    color: colors.primary,
+    color: colors.price,
     fontSize: 24,
     lineHeight: 32,
     flexShrink: 1,
   },
   priceUnit: {
     fontFamily: fonts.manropeRegular,
-    color: colors.primary,
+    color: colors.text,
     fontSize: 12,
     lineHeight: 32,
   },

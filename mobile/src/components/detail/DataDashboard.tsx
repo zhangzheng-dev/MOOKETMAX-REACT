@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   },
   priceValue: {
     fontFamily: fonts.manropeSemiBold,
-    color: colors.text,
+    color: colors.price,
     fontSize: 14,
     lineHeight: 20,
     flexShrink: 1,

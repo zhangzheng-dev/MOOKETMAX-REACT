@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   priceLine: {flexDirection: 'row', alignItems: 'baseline', flexWrap: 'nowrap'},
   priceValue: {
     fontFamily: fonts.manropeSemiBold,
-    color: colors.text,
+    color: colors.price,
     fontSize: 16,
     lineHeight: 20,
     flexShrink: 1,

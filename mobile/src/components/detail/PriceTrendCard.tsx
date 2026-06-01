@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+﻿import React, {useMemo, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import Svg, {Circle, Line, Polyline} from 'react-native-svg';
 import {colors} from '../../theme/colors';
@@ -47,7 +47,7 @@ export function PriceTrendCard({history7Days, history30Days}: Props) {
       <View style={styles.head}>
         <View>
           <Text style={styles.title}>价格走势</Text>
-          <Text style={styles.subtitle}>最新 {formatPrice(latest.price)}</Text>
+          <Text style={styles.subtitle}>最新<Text style={styles.priceText}>{formatPrice(latest.price)}</Text></Text>
         </View>
         <View style={styles.rangeSwitch}>
           <RangeChip active={range === '7d'} label="7日" onPress={() => setRange('7d')} />
@@ -90,8 +90,8 @@ export function PriceTrendCard({history7Days, history30Days}: Props) {
       </View>
 
       <View style={styles.stats}>
-        <Text style={styles.statText}>最低 {formatPrice(min)}</Text>
-        <Text style={styles.statText}>最高 {formatPrice(max)}</Text>
+        <Text style={styles.statText}>最低<Text style={styles.priceText}>{formatPrice(min)}</Text></Text>
+        <Text style={styles.statText}>最高<Text style={styles.priceText}>{formatPrice(max)}</Text></Text>
         <Text style={styles.statText}>{latest.date}</Text>
       </View>
     </View>
@@ -152,6 +152,9 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 11,
   },
+  priceText: {
+    color: colors.price,
+  },
   rangeSwitch: {
     flexDirection: 'row',
     gap: 6,
@@ -193,3 +196,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+
+
+

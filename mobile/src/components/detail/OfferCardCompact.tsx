@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   priceLine: {flexDirection: 'row', alignItems: 'baseline'},
   priceValue: {
     fontFamily: fonts.manropeSemiBold,
-    color: colors.primary,
+    color: colors.price,
     fontSize: 16,
     lineHeight: 20,
   },
@@ -327,7 +327,7 @@ const empStyles = StyleSheet.create({
   },
   price: {
     fontFamily: fonts.manropeSemiBold,
-    color: colors.primary,
+    color: colors.price,
     fontSize: 16,
     lineHeight: 20,
   },

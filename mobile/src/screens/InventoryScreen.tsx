@@ -1710,18 +1710,19 @@ function DynamicMetricRow({
         : tone === 'warning'
           ? palette.warning
           : palette.text;
+  const valueColor = value.includes('¥') ? colors.price : color;
   const dayUnitMatch = label === '平均库龄' ? value.match(/^(.*?)(天)$/) : null;
 
   return (
     <View style={styles.dynamicMetricRow}>
       <Text style={[styles.dynamicMetricLabel, {color: palette.label}]}>{label}</Text>
       {dayUnitMatch ? (
-        <Text style={[styles.dynamicMetricValue, {color}]}>
+        <Text style={[styles.dynamicMetricValue, {color: valueColor}]}>
           {dayUnitMatch[1]}
-          <Text style={[styles.dynamicMetricUnit, {color}]}>天</Text>
+          <Text style={[styles.dynamicMetricUnit, {color: valueColor}]}>天</Text>
         </Text>
       ) : (
-        <Text style={[styles.dynamicMetricValue, {color}]}>{value}</Text>
+        <Text style={[styles.dynamicMetricValue, {color: valueColor}]}>{value}</Text>
       )}
     </View>
   );
@@ -2113,8 +2114,9 @@ function InlineValue({
   valueStyle: StyleProp<TextStyle>;
   unitStyle: StyleProp<TextStyle>;
 }) {
+  const mainStyle = main.includes('¥') ? [valueStyle, {color: colors.price}] : valueStyle;
   return (
-    <Text style={valueStyle} numberOfLines={1} ellipsizeMode="tail">
+    <Text style={mainStyle} numberOfLines={1} ellipsizeMode="tail">
       {main}
       {unit ? <Text style={unitStyle}>{unit}</Text> : null}
     </Text>
@@ -3339,7 +3341,7 @@ const styles = StyleSheet.create({
   detailMoneyNumber: {
     fontSize: 12,
     lineHeight: 16,
-    color: '#171D1C',
+    color: colors.price,
     fontStyle: 'normal',
     fontFamily: numericFontFamily,
     fontVariant: ['tabular-nums'],
@@ -3355,13 +3357,13 @@ const styles = StyleSheet.create({
     color: '#171D1C',
   },
   detailWarningNumber: {
-    color: '#E98B21',
+    color: colors.price,
   },
   detailPositiveNumber: {
-    color: '#E24B30',
+    color: colors.price,
   },
   detailNegativeNumber: {
-    color: '#229E6C',
+    color: colors.price,
   },
   detailRecoverableWrap: {
     flexDirection: 'row',

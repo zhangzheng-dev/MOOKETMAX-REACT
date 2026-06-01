@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   tableHead: {flexDirection: 'row', justifyContent: 'space-between', paddingTop: 4},
   row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2},
   name: {flex: 1, color: colors.text, fontSize: 11, lineHeight: 18, paddingRight: 8},
-  price: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 12, lineHeight: 18},
+  price: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 12, lineHeight: 18},
   empty: {color: '#9DA4A3', fontSize: 11, paddingVertical: 4},
   bottomRow: {flexDirection: 'row', gap: 16, paddingTop: 4},
   col: {gap: 4, minWidth: 40},

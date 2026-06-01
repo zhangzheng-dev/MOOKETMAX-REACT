@@ -1,6 +1,7 @@
 export const colors = {
   primary: '#006A61',
   primaryLight: '#E8F5F3',
+  price: '#D54941',
   background: '#F4FBF8',
   surface: '#FFFFFF',
   surfaceMuted: '#F7F8FA',
@@ -12,4 +13,3 @@ export const colors = {
   danger: '#EF3B45',
   success: '#0F9466',
 };
-
