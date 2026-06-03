@@ -10,6 +10,33 @@ type Props = {
   color?: string;
 };
 
+export type TrendChartPoint = {
+  x: number;
+  y: number;
+};
+
+export function buildTrendChartPoints(
+  data: number[],
+  width: number,
+  height: number,
+  padX = 4,
+  padY = 4,
+): TrendChartPoint[] {
+  if (data.length < 2) {
+    return [];
+  }
+
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+
+  return data.map((value, index) => {
+    const x = padX + (index / (data.length - 1)) * (width - padX * 2);
+    const ratio = max === min ? 0.5 : (value - min) / (max - min);
+    const y = height - padY - ratio * (height - padY * 2);
+    return {x, y};
+  });
+}
+
 /**
  * 卡片中的迷你价格趋势线（30 日）
  */
@@ -17,17 +44,8 @@ export function MiniTrendChart({data, width = 280, height = 46, color = colors.p
   if (data.length < 2) {
     return <View style={{height}} />;
   }
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const padX = 4;
-  const padY = 4;
-  const points = data
-    .map((value, index) => {
-      const x = padX + (index / (data.length - 1)) * (width - padX * 2);
-      const ratio = max === min ? 0.5 : (value - min) / (max - min);
-      const y = height - padY - ratio * (height - padY * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
+  const points = buildTrendChartPoints(data, width, height)
+    .map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
     .join(' ');
   return (
     <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">

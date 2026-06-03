@@ -1,5 +1,5 @@
 import React from 'react';
-import {Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {colors} from '../../theme/colors';
 
 type Props = {
@@ -23,7 +23,10 @@ export function FilterPanelSheet({visible, title, onClose, onReset, onConfirm, c
           <View style={styles.titleRow}>
             <Text style={styles.title}>{title}</Text>
           </View>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="always">
             {children}
           </ScrollView>
           <View style={styles.actions}>
@@ -60,7 +63,10 @@ export function MultiSelectChips({
         return (
           <Pressable
             key={option}
-            onPress={() => onToggle(option)}
+            onPress={() => {
+              Keyboard.dismiss();
+              onToggle(option);
+            }}
             style={[chipStyles.chip, active && chipStyles.chipActive]}>
             <Text style={[chipStyles.text, active && chipStyles.textActive]} numberOfLines={1}>
               {option}
