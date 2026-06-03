@@ -17,4 +17,9 @@ private Long targetId;     // 目标ID
     private String inputKeyword;  // 用户输入的原始关键词（用于别名显示判断）
     private String standardName;  // 标准名称（如果输入匹配的是别名）
     private String aliasName;     // 别名（如果输入匹配的是别名）
+    private String country;       // 标准国家名（用于前端跳转和搜索历史）
+    private String factoryNo;     // 标准厂号
+    private String productName;   // 标准产品名
+    private String brandName;     // 标准品牌名
+    private String merchantName;  // 标准商家名
 }

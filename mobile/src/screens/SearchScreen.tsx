@@ -79,14 +79,18 @@ export function SearchScreen({route, navigation}: Props) {
   async function handleSelect(item: SearchSuggest) {
     Keyboard.dismiss();
     const parts = item.text.split(/\s+/).filter(Boolean);
+    const country = item.country ?? getCountryFromText(parts[0]);
+    const factoryNo = item.factoryNo ?? getFactoryFromText(parts[1]);
+    const productName = item.productName ?? getProductFromSuggestion(item, parts);
+    const brandName = item.brandName ?? getBrandFromSuggestion(item, parts);
     try {
       await mooketApi.saveSearchHistory({
         searchWord: item.text,
         searchType: item.type,
         productId: item.matchType === 'product' ? item.targetId : null,
-        productName: item.matchType === 'product' ? item.text : null,
-        country: ['country', 'factory', 'combined'].includes(item.matchType) ? parts[0] : null,
-        factoryNo: ['factory', 'combined'].includes(item.matchType) ? parts[1] : null,
+        productName,
+        country: ['country', 'factory', 'combined'].includes(item.matchType) ? country : null,
+        factoryNo: ['factory', 'combined'].includes(item.matchType) ? factoryNo : null,
         brandId: item.matchType === 'brand' && item.type !== '品牌+产品' ? item.targetId : null,
         merchantId: item.matchType === 'merchant' ? item.targetId : null,
       });
@@ -94,7 +98,7 @@ export function SearchScreen({route, navigation}: Props) {
     } catch (err) {
       Alert.alert('保存搜索记录失败', err instanceof Error ? err.message : String(err));
     }
-    navigateSuggestion(item, parts);
+    navigateSuggestion(item, parts, {country, factoryNo, productName, brandName});
   }
 
   function handleHistorySelect(history: SearchHistory) {
@@ -152,43 +156,61 @@ export function SearchScreen({route, navigation}: Props) {
     setKeyword(searchWord);
   }
 
-  function navigateSuggestion(item: SearchSuggest, parts: string[]) {
+  function navigateSuggestion(
+    item: SearchSuggest,
+    parts: string[],
+    standard: {
+      country?: string | null;
+      factoryNo?: string | null;
+      productName?: string | null;
+      brandName?: string | null;
+    },
+  ) {
     switch (item.matchType) {
       case 'merchant':
         navigation.navigate('Merchant', {merchantId: item.targetId, category});
         return;
       case 'product':
-        navigation.navigate('Product', {productId: item.targetId, category, productName: item.text});
+        navigation.navigate('Product', {productId: item.targetId, category, productName: standard.productName ?? item.text});
         return;
       case 'country':
-        navigation.navigate('Country', {country: item.text, category});
+        navigation.navigate('Country', {country: standard.country ?? getStandardSearchWord(item.text), category});
         return;
       case 'brand':
-        if (item.type === '品牌+产品' && parts.length >= 2) {
+        if (item.type === '品牌+产品' && (standard.brandName || parts.length >= 2)) {
           navigation.navigate('BrandProduct', {
-            brandName: parts[0],
-            productName: parts.slice(1).join(' '),
+            brandName: standard.brandName ?? parts[0],
+            productName: standard.productName ?? parts.slice(1).join(' '),
             category,
           });
         } else {
-          navigation.navigate('Brand', {brandName: item.text, category});
+          navigation.navigate('Brand', {brandName: standard.brandName ?? getStandardSearchWord(item.text), category});
         }
         return;
       case 'factory':
-        if (parts.length >= 2) {
-          navigation.navigate('Factory', {country: parts[0], factoryNo: parts[1], category});
+        if (standard.country && standard.factoryNo) {
+          navigation.navigate('Factory', {country: standard.country, factoryNo: standard.factoryNo, category});
+        } else if (parts.length >= 2) {
+          navigation.navigate('Factory', {country: getCountryFromText(parts[0]), factoryNo: parts[1], category});
         }
         return;
       case 'combined':
-        if (item.type === '国家+产品' && parts.length >= 2) {
+        if (item.type === '国家+产品' && (standard.country || parts.length >= 2)) {
           navigation.navigate('CountryProduct', {
-            country: parts[0],
-            productName: parts.slice(1).join(' '),
+            country: standard.country ?? getCountryFromText(parts[0]),
+            productName: standard.productName ?? parts.slice(1).join(' '),
+            category,
+          });
+        } else if (standard.country && standard.factoryNo && standard.productName) {
+          navigation.navigate('CountryFactoryProduct', {
+            country: standard.country,
+            factoryNo: standard.factoryNo,
+            productName: standard.productName,
             category,
           });
         } else if (parts.length >= 3) {
           navigation.navigate('CountryFactoryProduct', {
-            country: parts[0],
+            country: getCountryFromText(parts[0]),
             factoryNo: parts[1],
             productName: parts.slice(2).join(' '),
             category,
@@ -198,8 +220,8 @@ export function SearchScreen({route, navigation}: Props) {
       default:
         if (item.type === '国家+产品' && parts.length >= 2) {
           navigation.navigate('CountryProduct', {
-            country: parts[0],
-            productName: parts.slice(1).join(' '),
+            country: standard.country ?? getCountryFromText(parts[0]),
+            productName: standard.productName ?? parts.slice(1).join(' '),
             category,
           });
         }
@@ -264,7 +286,7 @@ export function SearchScreen({route, navigation}: Props) {
             loading ? (
               <Text style={styles.loadingText}>搜索中...</Text>
             ) : (
-              <Text style={styles.empty}>未找到相关结果</Text>
+              <Text style={styles.empty}>当前'{category}'大类下暂未找到相关内容</Text>
             )
           }
         />
@@ -404,6 +426,31 @@ function uniqueBySearchWord(items: SearchHistory[]): SearchHistory[] {
 
 function getStandardSearchWord(text: string): string {
   return parseSuggestionText(text).main;
+}
+
+function getCountryFromText(text?: string | null): string {
+  return getStandardSearchWord(text ?? '');
+}
+
+function getFactoryFromText(text?: string | null): string | null {
+  if (!text) return null;
+  return getStandardSearchWord(text);
+}
+
+function getProductFromSuggestion(item: SearchSuggest, parts: string[]): string | null {
+  if (item.productName) return item.productName;
+  if (item.matchType === 'product') return getStandardSearchWord(item.text);
+  if (item.type === '国家+产品' && parts.length >= 2) return getStandardSearchWord(parts.slice(1).join(' '));
+  if (item.type === '国家+厂号+产品' && parts.length >= 3) return getStandardSearchWord(parts.slice(2).join(' '));
+  if (item.type === '品牌+产品' && parts.length >= 2) return getStandardSearchWord(parts.slice(1).join(' '));
+  return null;
+}
+
+function getBrandFromSuggestion(item: SearchSuggest, parts: string[]): string | null {
+  if (item.brandName) return item.brandName;
+  if (item.matchType !== 'brand') return null;
+  if (item.type === '品牌+产品' && parts.length >= 1) return getStandardSearchWord(parts[0]);
+  return getStandardSearchWord(item.text);
 }
 
 const styles = StyleSheet.create({

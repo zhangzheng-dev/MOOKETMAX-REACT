@@ -11,6 +11,13 @@ export type SearchSuggest = {
   priority: number;
   targetId: number;
   matchType: string;
+  country?: string | null;
+  factoryNo?: string | null;
+  productName?: string | null;
+  brandName?: string | null;
+  merchantName?: string | null;
+  standardName?: string | null;
+  aliasName?: string | null;
 };
 
 export type HotSearchItem = {

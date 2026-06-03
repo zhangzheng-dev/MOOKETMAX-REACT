@@ -54,6 +54,7 @@ public class SearchServiceImpl implements SearchService {
         DictProduct product;      // 匹配到的产品对象（存储以避免再次按category查询）
         List<DictProduct> matchedProducts; // 所有匹配的产品（用于单实体搜索）
         List<DictFactory> matchedFactories; // 所有匹配的厂号（用于厂号搜索）
+        List<DictMerchant> matchedMerchants; // 所有匹配的商家
 
         boolean hasFactory() { return factoryNo != null; }
         boolean hasProduct() { return productName != null; }
@@ -85,10 +86,6 @@ public class SearchServiceImpl implements SearchService {
 
         // 1. 解析实体
         ParsedEntities parsed = parseEntities(category, normalizedKeyword);
-
-        log.info("[DEBUG] parseEntities后: country={}, factoryNo={}, hasCountry={}, hasFactory={}, matchedFactories大小={}",
-                parsed.country, parsed.factoryNo, parsed.hasCountry(), parsed.hasFactory(),
-                parsed.matchedFactories != null ? parsed.matchedFactories.size() : 0);
 
         // 2. 一致性校验：国家与厂号
         if (parsed.hasCountry() && parsed.hasFactory()) {
@@ -139,10 +136,6 @@ public class SearchServiceImpl implements SearchService {
         // 按优先级排序
         suggestions.sort(Comparator.comparingInt(SearchSuggestDTO::getPriority));
 
-        log.info("[DEBUG] getSearchSuggestions最终返回: {} 条建议", suggestions.size());
-        for (SearchSuggestDTO s : suggestions) {
-            log.info("[DEBUG]   返回建议: type={}, text={}, targetId={}", s.getType(), s.getText(), s.getTargetId());
-        }
         return suggestions;
     }
 
@@ -160,9 +153,7 @@ public class SearchServiceImpl implements SearchService {
             allProducts = productMapper.selectAll();
         }
         List<DictBrand> allBrands = brandMapper.selectAll();
-        // 使用SQL-level搜索代替全量加载，searchByName已有LIMIT 20优化
-        List<DictMerchant> matchedMerchants = merchantMapper.searchByName(keyword);
-        List<DictMerchant> allMerchants = matchedMerchants.isEmpty() ? new ArrayList<>() : matchedMerchants;
+        List<DictMerchant> allMerchants = new ArrayList<>();
 
         // 1. 解析国家（支持别名，双向匹配）
         for (DictFactory factory : allFactories) {
@@ -185,6 +176,7 @@ public class SearchServiceImpl implements SearchService {
                     String aliasNoSpace = alias.replace(" ", "");
                     // 精确匹配：keyword等于alias，或 alias以keyword开头（前缀匹配），或 keyword是alias的前缀
                     if (keyword.equals(aliasNoSpace) ||
+                        keyword.contains(aliasNoSpace) ||
                         aliasNoSpace.startsWith(keyword) ||
                         (keyword.length() <= aliasNoSpace.length() && aliasNoSpace.contains(keyword))) {
                         parsed.country = factory.getCountry();
@@ -209,10 +201,11 @@ public class SearchServiceImpl implements SearchService {
 
         for (DictFactory factory : allFactories) {
             String factoryNoNormalized = factory.getFactoryNo().replace(" ", "").toLowerCase();
+            String keywordLower = keyword.toLowerCase();
             boolean matched = false;
 
             // 完整厂号匹配（搜索词包含完整厂号）
-            if (keyword.contains(factoryNoNormalized)) {
+            if (keywordLower.contains(factoryNoNormalized)) {
                 matched = true;
                 int matchLen = factoryNoNormalized.length();
                 // 记录每个国家的最佳匹配
@@ -232,15 +225,20 @@ public class SearchServiceImpl implements SearchService {
                 // 检查多种匹配方式
                 int matchLen = 0;
                 String matchInput = null;
+                String keywordPure = extractPureNumber(keyword);
 
-                // 方式1: keyword包含完整pureNumber
-                if (keyword.contains(pureNumber)) {
+                // 方式1: 纯数字完全一致时优先级最高，避免 2058 命中 V20582 这类前缀厂号
+                if (keywordPure != null && pureNumber.equals(keywordPure)) {
+                    matchLen = pureNumber.length() + 1000;
+                    matchInput = pureNumber;
+                }
+                // 方式2: keyword包含完整pureNumber
+                else if (keyword.contains(pureNumber)) {
                     matchLen = pureNumber.length();
                     matchInput = pureNumber;
                 }
                 // 方式2: 已解析出国家时，factory的pureNumber包含keyword的纯数字（任意位置匹配）
                 else if (parsed.country != null && factory.getCountry().equals(parsed.country)) {
-                    String keywordPure = extractPureNumber(keyword);
                     if (keywordPure != null && pureNumber.contains(keywordPure)) {
                         matchLen = keywordPure.length();
                         matchInput = keywordPure;
@@ -248,7 +246,6 @@ public class SearchServiceImpl implements SearchService {
                 }
                 // 方式3: 国家未解析时，factory的pureNumber以keyword的纯数字部分开头（前缀匹配）或结尾（后缀匹配）
                 else if (parsed.country == null) {
-                    String keywordPure = extractPureNumber(keyword);
                     if (keywordPure != null) {
                         // 前缀匹配：factory的pureNumber以keyword的pureNumber开头
                         if (pureNumber.startsWith(keywordPure) && keywordPure.length() > matchLen) {
@@ -300,12 +297,13 @@ public class SearchServiceImpl implements SearchService {
                     if (f.getCountry().equals(parsed.country)) {
                         String fNoNorm = f.getFactoryNo().replace(" ", "").toLowerCase();
                         String fPureNum = extractPureNumber(f.getFactoryNo());
-                        int matchLen = keyword.contains(fNoNorm) ? fNoNorm.length() :
+                        String keywordLower = keyword.toLowerCase();
+                        int matchLen = keywordLower.contains(fNoNorm) ? fNoNorm.length() :
                                       (fPureNum != null && keyword.contains(fPureNum) ? fPureNum.length() : 0);
                         if (matchLen > countryMatchLen) {
                             countryMatchLen = matchLen;
                             countryFactoryNo = f.getFactoryNo();
-                            countryFactoryInput = keyword.contains(fNoNorm) ? f.getFactoryNo() : fPureNum;
+                            countryFactoryInput = keywordLower.contains(fNoNorm) ? f.getFactoryNo() : fPureNum;
                         }
                     }
                 }
@@ -350,7 +348,8 @@ public class SearchServiceImpl implements SearchService {
                     for (String alias : aliases) {
                         String aliasNoSpace = alias.replace(" ", "");
                         String aliasUpper = aliasNoSpace.toUpperCase();
-                        if (aliasUpper.startsWith(keywordUpper) ||
+                        if (keywordUpper.contains(aliasUpper) ||
+                            aliasUpper.startsWith(keywordUpper) ||
                             (keyword.length() <= aliasNoSpace.length() && aliasUpper.contains(keywordUpper))) {
                             parsed.brandName = brand.getBrandName();
                             parsed.brandInput = keyword; // 用户输入的原始关键词
@@ -370,6 +369,7 @@ public class SearchServiceImpl implements SearchService {
             ? parsed.remainingKeywordAfterCountry
             : keyword;
         boolean hasCountryContext = (parsed.country != null);
+        boolean factoryOnlyNumericInput = parsed.hasFactory() && isPureNumeric(keywordForMatch);
         parsed.matchedProducts = new ArrayList<>();
 
         // 用于记录最佳匹配产品（优先选择最长匹配）
@@ -377,7 +377,7 @@ public class SearchServiceImpl implements SearchService {
         int bestProductMatchLength = 0;
         String bestMatchAlias = null;
 
-        for (DictProduct product : allProducts) {
+        for (DictProduct product : factoryOnlyNumericInput ? Collections.<DictProduct>emptyList() : allProducts) {
             String productNameNoSpace = product.getProductName().replace(" ", "");
             String matchedAlias = null;
             int currentMatchLength = 0;
@@ -401,7 +401,8 @@ public class SearchServiceImpl implements SearchService {
                         for (String alias : aliases) {
                             String aliasNoSpace = alias.replace(" ", "");
                             // alias以keywordForMatch开头，或 keywordForMatch是alias的前缀
-                            if (aliasNoSpace.startsWith(keywordForMatch) ||
+                            if (keywordForMatch.contains(aliasNoSpace) ||
+                                aliasNoSpace.startsWith(keywordForMatch) ||
                                 (keywordForMatch.length() <= aliasNoSpace.length() && aliasNoSpace.contains(keywordForMatch))) {
                                 matchedAlias = alias.trim();
                                 currentMatchLength = aliasNoSpace.length() + 500;
@@ -451,23 +452,24 @@ public class SearchServiceImpl implements SearchService {
             parsed.productName = bestMatchProduct.getProductName();
             parsed.productInput = keywordForMatch;
             parsed.productAlias = bestMatchAlias;
-            log.info("[DEBUG] 产品匹配完成: keywordForMatch={}, bestMatchProduct={}, bestMatchLength={}, bestMatchAlias={}",
-                keywordForMatch, bestMatchProduct.getProductName(), bestProductMatchLength, bestMatchAlias);
         }
 
-        // 5. 解析商家（支持模糊匹配 - 双向匹配）
-        log.info("[DEBUG] 搜索关键词: {}, 商家总数: {}", keyword, allMerchants.size());
+        // 5. 解析商家（支持从组合词中剥离已识别实体后再匹配）
+        List<String> merchantKeywords = buildMerchantKeywordCandidates(keyword, parsed);
+        for (String merchantKeyword : merchantKeywords) {
+            allMerchants = merchantMapper.searchByName(merchantKeyword);
+            if (!allMerchants.isEmpty()) {
+                break;
+            }
+        }
+        parsed.matchedMerchants = allMerchants;
+
         for (DictMerchant merchant : allMerchants) {
             String merchantNameNoSpace = (merchant.getMerchantName() != null ? merchant.getMerchantName() : "").replace(" ", "");
             String merchantShortNameNoSpace = (merchant.getMerchantShortName() != null ? merchant.getMerchantShortName() : "").replace(" ", "");
 
-            // 调试：打印每个商家的匹配情况
-            log.info("[DEBUG] 检查商家: id={}, nameNoSpace={}, shortNameNoSpace={}, keyword={}",
-                merchant.getMerchantId(), merchantNameNoSpace, merchantShortNameNoSpace, keyword);
-
             // 优先精确匹配简称
             if (merchantShortNameNoSpace.equals(keyword)) {
-                log.info("[DEBUG]   匹配成功: 精确匹配简称, merchantName={}", merchant.getMerchantName());
                 parsed.merchantName = merchant.getMerchantName();
                 parsed.merchantInput = keyword;
                 parsed.merchantAlias = merchant.getMerchantShortName();
@@ -475,7 +477,6 @@ public class SearchServiceImpl implements SearchService {
             }
             // 精确匹配全称
             if (merchantNameNoSpace.equals(keyword)) {
-                log.info("[DEBUG]   匹配成功: 精确匹配全称, merchantName={}", merchant.getMerchantName());
                 parsed.merchantName = merchant.getMerchantName();
                 parsed.merchantInput = keyword;
                 parsed.merchantAlias = null;
@@ -486,7 +487,6 @@ public class SearchServiceImpl implements SearchService {
                 (!keyword.isEmpty() && keyword.contains(merchantNameNoSpace) && !merchantNameNoSpace.isEmpty()) ||
                 (!merchantShortNameNoSpace.isEmpty() && merchantShortNameNoSpace.contains(keyword)) ||
                 (!keyword.isEmpty() && keyword.contains(merchantShortNameNoSpace) && !merchantShortNameNoSpace.isEmpty())) {
-                log.info("[DEBUG]   匹配成功: 模糊匹配, merchantName={}", merchant.getMerchantName());
                 parsed.merchantName = merchant.getMerchantName();
                 parsed.merchantInput = keyword;
                 // 判断是否通过简称匹配（简称就是别名）
@@ -502,6 +502,49 @@ public class SearchServiceImpl implements SearchService {
         return parsed;
     }
 
+    private List<String> buildMerchantKeywordCandidates(String keyword, ParsedEntities parsed) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(keyword);
+
+        String stripped = keyword;
+        stripped = removeToken(stripped, parsed.countryInput);
+        stripped = removeToken(stripped, parsed.countryAlias);
+        stripped = removeToken(stripped, parsed.country);
+        stripped = removeToken(stripped, parsed.factoryNoInput);
+        stripped = removeToken(stripped, parsed.factoryNo);
+        stripped = removeToken(stripped, extractPureNumber(parsed.factoryNo));
+        stripped = removeToken(stripped, parsed.brandInput);
+        stripped = removeToken(stripped, parsed.brandAlias);
+        stripped = removeToken(stripped, parsed.brandName);
+        stripped = removeToken(stripped, parsed.productAlias);
+        stripped = removeToken(stripped, parsed.productName);
+        if (parsed.matchedProducts != null) {
+            for (DictProduct product : parsed.matchedProducts) {
+                stripped = removeToken(stripped, product.getProductName());
+                if (product.getAliasList() != null && !product.getAliasList().isEmpty()) {
+                    for (String alias : product.getAliasList().split("[,，、]")) {
+                        stripped = removeToken(stripped, alias.trim());
+                    }
+                }
+            }
+        }
+        if (parsed.productInput != null && !parsed.productInput.equals(keyword)) {
+            stripped = removeToken(stripped, parsed.productInput);
+        }
+        if (!stripped.isEmpty()) {
+            candidates.add(stripped);
+        }
+
+        return candidates.stream().filter(v -> v != null && !v.isBlank()).collect(Collectors.toList());
+    }
+
+    private String removeToken(String source, String token) {
+        if (source == null || source.isEmpty() || token == null || token.isBlank()) {
+            return source;
+        }
+        return source.replace(token.replace(" ", ""), "");
+    }
+
     /**
      * 提取纯数字
      */
@@ -511,17 +554,38 @@ public class SearchServiceImpl implements SearchService {
         return num.isEmpty() ? null : num;
     }
 
+    private boolean isPureNumeric(String value) {
+        return value != null && value.matches("\\d+");
+    }
+
     /**
      * 校验厂号是否属于指定国家
      */
     private boolean checkFactoryCountryMatch(String category, String factoryNo, String country) {
         List<DictFactory> factories = factoryMapper.searchByFactoryNo(category, factoryNo);
+
         for (DictFactory factory : factories) {
             if (factory.getCountry().equals(country)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private String findFactoryCountry(String category, String factoryNo) {
+        if (factoryNo == null) return null;
+        List<DictFactory> factories = factoryMapper.searchByFactoryNo(category, factoryNo);
+        if (factories.isEmpty()) return null;
+        return factories.get(0).getCountry();
+    }
+
+    private void setStandardFields(SearchSuggestDTO dto, String country, String factoryNo,
+                                   String productName, String brandName, String merchantName) {
+        dto.setCountry(country);
+        dto.setFactoryNo(factoryNo);
+        dto.setProductName(productName);
+        dto.setBrandName(brandName);
+        dto.setMerchantName(merchantName);
     }
 
     /**
@@ -551,6 +615,7 @@ public class SearchServiceImpl implements SearchService {
             dto.setMatchType("combined");
             dto.setInputKeyword(parsed.factoryNoInput);
             dto.setStandardName(factory.getFactoryNo());
+            setStandardFields(dto, factory.getCountry(), factory.getFactoryNo(), product.getProductName(), parsed.brandName, null);
 
             if (!usedTargetIds.contains(factory.getFactoryId())) {
                 suggestions.add(dto);
@@ -598,6 +663,8 @@ public class SearchServiceImpl implements SearchService {
             });
         }
 
+        factories = preferExactFactories(factories, parsed.factoryNoInput != null ? parsed.factoryNoInput : keyword);
+
         for (DictFactory factory : factories) {
             // 如果同时有国家输入，校验一致性
             if (parsed.hasCountry() && !factory.getCountry().equals(parsed.country)) continue;
@@ -614,6 +681,7 @@ public class SearchServiceImpl implements SearchService {
             dto.setMatchType("factory");
             dto.setInputKeyword(parsed.factoryNoInput);
             dto.setStandardName(factory.getFactoryNo());
+            setStandardFields(dto, factory.getCountry(), factory.getFactoryNo(), null, parsed.brandName, null);
 
             if (!usedTargetIds.contains(factory.getFactoryId())) {
                 suggestions.add(dto);
@@ -627,8 +695,33 @@ public class SearchServiceImpl implements SearchService {
     /**
      * 计算厂号对搜索词的匹配度（匹配的数字位数）
      */
+    private List<DictFactory> preferExactFactories(List<DictFactory> factories, String keyword) {
+        String keywordPure = extractPureNumber(keyword);
+        if (keywordPure == null || keywordPure.length() < 3) {
+            return factories;
+        }
+        List<DictFactory> exactFactories = factories.stream()
+                .filter(factory -> keywordPure.equals(extractPureNumber(factory.getFactoryNo())))
+                .collect(Collectors.toList());
+        return exactFactories.isEmpty() ? factories : exactFactories;
+    }
+
+    private List<DictProduct> preferExactProducts(List<DictProduct> products, String productName) {
+        if (productName == null || productName.isBlank()) {
+            return products;
+        }
+        List<DictProduct> exactProducts = products.stream()
+                .filter(product -> productName.equals(product.getProductName()))
+                .collect(Collectors.toList());
+        return exactProducts.isEmpty() ? products : exactProducts;
+    }
+
     private int getMatchLength(String factoryNo, String keyword) {
         String pureNumber = extractPureNumber(factoryNo);
+        String keywordPure = extractPureNumber(keyword);
+        if (pureNumber != null && pureNumber.equals(keywordPure)) {
+            return pureNumber.length() + 1000;
+        }
         if (pureNumber != null && keyword.contains(pureNumber.toLowerCase())) {
             return pureNumber.length();
         }
@@ -665,6 +758,7 @@ public class SearchServiceImpl implements SearchService {
             dto.setMatchType("combined");
             dto.setInputKeyword(parsed.productInput);
             dto.setStandardName(parsed.country + " " + product.getProductName());
+            setStandardFields(dto, parsed.country, null, product.getProductName(), parsed.brandName, null);
             suggestions.add(dto);
             return suggestions;
         }
@@ -681,6 +775,7 @@ public class SearchServiceImpl implements SearchService {
             dto.setMatchType("combined");
             dto.setInputKeyword(parsed.productInput);
             dto.setStandardName(product.getProductName());
+            setStandardFields(dto, factory.getCountry(), factory.getFactoryNo(), product.getProductName(), parsed.brandName, null);
 
             if (!usedTargetIds.contains(factory.getFactoryId())) {
                 suggestions.add(dto);
@@ -722,11 +817,12 @@ public class SearchServiceImpl implements SearchService {
         brandDto.setMatchType("brand");
         brandDto.setInputKeyword(parsed.brandInput);
         brandDto.setStandardName(firstBrand.getBrandName());
+        setStandardFields(brandDto, null, null, product.getProductName(), firstBrand.getBrandName(), null);
         suggestions.add(brandDto);
 
         // 2. 品牌下所有厂号的展开词条（收集所有匹配品牌的关联厂号）
         Set<Integer> allBrandIds = new HashSet<>();
-        for (DictBrand brand : matchedBrands) {
+        for (DictBrand brand : Collections.<DictBrand>emptyList()) {
             allBrandIds.add(brand.getBrandId());
         }
         List<DictFactory> allBrandFactories = new ArrayList<>();
@@ -736,12 +832,76 @@ public class SearchServiceImpl implements SearchService {
         }
         DictProduct finalProduct = product;
         String finalBrandName = firstBrand.getBrandName();
+        String factoryCountry = parsed.hasFactory() ? findFactoryCountry(category, parsed.factoryNo) : null;
+
+        for (DictBrand brand : matchedBrands) {
+            if (brand.getFactoryId() == null || brand.getFactoryNo() == null || brand.getFactoryNo().isBlank()) continue;
+            if (brand.getCountry() == null || brand.getCountry().isBlank()) continue;
+            if (brand.getCategory() != null && !brand.getCategory().equals(category)) continue;
+            if (parsed.hasFactory()) {
+                if (factoryCountry != null && !brand.getCountry().equals(factoryCountry)) continue;
+                if (brand.getFactoryNo().replace(" ", "").equalsIgnoreCase(parsed.factoryNo.replace(" ", ""))) continue;
+            } else if (parsed.hasCountry() && !brand.getCountry().equals(parsed.country)) {
+                continue;
+            }
+
+            SearchSuggestDTO dto = new SearchSuggestDTO();
+            dto.setText(brand.getCountry() + " " + brand.getFactoryNo() + " " + finalProduct.getProductName());
+            dto.setKeyword(keyword);
+            dto.setType("国家+厂号+产品");
+            dto.setPriority(4);
+            dto.setTargetId(brand.getFactoryId().longValue());
+            dto.setMatchType("combined");
+            dto.setInputKeyword(parsed.brandInput);
+            dto.setStandardName(finalBrandName);
+            setStandardFields(dto, brand.getCountry(), brand.getFactoryNo(), finalProduct.getProductName(), finalBrandName, null);
+
+            if (!usedTargetIds.contains(brand.getFactoryId())) {
+                suggestions.add(dto);
+                usedTargetIds.add(brand.getFactoryId());
+            }
+        }
+        allBrandFactories = Collections.emptyList();
+        String finalBrandName2 = finalBrandName;
+
+        for (DictBrand brand : Collections.<DictBrand>emptyList()) {
+            if (brand.getFactoryId() == null || brand.getFactoryNo() == null || brand.getFactoryNo().isBlank()) continue;
+            if (brand.getCountry() == null || brand.getCountry().isBlank()) continue;
+            if (brand.getCategory() != null && !brand.getCategory().equals(category)) continue;
+            if (parsed.hasFactory()) {
+                if (factoryCountry != null && !brand.getCountry().equals(factoryCountry)) continue;
+                if (brand.getFactoryNo().replace(" ", "").equalsIgnoreCase(parsed.factoryNo.replace(" ", ""))) continue;
+            } else if (parsed.hasCountry() && !brand.getCountry().equals(parsed.country)) {
+                continue;
+            }
+
+            SearchSuggestDTO dto = new SearchSuggestDTO();
+            dto.setText(brand.getCountry() + " " + brand.getFactoryNo());
+            dto.setKeyword(keyword);
+            dto.setType("国家+厂号");
+            dto.setPriority(6);
+            dto.setTargetId(brand.getFactoryId().longValue());
+            dto.setMatchType("factory");
+            dto.setInputKeyword(parsed.brandInput);
+            dto.setStandardName(finalBrandName2);
+            setStandardFields(dto, brand.getCountry(), brand.getFactoryNo(), null, finalBrandName2, null);
+
+            if (!usedTargetIds.contains(brand.getFactoryId())) {
+                suggestions.add(dto);
+                usedTargetIds.add(brand.getFactoryId());
+            }
+        }
+        allBrandFactories = Collections.emptyList();
 
         for (DictFactory factory : allBrandFactories) {
             if (!factory.getCategory().equals(category)) continue;
             // 过滤逻辑
-            if (parsed.hasCountry() && !factory.getCountry().equals(parsed.country)) continue;
-            if (parsed.hasFactory() && !factory.getFactoryNo().equals(parsed.factoryNo)) continue;
+            if (parsed.hasFactory()) {
+                if (factoryCountry != null && !factory.getCountry().equals(factoryCountry)) continue;
+                if (factory.getFactoryNo().equals(parsed.factoryNo)) continue;
+            } else if (parsed.hasCountry() && !factory.getCountry().equals(parsed.country)) {
+                continue;
+            }
 
             SearchSuggestDTO dto = new SearchSuggestDTO();
             dto.setText(factory.getCountry() + " " + factory.getFactoryNo() + " " + finalProduct.getProductName());
@@ -752,6 +912,7 @@ public class SearchServiceImpl implements SearchService {
             dto.setMatchType("combined");
             dto.setInputKeyword(parsed.brandInput);
             dto.setStandardName(finalBrandName);
+            setStandardFields(dto, factory.getCountry(), factory.getFactoryNo(), finalProduct.getProductName(), finalBrandName, null);
 
             if (!usedTargetIds.contains(factory.getFactoryId())) {
                 suggestions.add(dto);
@@ -769,8 +930,8 @@ public class SearchServiceImpl implements SearchService {
                                                                    ParsedEntities parsed, Set<Integer> usedTargetIds) {
         List<SearchSuggestDTO> suggestions = new ArrayList<>();
 
-        // 检查国家是否已用于组合（包括国家+产品情况：有国家且有非空剩余关键词）
-        boolean countryUsedInHigher = (parsed.hasCountry() && (parsed.hasFactory() || parsed.hasProduct() || (parsed.remainingKeywordAfterCountry != null && !parsed.remainingKeywordAfterCountry.isEmpty())));
+        // 检查国家是否已用于组合
+        boolean countryUsedInHigher = parsed.hasCountry() && (parsed.hasFactory() || parsed.hasProduct());
 
         // 检查产品是否已用于组合（包括country+product和factory+product情况）
         boolean productUsedInHigher = (parsed.hasProduct() && (parsed.hasFactory() || parsed.hasCountry()));
@@ -789,12 +950,13 @@ public class SearchServiceImpl implements SearchService {
             dto.setMatchType("country");
             dto.setInputKeyword(parsed.countryInput);
             dto.setStandardName(parsed.country);
+            setStandardFields(dto, parsed.country, null, null, null, null);
             suggestions.add(dto);
         }
 
         // 单个产品的独立词条（显示所有匹配的产品）
         if (parsed.hasProduct() && !productUsedInHigher && !brandUsedInHigher && parsed.matchedProducts != null) {
-            for (DictProduct product : parsed.matchedProducts) {
+            for (DictProduct product : preferExactProducts(parsed.matchedProducts, parsed.productName)) {
                 // 计算该产品的别名（如果有）
                 String productAlias = null;
                 if (product.getAliasList() != null && !product.getAliasList().isEmpty()) {
@@ -821,6 +983,7 @@ public class SearchServiceImpl implements SearchService {
                 dto.setInputKeyword(parsed.productInput);
                 dto.setStandardName(product.getProductName());
                 dto.setAliasName(productAlias);
+                setStandardFields(dto, null, null, product.getProductName(), null, null);
                 suggestions.add(dto);
             }
         }
@@ -846,6 +1009,7 @@ public class SearchServiceImpl implements SearchService {
                 dto.setInputKeyword(parsed.brandInput);
                 dto.setStandardName(parsed.brandName);
                 dto.setAliasName(parsed.brandAlias);
+                setStandardFields(dto, null, null, null, parsed.brandName, null);
                 suggestions.add(dto);
             }
         }
@@ -884,15 +1048,46 @@ public class SearchServiceImpl implements SearchService {
 
         String finalBrandName2 = matchedBrands.get(0).getBrandName();
         String countryText = buildCountryText(parsed);
+        String factoryCountry = parsed.hasFactory() ? findFactoryCountry(category, parsed.factoryNo) : null;
+
+        for (DictBrand brand : matchedBrands) {
+            if (brand.getFactoryId() == null || brand.getFactoryNo() == null || brand.getFactoryNo().isBlank()) continue;
+            if (brand.getCountry() == null || brand.getCountry().isBlank()) continue;
+            if (brand.getCategory() != null && !brand.getCategory().equals(category)) continue;
+            if (parsed.hasFactory()) {
+                if (factoryCountry != null && !brand.getCountry().equals(factoryCountry)) continue;
+                if (brand.getFactoryNo().replace(" ", "").equalsIgnoreCase(parsed.factoryNo.replace(" ", ""))) continue;
+            } else if (parsed.hasCountry() && !brand.getCountry().equals(parsed.country)) {
+                continue;
+            }
+
+            SearchSuggestDTO dto = new SearchSuggestDTO();
+            dto.setText(brand.getCountry() + " " + brand.getFactoryNo());
+            dto.setKeyword(keyword);
+            dto.setType("国家+厂号");
+            dto.setPriority(6);
+            dto.setTargetId(brand.getFactoryId().longValue());
+            dto.setMatchType("factory");
+            dto.setInputKeyword(parsed.brandInput);
+            dto.setStandardName(finalBrandName2);
+            setStandardFields(dto, brand.getCountry(), brand.getFactoryNo(), null, finalBrandName2, null);
+
+            if (!usedTargetIds.contains(brand.getFactoryId())) {
+                suggestions.add(dto);
+                usedTargetIds.add(brand.getFactoryId());
+            }
+        }
+        allBrandFactories = Collections.emptyList();
 
         for (DictFactory factory : allBrandFactories) {
             if (!factory.getCategory().equals(category)) continue;
             // 过滤逻辑
-            if (parsed.hasCountry() && !factory.getCountry().equals(parsed.country)) continue;
-            if (parsed.hasFactory() && !factory.getFactoryNo().equals(parsed.factoryNo)) continue;
-
-            // 去重：优先级2已生成的厂号不再生成
-            if (parsed.hasFactory() && factory.getFactoryNo().equals(parsed.factoryNo)) continue;
+            if (parsed.hasFactory()) {
+                if (factoryCountry != null && !factory.getCountry().equals(factoryCountry)) continue;
+                if (factory.getFactoryNo().equals(parsed.factoryNo)) continue;
+            } else if (parsed.hasCountry() && !factory.getCountry().equals(parsed.country)) {
+                continue;
+            }
 
             SearchSuggestDTO dto = new SearchSuggestDTO();
             dto.setText(factory.getCountry() + " " + factory.getFactoryNo());
@@ -903,6 +1098,7 @@ public class SearchServiceImpl implements SearchService {
             dto.setMatchType("factory");
             dto.setInputKeyword(parsed.brandInput);
             dto.setStandardName(finalBrandName2);
+            setStandardFields(dto, factory.getCountry(), factory.getFactoryNo(), null, finalBrandName2, null);
 
             if (!usedTargetIds.contains(factory.getFactoryId())) {
                 suggestions.add(dto);
@@ -919,13 +1115,8 @@ public class SearchServiceImpl implements SearchService {
     private List<SearchSuggestDTO> generateMerchantSuggestions(String category, String keyword, ParsedEntities parsed) {
         List<SearchSuggestDTO> suggestions = new ArrayList<>();
 
-        log.info("[DEBUG] generateMerchantSuggestions: parsed.merchantName={}, keyword={}", parsed.merchantName, keyword);
-        // 使用原始keyword搜索，而不是parsed.merchantName（第一个匹配的商家全称）
-        List<DictMerchant> merchants = merchantMapper.searchByName(keyword);
-        log.info("[DEBUG] generateMerchantSuggestions: searchByName返回 {} 个商家", merchants.size());
-        for (DictMerchant m : merchants) {
-            log.info("[DEBUG]   商家: id={}, name={}", m.getMerchantId(), m.getMerchantName());
-        }
+        List<DictMerchant> merchants =
+                parsed.matchedMerchants != null ? parsed.matchedMerchants : merchantMapper.searchByName(keyword);
 
         for (DictMerchant merchant : merchants) {
             // 为每个商家单独构建显示文本（使用该商家的实际名称，而非parsed.merchantName）
@@ -935,16 +1126,14 @@ public class SearchServiceImpl implements SearchService {
             dto.setKeyword(keyword);
             dto.setType("商家");
             dto.setPriority(7);
-            log.info("[DEBUG]   设置targetId: merchantId={}", merchant.getMerchantId());
             dto.setTargetId(merchant.getMerchantId());
             dto.setMatchType("merchant");
             dto.setInputKeyword(parsed.merchantInput);
             dto.setStandardName(parsed.merchantName);
             dto.setAliasName(parsed.merchantAlias);
-            log.info("[DEBUG]   DTO设置完成: targetId={}", dto.getTargetId());
+            setStandardFields(dto, null, null, null, null, merchant.getMerchantName());
             suggestions.add(dto);
         }
-        log.info("[DEBUG] generateMerchantSuggestions返回: {} 条建议", suggestions.size());
 
         return suggestions;
     }
