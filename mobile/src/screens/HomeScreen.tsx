@@ -22,11 +22,11 @@ import {HomeCardSwitcher} from '../components/home/cards';
 import {UpdateModal} from '../components/common/UpdateModal';
 import {MooketMaxLogo} from '../components/login/LoginIcons';
 import {CURRENT_APP_VERSION_CODE, DEFAULT_CATEGORY} from '../config/env';
-import {getHomeExampleCards} from '../mocks/homeExampleCards';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
 import type {AppVersionInfo, HomeCardItem, HomeStatData, HotSearchItem} from '../types/api';
+import {buildHomeCardSearchHistoryPayload, buildHomeFallbackExampleCards, getHomeCardEntityKey} from '../utils/homeFallbackCards';
 import {openHomeCard, openHotSearch} from '../utils/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -38,33 +38,6 @@ const archiveAddIconXml = `<svg viewBox="0 0 16 16" fill="none" xmlns="http://ww
 
 // 18x18 主色「移除删除」icon
 const archiveDelIconXml = `<svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path d="M12.6152 1.5C14.2125 1.50013 15.5098 2.80482 15.5176 4.39453V14.9629C15.5174 16.32 14.5499 16.8901 13.3652 16.2305L9.70508 14.1973C9.32267 13.9798 8.69274 13.9799 8.30273 14.1973L4.64258 16.2305C3.45775 16.8828 2.49042 16.3126 2.49023 14.9629V4.39453C2.49049 2.80482 3.78753 1.50012 5.38477 1.5H12.6152ZM7.125 7.4248C6.81756 7.4248 6.5626 7.67989 6.5625 7.9873C6.5625 8.2948 6.8175 8.5498 7.125 8.5498H10.875C11.1825 8.5498 11.4375 8.2948 11.4375 7.9873C11.4374 7.67989 11.1824 7.4248 10.875 7.4248H7.125Z" fill="#006A61"/></svg>`;
-
-async function loadCardFeed(category: string, tab: 0 | 1) {
-  if (tab === 0) return mooketApi.getSelfSelectCards(category);
-  return mooketApi.getRecentSearchCards(category);
-}
-
-async function resolveHomeHistoryCards(category: string, tab: 0 | 1) {
-  const [selfSelectData, recentData] = await Promise.all([
-    mooketApi.getSelfSelectCards(category),
-    mooketApi.getRecentSearchCards(category),
-  ]);
-  const selfSelectCards = selfSelectData.cards ?? [];
-  const recentCards = recentData.cards ?? [];
-
-  if (selfSelectCards.length === 0 && recentCards.length === 0) {
-    const fallback = await mooketApi.getHomeCards(category, 0);
-    return {
-      cards: fallback.cards ?? [],
-      preferredTab: 1 as 0 | 1,
-    };
-  }
-
-  return {
-    cards: (tab === 0 ? selfSelectCards : recentCards) ?? [],
-    preferredTab: tab,
-  };
-}
 
 /** 估算卡片高度（px），用于瀑布流平衡分列 */
 function estimateCardHeight(card: HomeCardItem): number {
@@ -101,6 +74,8 @@ export function HomeScreen({navigation}: Props) {
   const [editMode, setEditMode] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [headerSticky, setHeaderSticky] = useState(false);
+  const [dismissedExampleKeys, setDismissedExampleKeys] = useState<Set<string>>(new Set());
+  const [promotedExampleKeys, setPromotedExampleKeys] = useState<Set<string>>(new Set());
   const headerHeightRef = useRef(0);
   const [fixedTopBottom, setFixedTopBottom] = useState(0);
   const [updateInfo, setUpdateInfo] = useState<AppVersionInfo | null>(null);
@@ -110,6 +85,15 @@ export function HomeScreen({navigation}: Props) {
   const autoTabSwitchReadyRef = useRef(true);
   const loadRef = useRef<(mode?: 'initial' | 'refresh' | 'silent') => Promise<void>>(async () => undefined);
   const sectionListRef = useRef<SectionList>(null);
+  const handleEditToggle = useCallback(() => {
+    setEditMode(prev => {
+      const next = !prev;
+      if (prev && !next) {
+        loadRef.current('silent').catch(() => undefined);
+      }
+      return next;
+    });
+  }, []);
 
   const performScrollToTop = useCallback((animated: boolean) => {
     const list = sectionListRef.current as
@@ -172,7 +156,12 @@ export function HomeScreen({navigation}: Props) {
       if (autoTabSwitchReadyRef.current && selfSelectCards.length === 0) {
         autoTabSwitchReadyRef.current = false;
         setTab(1);
-        setCards(recentCards.length > 0 ? recentCards : getHomeExampleCards());
+        if (recentCards.length > 0) {
+          setCards(recentCards);
+        } else {
+          const fallback = await mooketApi.getHomeCards(category, 0);
+          setCards(buildHomeFallbackExampleCards(fallback.cards ?? [], promotedExampleKeys, dismissedExampleKeys));
+        }
         return;
       }
 
@@ -181,13 +170,18 @@ export function HomeScreen({navigation}: Props) {
       if (tab === 0) {
         setCards(selfSelectCards);
       } else {
-        setCards(recentCards.length > 0 ? recentCards : (selfSelectCards.length === 0 ? getHomeExampleCards() : []));
+        if (recentCards.length > 0) {
+          setCards(recentCards);
+        } else {
+          const fallback = await mooketApi.getHomeCards(category, 0);
+          setCards(buildHomeFallbackExampleCards(fallback.cards ?? [], promotedExampleKeys, dismissedExampleKeys));
+        }
       }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [category, tab]);
+  }, [category, dismissedExampleKeys, promotedExampleKeys, tab]);
 
   useEffect(() => {
     loadRef.current = load;
@@ -229,6 +223,8 @@ export function HomeScreen({navigation}: Props) {
     setCategory(value);
     setMenuOpen(false);
     setEditMode(false);
+    setDismissedExampleKeys(new Set());
+    setPromotedExampleKeys(new Set());
     autoTabSwitchReadyRef.current = true;
   }
 
@@ -271,7 +267,45 @@ export function HomeScreen({navigation}: Props) {
     }
   }
 
+  async function addExampleCardToSelfSelect(card: HomeCardItem) {
+    const payload = buildHomeCardSearchHistoryPayload(card);
+    const entityKey = card.exampleEntityKey ?? getHomeCardEntityKey(card);
+    if (!payload || !entityKey) return;
+
+    try {
+      await mooketApi.saveSearchHistory({...payload, isSelfSelect: 1});
+      setPromotedExampleKeys(prev => {
+        const next = new Set(prev);
+        next.add(entityKey);
+        return next;
+      });
+      setCards(prev =>
+        prev.filter(item => (item.exampleEntityKey ?? getHomeCardEntityKey(item)) !== entityKey),
+      );
+    } catch (error) {
+      Alert.alert('添加失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }
+
+  function dismissExampleCard(card: HomeCardItem) {
+    const entityKey = card.exampleEntityKey ?? getHomeCardEntityKey(card);
+    if (!entityKey) return;
+    setDismissedExampleKeys(prev => {
+      const next = new Set(prev);
+      next.add(entityKey);
+      return next;
+    });
+    setCards(prev => prev.filter(item => (item.exampleEntityKey ?? getHomeCardEntityKey(item)) !== entityKey));
+  }
+
   function onArchiveAdd(card: HomeCardItem) {
+    if (card.isExample) {
+      Alert.alert('加入自选', '确定加入自选吗？', [
+        {text: '取消', style: 'cancel'},
+        {text: '确定', onPress: () => addExampleCardToSelfSelect(card).catch(() => undefined)},
+      ]);
+      return;
+    }
     if (!card.historyId) return;
     Alert.alert('加入自选', '确定加入自选吗？', [
       {text: '取消', style: 'cancel'},
@@ -280,6 +314,13 @@ export function HomeScreen({navigation}: Props) {
   }
 
   function onArchiveDelete(card: HomeCardItem) {
+    if (card.isExample) {
+      Alert.alert('删除示例', '确定删除这张示例卡片吗？', [
+        {text: '取消', style: 'cancel'},
+        {text: '删除', style: 'destructive', onPress: () => dismissExampleCard(card)},
+      ]);
+      return;
+    }
     if (!card.historyId) return;
     if (tab === 0) {
       Alert.alert('移出自选', '确定移出自选吗？', [
@@ -432,7 +473,7 @@ export function HomeScreen({navigation}: Props) {
                 onPress={() => switchTab(1)}
               />
               <View style={styles.tabsSpace} />
-              <Pressable onPress={() => setEditMode(prev => !prev)} style={styles.editButton}>
+              <Pressable onPress={handleEditToggle} style={styles.editButton}>
                 {editMode ? (
                   <View style={styles.editDoneBadge}>
                     <Text style={styles.editDoneText}>完成</Text>
@@ -461,7 +502,7 @@ export function HomeScreen({navigation}: Props) {
                     card={card}
                     editMode={editMode}
                     tab={tab}
-                    onPress={card.isExample ? undefined : () => openHomeCard(navigation, category, card)}
+                    onPress={() => openHomeCard(navigation, category, card)}
                     onArchiveAdd={() => onArchiveAdd(card)}
                     onArchiveDelete={() => onArchiveDelete(card)}
                   />
@@ -474,7 +515,7 @@ export function HomeScreen({navigation}: Props) {
                     card={card}
                     editMode={editMode}
                     tab={tab}
-                    onPress={card.isExample ? undefined : () => openHomeCard(navigation, category, card)}
+                    onPress={() => openHomeCard(navigation, category, card)}
                     onArchiveAdd={() => onArchiveAdd(card)}
                     onArchiveDelete={() => onArchiveDelete(card)}
                   />
@@ -516,7 +557,7 @@ export function HomeScreen({navigation}: Props) {
               onPress={() => switchTab(1)}
             />
             <View style={styles.tabsSpace} />
-            <Pressable onPress={() => setEditMode(prev => !prev)} style={styles.editButton}>
+            <Pressable onPress={handleEditToggle} style={styles.editButton}>
               {editMode ? (
                 <View style={styles.editDoneBadge}>
                   <Text style={styles.editDoneText}>完成</Text>
@@ -615,12 +656,12 @@ function CardWithEdit({
   return (
     <View style={styles.cardWrap}>
       <HomeCardSwitcher card={card} onPress={editMode ? undefined : onPress} />
-      {card.isExample ? (
+      {card.isExample && !editMode ? (
         <View style={styles.exampleBadge}>
           <Text style={styles.exampleBadgeText}>例</Text>
         </View>
       ) : null}
-      {editMode && card.historyId && !card.isExample ? (
+      {editMode && (card.historyId || (tab === 1 && card.isExample)) ? (
         <>
           {tab === 1 ? (
             // 历史搜索：右上角添加 + 下方删除，垂直排列

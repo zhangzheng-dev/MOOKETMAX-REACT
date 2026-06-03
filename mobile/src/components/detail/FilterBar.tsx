@@ -18,7 +18,6 @@ export type FilterDef = {
   key: FilterKey;
   label: string;
   hasSelection: boolean;
-  /** "famousMerchant" 是切换型 chip，无下拉箭头 */
   toggle?: boolean;
 };
 
@@ -28,18 +27,10 @@ type Props = {
   onPress: (key: FilterKey) => void;
 };
 
-/**
- * 筛选条（与 Figma 1421:4211 对齐）
- * 7 个 chip 横向滚动：
- * 知名商家(toggle) / 商家筛选 / 地区 / 价格区间 / 货物类型 / 饲养方式 / 标签
- */
 export function FilterBar({filters, active, onPress}: Props) {
   return (
     <View style={styles.wrap}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.row}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {filters.map(item => (
           <FilterChip
             key={item.key}
@@ -71,22 +62,17 @@ function FilterChip({
   famous?: boolean;
   onPress: () => void;
 }) {
-  // 知名商家：选中时主色背景白字、未选灰底深字（用 HelloFont 风格字体替代用 medium）
   if (famous) {
     return (
       <Pressable
         onPress={onPress}
         style={[
           styles.chip,
+          styles.famousChip,
           selected ? styles.famousActive : styles.famousIdle,
           active && styles.chipPressed,
         ]}>
-        <Text
-          style={[
-            styles.famousText,
-            {color: selected ? '#FFFFFF' : '#254D5A'},
-          ]}
-          numberOfLines={1}>
+        <Text style={[styles.famousText, {color: selected ? '#FFFFFF' : '#254D5A'}]} numberOfLines={1}>
           {label}
         </Text>
       </Pressable>
@@ -95,6 +81,7 @@ function FilterChip({
 
   const borderColor = selected ? colors.primary : 'transparent';
   const textColor = selected ? colors.primary : '#3C4947';
+
   return (
     <Pressable onPress={onPress} style={[styles.chip, {borderColor}, active && styles.chipPressed]}>
       <Text style={[styles.chipText, {color: textColor}]} numberOfLines={1}>
@@ -102,7 +89,14 @@ function FilterChip({
       </Text>
       {!toggle ? (
         <Svg width={10} height={10} viewBox="0 0 10 10">
-          <Path d="M2.5 4L5 6.5L7.5 4" stroke={selected ? colors.primary : '#3C4947'} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          <Path
+            d="M2.5 4L5 6.5L7.5 4"
+            stroke={selected ? colors.primary : '#3C4947'}
+            strokeWidth={1.2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
         </Svg>
       ) : null}
     </Pressable>
@@ -121,19 +115,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 27,
+    minHeight: 30,
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 2,
     borderWidth: 1,
     backgroundColor: '#F3F6F5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 3,
   },
-  chipPressed: {opacity: 0.7},
-  chipText: {fontSize: 12, lineHeight: 15},
-  // 知名商家
+  famousChip: {
+    paddingHorizontal: 10,
+  },
+  chipPressed: {
+    opacity: 0.7,
+  },
+  chipText: {
+    fontSize: 12,
+    lineHeight: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   famousIdle: {
     borderColor: 'transparent',
     backgroundColor: '#F3F6F5',
@@ -144,7 +148,9 @@ const styles = StyleSheet.create({
   },
   famousText: {
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 16,
     fontWeight: '500',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 });

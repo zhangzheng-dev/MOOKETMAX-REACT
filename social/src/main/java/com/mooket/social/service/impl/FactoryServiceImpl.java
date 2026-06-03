@@ -69,15 +69,21 @@ public class FactoryServiceImpl implements FactoryService {
         // 5. 排序（全量排序后再分页，保证跨页一致性）
         if ("price_asc".equalsIgnoreCase(sortBy)) {
             aggList.sort((a, b) -> {
-                BigDecimal aPrice = a.priceMin != null ? a.priceMin : BigDecimal.ZERO;
-                BigDecimal bPrice = b.priceMin != null ? b.priceMin : BigDecimal.ZERO;
-                return aPrice.compareTo(bPrice);
+                boolean aHas = a.priceMin != null && a.priceMin.compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.priceMin != null && b.priceMin.compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
+                return a.priceMin.compareTo(b.priceMin);
             });
         } else if ("price_desc".equalsIgnoreCase(sortBy)) {
             aggList.sort((a, b) -> {
-                BigDecimal aPrice = a.priceMax != null ? a.priceMax : BigDecimal.ZERO;
-                BigDecimal bPrice = b.priceMax != null ? b.priceMax : BigDecimal.ZERO;
-                return bPrice.compareTo(aPrice);
+                boolean aHas = a.priceMax != null && a.priceMax.compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.priceMax != null && b.priceMax.compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
+                return b.priceMax.compareTo(a.priceMax);
             });
         }
         // else: 默认按报盘数降序已在SQL中处理

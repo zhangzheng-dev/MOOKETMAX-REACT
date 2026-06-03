@@ -162,10 +162,11 @@ export const mooketApi = {
     category: string,
     page: number,
     pageSize: number,
+    sortBy = 'comprehensive',
   ) {
     return unwrap<import('../types/api').MerchantProductPage>(
       apiClient.get(`api/v1/merchant/${merchantId}/products`, {
-        params: {type, category, page, pageSize},
+        params: {type, category, page, pageSize, sortBy},
       }),
     );
   },

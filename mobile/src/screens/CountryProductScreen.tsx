@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ActivityIndicator, SectionList, RefreshControl, StyleSheet, Text, View} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
@@ -24,6 +24,11 @@ export function CountryProductScreen({navigation, route}: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestSortParam = useMemo(
+    () => sortToParam(sort),
+    [sort],
+  );
+  const factories = data?.factories ?? [];
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -35,7 +40,7 @@ export function CountryProductScreen({navigation, route}: Props) {
         productName,
         category,
         tab,
-        sortToParam(sort),
+        requestSortParam,
         1,
         pageSize,
       );
@@ -45,7 +50,7 @@ export function CountryProductScreen({navigation, route}: Props) {
     } finally {
       setLoading(false);
     }
-  }, [category, country, productName, sort, tab]);
+  }, [category, country, productName, requestSortParam, tab]);
 
   useEffect(() => {
     loadFirst().catch(() => undefined);
@@ -62,7 +67,7 @@ export function CountryProductScreen({navigation, route}: Props) {
         productName,
         category,
         tab,
-        sortToParam(sort),
+        requestSortParam,
         nextPage,
         pageSize,
       );
@@ -75,7 +80,7 @@ export function CountryProductScreen({navigation, route}: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [category, country, data, loading, loadingMore, page, productName, sort, tab]);
+  }, [category, country, data, loading, loadingMore, page, productName, requestSortParam, tab]);
 
   return (
     <View style={styles.container}>
@@ -109,12 +114,13 @@ export function CountryProductScreen({navigation, route}: Props) {
         <ErrorState message={error} onRetry={loadFirst} />
       ) : data ? (
         <SectionList
-          sections={[{key: 'items', data: data.factories}]}
+          sections={[{key: 'items', data: factories}]}
           keyExtractor={(item, index) => `${item.country ?? ''}-${item.factoryNo ?? ''}-${index}`}
           stickySectionHeadersEnabled
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={3}
+            removeClippedSubviews
           ListHeaderComponent={
             <View>
               <CountryProductDashboard

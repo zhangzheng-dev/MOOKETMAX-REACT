@@ -128,15 +128,21 @@ public class CountryServiceImpl implements CountryService {
         // Sort full dataset BEFORE pagination so page 1 and page 2 are consistently ordered
         if ("price_asc".equalsIgnoreCase(sortBy)) {
             aggList.sort((a, b) -> {
-                BigDecimal aPrice = a.priceMin != null ? a.priceMin : BigDecimal.ZERO;
-                BigDecimal bPrice = b.priceMin != null ? b.priceMin : BigDecimal.ZERO;
-                return aPrice.compareTo(bPrice);
+                boolean aHas = a.priceMin != null && a.priceMin.compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.priceMin != null && b.priceMin.compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;  // 协商报价放最后
+                if (!bHas) return -1;
+                return a.priceMin.compareTo(b.priceMin);
             });
         } else if ("price_desc".equalsIgnoreCase(sortBy)) {
             aggList.sort((a, b) -> {
-                BigDecimal aPrice = a.priceMax != null ? a.priceMax : BigDecimal.ZERO;
-                BigDecimal bPrice = b.priceMax != null ? b.priceMax : BigDecimal.ZERO;
-                return bPrice.compareTo(aPrice);
+                boolean aHas = a.priceMax != null && a.priceMax.compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.priceMax != null && b.priceMax.compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;  // 协商报价放最后
+                if (!bHas) return -1;
+                return b.priceMax.compareTo(a.priceMax);
             });
         }
         int totalCount = aggList.size();

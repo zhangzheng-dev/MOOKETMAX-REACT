@@ -23,7 +23,8 @@ public interface MerchantService {
      * @param offerType 报盘类型：offer(报盘) 或 inquiry(求购)
      * @param page 页码（从1开始）
      * @param pageSize 每页大小
+     * @param sortBy 排序方式：comprehensive/publish_time/price_asc/price_desc
      * @return 分页结果
      */
-    MerchantProductPageDTO getMerchantProducts(Long merchantId, String category, String offerType, int page, int pageSize);
+    MerchantProductPageDTO getMerchantProducts(Long merchantId, String category, String offerType, int page, int pageSize, String sortBy);
 }

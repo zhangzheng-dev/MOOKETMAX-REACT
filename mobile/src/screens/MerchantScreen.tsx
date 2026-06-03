@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, SectionList, RefreshControl, StyleSheet, Text, View} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
@@ -34,6 +34,12 @@ export function MerchantScreen({navigation, route}: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const sortParam = useMemo(() => {
+    if (sort.kind === 'comprehensive') return 'comprehensive';
+    if (sort.kind === 'publish_time') return 'publish_time';
+    return sort.order === 'asc' ? 'price_asc' : sort.order === 'desc' ? 'price_desc' : 'comprehensive';
+  }, [sort]);
+
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [originalText, setOriginalText] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
@@ -51,6 +57,7 @@ export function MerchantScreen({navigation, route}: Props) {
     try {
       const data = await mooketApi.getMerchantDetail(merchantId, category);
       setDetail(data);
+      // 初始加载用第一页数据（后端默认综合排序）
       setOffers(data.offers ?? []);
       setInquiries(data.inquiries ?? []);
       setPage({offer: 1, inquiry: 1});
@@ -65,9 +72,36 @@ export function MerchantScreen({navigation, route}: Props) {
     }
   }, [category, merchantId]);
 
+  // 当排序或 tab 变化时重新加载第一页
+  const reloadSorted = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await mooketApi.getMerchantProducts(merchantId, tab, category, 1, pageSize, sortParam);
+      const incoming = data.products ?? [];
+      if (tab === 'offer') setOffers(incoming);
+      else setInquiries(incoming);
+      setPage(p => ({...p, [tab]: 1}));
+      setHasMore(m => ({...m, [tab]: 1 < (data.totalPages ?? 1)}));
+    } catch {
+      // 静默
+    } finally {
+      setLoading(false);
+    }
+  }, [category, merchantId, sortParam, tab]);
+
   useEffect(() => {
     load().catch(() => undefined);
   }, [load]);
+
+  // 排序变化时重新请求
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    reloadSorted().catch(() => undefined);
+  }, [sortParam, tab]);
 
   useEffect(() => {
     setExpanded(new Set());
@@ -81,7 +115,7 @@ export function MerchantScreen({navigation, route}: Props) {
     const nextPage = page[tab] + 1;
     setLoadingMore(true);
     try {
-      const data = await mooketApi.getMerchantProducts(merchantId, tab, category, nextPage, pageSize);
+      const data = await mooketApi.getMerchantProducts(merchantId, tab, category, nextPage, pageSize, sortParam);
       const incoming = data.products ?? [];
       const updater = (prev: OfferSummary[]) => mergeOffers(prev, incoming);
       if (tab === 'offer') setOffers(updater);
@@ -93,7 +127,7 @@ export function MerchantScreen({navigation, route}: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [category, hasMore, loading, loadingMore, merchantId, page, tab]);
+  }, [category, hasMore, loading, loadingMore, merchantId, page, sortParam, tab]);
 
   const filteredAndSorted = useMemo(() => {
     let list = currentList.slice();
@@ -116,17 +150,9 @@ export function MerchantScreen({navigation, route}: Props) {
     if (tagFilters.size > 0) {
       list = list.filter(item => offerTags(item).some(tag => tagFilters.has(tag)));
     }
-    if (sort.kind === 'comprehensive') {
-      list = list.slice().sort((a, b) => (b.employeeOffers?.length ?? 0) - (a.employeeOffers?.length ?? 0));
-    } else if (sort.kind === 'publish_time') {
-      list = list.slice().sort((a, b) => (b.publishTime ?? '').localeCompare(a.publishTime ?? ''));
-    } else if (sort.order === 'asc') {
-      list = list.slice().sort((a, b) => bestPrice(a, 'min') - bestPrice(b, 'min'));
-    } else if (sort.order === 'desc') {
-      list = list.slice().sort((a, b) => bestPrice(b, 'max') - bestPrice(a, 'max'));
-    }
+    // 排序由后端处理，前端只做筛选
     return list;
-  }, [country, currentList, factories, feedingMethods, goodsTypes, products, regions, sort, tagFilters]);
+  }, [country, currentList, factories, feedingMethods, goodsTypes, products, regions, tagFilters]);
 
   const allCountries = useMemo(() => unique(currentList.map(item => item.country ?? '')), [currentList]);
   const allFactoryKeys = useMemo(
@@ -184,9 +210,10 @@ export function MerchantScreen({navigation, route}: Props) {
           sections={[{key: 'items', data: filteredAndSorted}]}
           keyExtractor={(item, index) => offerKey(item, index)}
           stickySectionHeadersEnabled
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={3}
+            removeClippedSubviews
           ListHeaderComponent={
             <View>
               <DataDashboard
@@ -353,15 +380,6 @@ export function MerchantScreen({navigation, route}: Props) {
 function offerKey(offer: OfferSummary, index: number) {
   if (offer.offerId != null) return `${offer.offerId}`;
   return `${offer.country ?? ''}-${offer.factoryNo ?? ''}-${offer.productName ?? ''}-${index}`;
-}
-
-function bestPrice(offer: OfferSummary, mode: 'min' | 'max'): number {
-  const prices = (offer.employeeOffers ?? [])
-    .map(emp => emp.price)
-    .filter((value): value is number => typeof value === 'number');
-  if (prices.length > 0) return mode === 'min' ? Math.min(...prices) : Math.max(...prices);
-  if (offer.price != null) return offer.price;
-  return mode === 'min' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
 }
 
 function offerRegions(offer: OfferSummary): string[] {

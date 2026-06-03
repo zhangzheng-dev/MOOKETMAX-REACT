@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import {colors} from '../../theme/colors';
@@ -16,7 +16,7 @@ type Props = {
   onPress?: () => void;
 };
 
-export function SummaryRowCard({
+function SummaryRowCardInner({
   title,
   merchantNames,
   merchantCount,
@@ -103,6 +103,8 @@ export function SummaryRowCard({
   );
 }
 
+export const SummaryRowCard = memo(SummaryRowCardInner);
+
 function formatPrice(min?: number | null, max?: number | null) {
   if (min != null && max != null && min > 0 && max >= min) {
     if (min === max) return {value: `¥ ${num(min)}`, unit: '/kg', hasRange: true};
@@ -111,7 +113,7 @@ function formatPrice(min?: number | null, max?: number | null) {
   if (min != null && min > 0) {
     return {value: `¥ ${num(min)}`, unit: '/kg', hasRange: true};
   }
-  return {value: '暂无报价', unit: '', hasRange: false};
+  return {value: '协商报价', unit: '', hasRange: false};
 }
 
 function num(value: number) {

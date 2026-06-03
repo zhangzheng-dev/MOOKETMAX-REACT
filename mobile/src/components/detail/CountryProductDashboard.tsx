@@ -255,7 +255,7 @@ function formatPrice(min?: number | null, max?: number | null) {
     return {value: `¥${num(min)}-${num(max)}`, unit: '/kg'};
   }
   if (min != null && min > 0) return {value: `¥${num(min)}`, unit: '/kg'};
-  return {value: '暂无报价', unit: ''};
+  return {value: '协商报价', unit: ''};
 }
 
 function num(value: number) {

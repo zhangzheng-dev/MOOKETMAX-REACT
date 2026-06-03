@@ -1,5 +1,10 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import {sortArrowsAsc, sortArrowsDefault, sortArrowsDesc} from './productIcons';
@@ -16,21 +21,12 @@ type Props = {
   onTabChange: (next: OfferTab) => void;
   sort: SortMode;
   onSortChange: (next: SortMode) => void;
-  /** 是否显示"综合推荐"按钮（产品页/商家页都需要） */
   showRecommend?: boolean;
-  /** 是否显示"发布时间"按钮（详情页 1421:4191 显示） */
   showPublishTime?: boolean;
-  /** 报盘 / 求购 文案，部分页面用"近2日报盘" */
   offerLabel?: string;
   inquiryLabel?: string;
 };
 
-/**
- * 顶部 Tab + 排序条（与 Figma node-id 1437:3442 对齐）：
- * - 高 40dp，下边线 1px
- * - 左：报盘 / 求购，激活态 18x3 主色指示条
- * - 右：综合推荐 + 价格（双箭头 6x12）
- */
 export function TabAndSortBar({
   tab,
   onTabChange,
@@ -48,44 +44,49 @@ export function TabAndSortBar({
       onSortChange({kind: 'price', order: 'asc'});
       return;
     }
-    const next: SortOrder = sort.order === 'asc' ? 'desc' : sort.order === 'desc' ? 'none' : 'asc';
+    const next: SortOrder =
+      sort.order === 'asc' ? 'desc' : sort.order === 'desc' ? 'none' : 'asc';
     onSortChange(next === 'none' ? {kind: 'comprehensive'} : {kind: 'price', order: next});
   }
 
   const arrowsXml =
-    priceOrder === 'asc' ? sortArrowsAsc() : priceOrder === 'desc' ? sortArrowsDesc() : sortArrowsDefault();
+    priceOrder === 'asc'
+      ? sortArrowsAsc()
+      : priceOrder === 'desc'
+        ? sortArrowsDesc()
+        : sortArrowsDefault();
 
   return (
     <View style={styles.bar}>
       <View style={styles.left}>
         <TabItem text={offerLabel} active={tab === 'offer'} onPress={() => onTabChange('offer')} />
-        <TabItem text={inquiryLabel} active={tab === 'inquiry'} onPress={() => onTabChange('inquiry')} />
+        <TabItem
+          text={inquiryLabel}
+          active={tab === 'inquiry'}
+          onPress={() => onTabChange('inquiry')}
+        />
       </View>
       <View style={styles.right}>
         {showRecommend ? (
-          <Pressable onPress={() => onSortChange({kind: 'comprehensive'})}>
-            <Text style={[styles.sortText, sort.kind === 'comprehensive' && styles.sortTextActive]}>
-              综合推荐
-            </Text>
-          </Pressable>
+          <SortItem
+            text="综合推荐"
+            active={sort.kind === 'comprehensive'}
+            onPress={() => onSortChange({kind: 'comprehensive'})}
+          />
         ) : null}
         {showPublishTime ? (
-          <Pressable onPress={() => onSortChange({kind: 'publishTime'})}>
-            <Text style={[styles.sortText, sort.kind === 'publishTime' && styles.sortTextActive]}>
-              发布时间
-            </Text>
-          </Pressable>
+          <SortItem
+            text="发布时间"
+            active={sort.kind === 'publishTime'}
+            onPress={() => onSortChange({kind: 'publishTime'})}
+          />
         ) : null}
-        <Pressable onPress={togglePrice} style={styles.priceWrap}>
-          <Text
-            style={[
-              styles.sortText,
-              sort.kind === 'price' && priceOrder !== 'none' && styles.sortTextActive,
-            ]}>
-            价格
-          </Text>
-          <SvgXml xml={arrowsXml} width={6} height={12} />
-        </Pressable>
+        <SortItem
+          text="价格"
+          active={sort.kind === 'price' && priceOrder !== 'none'}
+          onPress={togglePrice}
+          rightSlot={<SvgXml xml={arrowsXml} width={6} height={12} />}
+        />
       </View>
     </View>
   );
@@ -93,8 +94,30 @@ export function TabAndSortBar({
 
 function TabItem({text, active, onPress}: {text: string; active: boolean; onPress: () => void}) {
   return (
-    <Pressable onPress={onPress} style={styles.tabItem}>
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>{text}</Text>
+    <Pressable onPress={onPress} style={styles.item}>
+      <Text style={[styles.text, active && styles.textActive]}>{text}</Text>
+      <View style={[styles.indicator, active && styles.indicatorActive]} />
+    </Pressable>
+  );
+}
+
+function SortItem({
+  text,
+  active,
+  onPress,
+  rightSlot,
+}: {
+  text: string;
+  active: boolean;
+  onPress: () => void;
+  rightSlot?: React.ReactNode;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.item}>
+      <View style={styles.labelRow}>
+        <Text style={[styles.text, active && styles.textActive]}>{text}</Text>
+        {rightSlot ? <View style={styles.iconWrap}>{rightSlot}</View> : null}
+      </View>
       <View style={[styles.indicator, active && styles.indicatorActive]} />
     </Pressable>
   );
@@ -102,38 +125,54 @@ function TabItem({text, active, onPress}: {text: string; active: boolean; onPres
 
 const styles = StyleSheet.create({
   bar: {
-    minHeight: 40,
+    minHeight: 44,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingTop: 6,
+    paddingBottom: 4,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   left: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 28,
+    alignItems: 'flex-end',
+    gap: 20,
+    flexShrink: 0,
   },
   right: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 28,
+    alignItems: 'flex-end',
+    gap: 16,
+    flexShrink: 1,
+    justifyContent: 'flex-end',
   },
-  tabItem: {
+  item: {
     alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: 2,
   },
-  tabText: {
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  iconWrap: {
+    width: 12,
+    height: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
     color: '#3C4947',
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '400',
     textAlign: 'center',
   },
-  tabTextActive: {
+  textActive: {
     color: colors.text,
     fontWeight: '600',
   },
@@ -144,21 +183,5 @@ const styles = StyleSheet.create({
   },
   indicatorActive: {
     backgroundColor: colors.primary,
-  },
-  sortText: {
-    color: '#3C4947',
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '400',
-    textAlign: 'center',
-  },
-  sortTextActive: {
-    color: colors.text,
-    fontWeight: '600',
-  },
-  priceWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
   },
 });

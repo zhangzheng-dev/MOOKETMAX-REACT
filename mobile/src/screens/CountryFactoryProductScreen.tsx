@@ -40,16 +40,22 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [originalText, setOriginalText] = useState<string | null>(null);
+  const handleViewOriginalText = useCallback((value: string) => setOriginalText(value), []);
   const [activeFilter, setActiveFilter] = useState<LocalFilterKey | null>(null);
 
   const [famousMerchant, setFamousMerchant] = useState(false);
   const [merchants, setMerchants] = useState<Set<string>>(new Set());
+  const [merchantKeyword, setMerchantKeyword] = useState('');
   const [regions, setRegions] = useState<Set<string>>(new Set());
   const [goodsTypes, setGoodsTypes] = useState<Set<string>>(new Set());
   const [feedingMethods, setFeedingMethods] = useState<Set<string>>(new Set());
   const [tags, setTags] = useState<Set<string>>(new Set());
   const [priceMinInput, setPriceMinInput] = useState('');
   const [priceMaxInput, setPriceMaxInput] = useState('');
+  const requestSortParam = useMemo(
+    () => sortToParam(sort),
+    [sort],
+  );
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -62,7 +68,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         productName,
         category,
         tab,
-        sortToParam(sort),
+        requestSortParam,
         1,
         pageSize,
       );
@@ -72,7 +78,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     } finally {
       setLoading(false);
     }
-  }, [category, country, factoryNo, productName, sort, tab]);
+  }, [category, country, factoryNo, productName, requestSortParam, tab]);
 
   useEffect(() => {
     loadFirst().catch(() => undefined);
@@ -90,7 +96,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         productName,
         category,
         tab,
-        sortToParam(sort),
+        requestSortParam,
         next,
         pageSize,
       );
@@ -108,13 +114,13 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [category, country, data, factoryNo, loading, loadingMore, page, productName, sort, tab]);
+  }, [category, country, data, factoryNo, loading, loadingMore, page, productName, requestSortParam, tab]);
 
   const filtered = useMemo(() => {
     const groups = data?.merchantOffers ?? [];
     const minPrice = parsePriceInput(priceMinInput);
     const maxPrice = parsePriceInput(priceMaxInput);
-    return groups
+    const next = groups
       .filter(group => {
         if (famousMerchant && !group.isFamousMerchant) return false;
         if (merchants.size > 0) {
@@ -148,6 +154,8 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         }),
       }))
       .filter(group => group.employeeOffers.length > 0);
+
+    return next;
   }, [
     data?.merchantOffers,
     famousMerchant,
@@ -209,6 +217,12 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     [data?.merchantOffers],
   );
 
+  const visibleMerchants = useMemo(() => {
+    const keyword = merchantKeyword.trim().toLowerCase();
+    if (!keyword) return allMerchants;
+    return allMerchants.filter(item => item.label.toLowerCase().includes(keyword));
+  }, [allMerchants, merchantKeyword]);
+
   const filterDefs = [
     {key: 'famousMerchant' as const, label: '知名商家', hasSelection: famousMerchant, toggle: true},
     {key: 'merchant' as const, label: '商家筛选', hasSelection: merchants.size > 0},
@@ -267,9 +281,10 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
             sections={[{key: 'items', data: filtered}]}
             keyExtractor={(item, index) => `${item.merchantId ?? item.merchantName ?? index}`}
             stickySectionHeadersEnabled
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={3}
+            removeClippedSubviews
             ListHeaderComponent={
               <View>
                 <CountryProductDashboard
@@ -311,7 +326,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
                 isInquiry={tab === 'inquiry'}
                 onCopyPhone={item.merchantPhone ?? undefined}
                 onDial={item.merchantPhone ?? undefined}
-                onViewOriginalText={value => setOriginalText(value)}
+                onViewOriginalText={handleViewOriginalText}
               />
             )}
             ItemSeparatorComponent={() => <View style={styles.itemDivider} />}
@@ -347,14 +362,36 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
                 <Text style={styles.substituteChar}>{'产'}</Text>
                 <Text style={styles.substituteChar}>{'品'}</Text>
               </View>
-              <Svg width={12} height={12} viewBox="0 0 12 12">
+              <Svg width={12} height={12} viewBox="0 0 12 12" fill="none">
                 <Path
-                  d="M4 3l3 3-3 3"
+                  d="M8.64014 5.22501L10.5001 3.36499L8.64014 1.505"
                   stroke="#FFFFFF"
-                  strokeWidth={1.4}
+                  strokeWidth={0.75}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  fill="none"
+                  opacity={0.4}
+                />
+                <Path
+                  d="M1.5 3.36499H10.5"
+                  stroke="#FFFFFF"
+                  strokeWidth={0.75}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={0.4}
+                />
+                <Path
+                  d="M3.35999 6.77502L1.5 8.63504L3.35999 10.495"
+                  stroke="#FFFFFF"
+                  strokeWidth={0.75}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <Path
+                  d="M10.5 8.63501H1.5"
+                  stroke="#FFFFFF"
+                  strokeWidth={0.75}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </Svg>
             </Pressable>
@@ -368,12 +405,25 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         onClose={() => setActiveFilter(null)}
         onReset={() => {
           setMerchants(new Set());
+          setMerchantKeyword('');
           setActiveFilter(null);
         }}
-        onConfirm={() => setActiveFilter(null)}>
+        onConfirm={() => {
+          setMerchantKeyword('');
+          setActiveFilter(null);
+        }}>
+        <View style={styles.searchWrap}>
+          <TextInput
+            value={merchantKeyword}
+            onChangeText={setMerchantKeyword}
+            placeholder="搜索商家名称"
+            placeholderTextColor="#9DA4A3"
+            style={styles.searchInput}
+          />
+        </View>
         <MultiSelectChips
-          options={allMerchants.map(m => m.label)}
-          selected={new Set(allMerchants.filter(m => merchants.has(m.key)).map(m => m.label))}
+          options={visibleMerchants.map(m => m.label)}
+          selected={new Set(visibleMerchants.filter(m => merchants.has(m.key)).map(m => m.label))}
           onToggle={label => {
             const found = allMerchants.find(m => m.label === label);
             if (!found) return;
@@ -565,6 +615,18 @@ function parsePriceValue(value?: string | number | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function groupPriceRange(group: MerchantOfferGroup) {
+  const prices = (group.employeeOffers ?? [])
+    .map(emp => parsePriceValue(emp.price))
+    .filter((value): value is number => value != null);
+
+  if (prices.length > 0) {
+    return normalizePriceRange(Math.min(...prices), Math.max(...prices));
+  }
+
+  return normalizePriceRange(null, null);
+}
+
 function formatPriceRangeHint(min?: number | null, max?: number | null) {
   if (min != null && max != null && min !== max) return `楼 ${min} - ${max} /kg`;
   if (min != null) return `楼 ${min} /kg`;
@@ -585,6 +647,17 @@ const styles = StyleSheet.create({
   empty: {textAlign: 'center', paddingVertical: 48, color: '#9DA4A3', fontSize: 14},
   placeholder: {color: '#9DA4A3', fontSize: 12, padding: 16, textAlign: 'center'},
   stickyHeader: {backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#DEE4E1', zIndex: 10, elevation: 3},
+  searchWrap: {marginBottom: 12},
+  searchInput: {
+    height: 40,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    color: colors.text,
+    fontSize: 14,
+    backgroundColor: '#FFFFFF',
+  },
   priceRangeRow: {flexDirection: 'row', alignItems: 'flex-end', gap: 12},
   priceField: {flex: 1, gap: 8},
   priceFieldLabel: {color: colors.textMuted, fontSize: 12, fontWeight: '600'},
@@ -606,8 +679,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     bottom: 80,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderTopRightRadius: 4,
@@ -618,12 +692,12 @@ const styles = StyleSheet.create({
   substituteText: {
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 0,
   },
   substituteChar: {
     color: '#FFFFFF',
     fontSize: 12,
     lineHeight: 14,
     fontWeight: '500',
+    textAlign: 'center',
   },
 });

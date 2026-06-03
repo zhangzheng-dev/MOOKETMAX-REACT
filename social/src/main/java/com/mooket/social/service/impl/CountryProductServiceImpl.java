@@ -91,15 +91,21 @@ public class CountryProductServiceImpl implements CountryProductService {
         // 排序
         if ("price_asc".equalsIgnoreCase(sortBy)) {
             factories.sort((a, b) -> {
-                BigDecimal aPrice = a.getPriceMin() != null ? a.getPriceMin() : BigDecimal.ZERO;
-                BigDecimal bPrice = b.getPriceMin() != null ? b.getPriceMin() : BigDecimal.ZERO;
-                return aPrice.compareTo(bPrice);
+                boolean aHas = a.getPriceMin() != null && a.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.getPriceMin() != null && b.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
+                return a.getPriceMin().compareTo(b.getPriceMin());
             });
         } else if ("price_desc".equalsIgnoreCase(sortBy)) {
             factories.sort((a, b) -> {
-                BigDecimal aPrice = a.getPriceMax() != null ? a.getPriceMax() : BigDecimal.ZERO;
-                BigDecimal bPrice = b.getPriceMax() != null ? b.getPriceMax() : BigDecimal.ZERO;
-                return bPrice.compareTo(aPrice);
+                boolean aHas = a.getPriceMax() != null && a.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.getPriceMax() != null && b.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
+                return b.getPriceMax().compareTo(a.getPriceMax());
             });
         }
         // else: 默认按报盘数降序已在SQL中处理

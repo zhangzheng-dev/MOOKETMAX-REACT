@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import Svg, {Path} from 'react-native-svg';
@@ -23,7 +23,7 @@ type Props = {
  * - 未展开：产品名 + 价格 + 横向标签（地区/标签）+ 右侧"展开"小箭头
  * - 展开：合并员工卡（带电话/微信操作）
  */
-export function OfferCardCompact({
+function OfferCardCompactInner({
   offer,
   expanded,
   onToggle,
@@ -113,6 +113,8 @@ export function OfferCardCompact({
     </View>
   );
 }
+
+export const OfferCardCompact = memo(OfferCardCompactInner);
 
 function EmployeeRow({
   offer,

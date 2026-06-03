@@ -48,6 +48,7 @@ export type SearchHistory = {
 export type HomeCardItem = {
   cardType?: string | null;
   isExample?: boolean;
+  exampleEntityKey?: string | null;
   rank?: number | null;
   todayOfferCount?: number | null;
   historyId?: number | null;

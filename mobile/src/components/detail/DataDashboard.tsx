@@ -117,7 +117,7 @@ function formatPrice(range?: {min?: number | null; max?: number | null}) {
       hasRange: true,
     };
   }
-  return {value: '暂无报价', unit: '', hasRange: false};
+  return {value: '协商报价', unit: '', hasRange: false};
 }
 
 function formatPriceNumber(value: number) {

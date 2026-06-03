@@ -194,19 +194,23 @@ private final BizOfferMapper offerMapper;
 
         // 对合并后的数据重新排序
         if ("price_asc".equals(sortBy)) {
-            // 升序：取每个产品近两日报盘价格区间的最小值，升序排列
+            // 升序：取每个产品近两日报盘价格区间的最小值，升序排列；协商报价放最后
             mergedSummaries.sort((a, b) -> {
-                if (a.getPriceMin() == null && b.getPriceMin() == null) return 0;
-                if (a.getPriceMin() == null) return 1;
-                if (b.getPriceMin() == null) return -1;
+                boolean aHas = a.getPriceMin() != null && a.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.getPriceMin() != null && b.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
                 return a.getPriceMin().compareTo(b.getPriceMin());
             });
         } else if ("price_desc".equals(sortBy)) {
-            // 降序：取每个产品近两日报盘价格区间的最大值，降序排列
+            // 降序：取每个产品近两日报盘价格区间的最大值，降序排列；协商报价放最后
             mergedSummaries.sort((a, b) -> {
-                if (a.getPriceMax() == null && b.getPriceMax() == null) return 0;
-                if (a.getPriceMax() == null) return 1;
-                if (b.getPriceMax() == null) return -1;
+                boolean aHas = a.getPriceMax() != null && a.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.getPriceMax() != null && b.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
                 return b.getPriceMax().compareTo(a.getPriceMax());
             });
         } else {
@@ -356,16 +360,20 @@ private final BizOfferMapper offerMapper;
 // 按排序
         if ("price_asc".equals(sortBy)) {
             summaries.sort((a, b) -> {
-                if (a.getPriceMin() == null && b.getPriceMin() == null) return 0;
-                if (a.getPriceMin() == null) return 1;
-                if (b.getPriceMin() == null) return -1;
+                boolean aHas = a.getPriceMin() != null && a.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.getPriceMin() != null && b.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
                 return a.getPriceMin().compareTo(b.getPriceMin());
             });
         } else if ("price_desc".equals(sortBy)) {
             summaries.sort((a, b) -> {
-                if (a.getPriceMax() == null && b.getPriceMax() == null) return 0;
-                if (a.getPriceMax() == null) return 1;
-                if (b.getPriceMax() == null) return -1;
+                boolean aHas = a.getPriceMax() != null && a.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = b.getPriceMax() != null && b.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
                 return b.getPriceMax().compareTo(a.getPriceMax());
             });
         } else {

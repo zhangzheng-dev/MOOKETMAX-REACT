@@ -49,10 +49,11 @@ public class MerchantController {
             @PathVariable("id") Long merchantId,
             @RequestParam(value = "type") String type,
             @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "sortBy", defaultValue = "comprehensive") String sortBy,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "pageSize", defaultValue = "10") int pageSize) {
         try {
-            MerchantProductPageDTO result = merchantService.getMerchantProducts(merchantId, category, type, page, pageSize);
+            MerchantProductPageDTO result = merchantService.getMerchantProducts(merchantId, category, type, page, pageSize, sortBy);
             return ApiResponse.success(result);
         } catch (Exception e) {
             return ApiResponse.error(e.getMessage());

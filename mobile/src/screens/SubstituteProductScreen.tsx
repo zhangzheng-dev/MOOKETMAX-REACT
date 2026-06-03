@@ -52,6 +52,10 @@ export function SubstituteProductScreen({navigation, route}: Props) {
   const [goodsTypes, setGoodsTypes] = useState<Set<string>>(new Set());
   const [feedingMethods, setFeedingMethods] = useState<Set<string>>(new Set());
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
+  const requestSortParam = useMemo(
+    () => sortToParam(sort),
+    [sort],
+  );
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -66,7 +70,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
           productName,
           category,
           tab,
-          sortToParam(sort),
+          requestSortParam,
           1,
           pageSize,
         ),
@@ -78,7 +82,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
     } finally {
       setLoading(false);
     }
-  }, [category, country, factoryNo, productName, selectedFactory, sort, tab]);
+  }, [category, country, factoryNo, productName, requestSortParam, selectedFactory, tab]);
 
   useEffect(() => {
     loadFirst().catch(() => undefined);
@@ -96,7 +100,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
         productName,
         category,
         tab,
-        sortToParam(sort),
+        requestSortParam,
         next,
         pageSize,
       );
@@ -114,7 +118,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [category, country, detail, loading, loadingMore, page, productName, selectedFactory, sort, tab]);
+  }, [category, country, detail, loading, loadingMore, page, productName, requestSortParam, selectedFactory, tab]);
 
   const factoryOptions: SubstituteFactory[] = overview
     ? [
@@ -133,7 +137,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
   // 筛选 merchantOffers
   const filtered = useMemo(() => {
     const groups = detail?.merchantOffers ?? [];
-    return groups
+    const next = groups
       .filter(group => {
         if (famousOnly && !group.isFamousMerchant) return false;
         return true;
@@ -159,6 +163,8 @@ export function SubstituteProductScreen({navigation, route}: Props) {
         }),
       }))
       .filter(group => group.employeeOffers.length > 0);
+
+    return next;
   }, [detail?.merchantOffers, famousOnly, feedingMethods, goodsTypes, regions, tagFilters]);
 
   const allRegions = useMemo(
@@ -225,17 +231,22 @@ export function SubstituteProductScreen({navigation, route}: Props) {
               <View>
                 <SubstituteHeaderCard
                   country={country}
-                  factoryNo={factoryNo}
+                  factoryNo={selectedFactory}
                   productName={productName}
                   priceMin={detail?.priceMin}
                   priceMax={detail?.priceMax}
                   onCompare={() =>
                     navigation.navigate('DataComparison', {
                       country,
-                      factoryNos: [factoryNo, ...overview.factories.map(item => item.factoryNo)],
+                      factoryNos: [
+                        selectedFactory,
+                        ...overview.factories
+                          .map(item => item.factoryNo)
+                          .filter(item => item !== selectedFactory),
+                      ],
                       productName,
                       category,
-                      excludeFactoryNo: factoryNo,
+                      excludeFactoryNo: selectedFactory,
                     })
                   }
                 />
@@ -415,7 +426,7 @@ function SubstituteHeaderCard({
         </View>
         <Text style={cardStyles.subtitle}>
           近2日报盘价格区间：<Text style={cardStyles.subtitlePrice}>{priceText}</Text>
-          {priceText !== '暂无报价' ? <Text style={cardStyles.subtitleUnit}>/kg</Text> : null}
+          {priceText !== '协商报价' ? <Text style={cardStyles.subtitleUnit}>/kg</Text> : null}
         </Text>
       </View>
       <Pressable onPress={onCompare} style={cardStyles.compareButton}>
@@ -472,7 +483,7 @@ function FactorySelector({
                 {item.factoryNo}
               </Text>
               <Text style={[selectorStyles.priceText, active && selectorStyles.priceTextActive]} numberOfLines={1}>
-                {priceText}{priceText !== '暂无报价' ? '/kg' : ''}
+                {priceText}{priceText !== '协商报价' ? '/kg' : ''}
               </Text>
               {active ? (
                 <View style={selectorStyles.arrowWrap}>
@@ -509,6 +520,27 @@ function mergeMerchantOffers(prev: MerchantOfferGroup[], incoming: MerchantOffer
   return Array.from(map.values());
 }
 
+function groupPriceRange(group: MerchantOfferGroup) {
+  const prices = (group.employeeOffers ?? [])
+    .map(emp => parseEmployeePrice(emp.price))
+    .filter((value): value is number => value != null);
+
+  if (prices.length > 0) {
+    return normalizePriceRange(Math.min(...prices), Math.max(...prices));
+  }
+
+  return normalizePriceRange(null, null);
+}
+
+function parseEmployeePrice(value?: string | number | null) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value !== 'string') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function sortToParam(sort: MerchantSortMode): string {
   if (sort.kind === 'comprehensive') return 'comprehensive';
   if (sort.kind === 'publish_time') return 'publish_time';
@@ -521,7 +553,7 @@ function formatPriceText(min?: number | null, max?: number | null): string {
     return `¥${num(min)}-${num(max)}`;
   }
   if (min != null && min > 0) return `¥${num(min)}`;
-  return '暂无报价';
+  return '协商报价';
 }
 
 function num(value: number) {

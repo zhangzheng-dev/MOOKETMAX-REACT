@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ActivityIndicator, SectionList, RefreshControl, StyleSheet, Text, View} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
@@ -24,6 +24,11 @@ export function CountryScreen({navigation, route}: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestSortParam = useMemo(
+    () => sortToParam(sort),
+    [sort],
+  );
+  const summaries = data?.summaries ?? [];
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -34,7 +39,7 @@ export function CountryScreen({navigation, route}: Props) {
         country,
         category,
         tab,
-        sortToParam(sort),
+        requestSortParam,
         1,
         pageSize,
       );
@@ -44,7 +49,7 @@ export function CountryScreen({navigation, route}: Props) {
     } finally {
       setLoading(false);
     }
-  }, [category, country, sort, tab]);
+  }, [category, country, requestSortParam, tab]);
 
   useEffect(() => {
     loadFirst().catch(() => undefined);
@@ -60,7 +65,7 @@ export function CountryScreen({navigation, route}: Props) {
         country,
         category,
         tab,
-        sortToParam(sort),
+        requestSortParam,
         next,
         pageSize,
       );
@@ -73,7 +78,7 @@ export function CountryScreen({navigation, route}: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [category, country, data, loading, loadingMore, page, sort, tab]);
+  }, [category, country, data, loading, loadingMore, page, requestSortParam, tab]);
 
   return (
     <View style={styles.container}>
@@ -97,12 +102,13 @@ export function CountryScreen({navigation, route}: Props) {
         <ErrorState message={error} onRetry={loadFirst} />
       ) : data ? (
         <SectionList
-          sections={[{key: 'items', data: data.summaries}]}
+          sections={[{key: 'items', data: summaries}]}
           keyExtractor={(item, index) => `${item.productId}-${index}`}
           stickySectionHeadersEnabled
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={3}
+            removeClippedSubviews
           ListHeaderComponent={
             <View>
               <CountryDashboard

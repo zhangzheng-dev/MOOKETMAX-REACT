@@ -1,5 +1,10 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import {sortArrowsAsc, sortArrowsDefault, sortArrowsDesc} from './productIcons';
@@ -16,14 +21,16 @@ type Props = {
   onTabChange: (next: OfferTab) => void;
   sort: MerchantSortMode;
   onSortChange: (next: MerchantSortMode) => void;
-  /** 是否隐藏求购 tab（平替页用） */
   hideInquiry?: boolean;
 };
 
-/**
- * 商家详情页 Tab + 排序条（与 Figma 1421:5099 对齐）
- */
-export function MerchantSortBar({tab, onTabChange, sort, onSortChange, hideInquiry = false}: Props) {
+export function MerchantSortBar({
+  tab,
+  onTabChange,
+  sort,
+  onSortChange,
+  hideInquiry = false,
+}: Props) {
   const priceOrder = sort.kind === 'price' ? sort.order : 'none';
 
   function togglePrice() {
@@ -31,12 +38,17 @@ export function MerchantSortBar({tab, onTabChange, sort, onSortChange, hideInqui
       onSortChange({kind: 'price', order: 'asc'});
       return;
     }
-    const next: SortOrder = sort.order === 'asc' ? 'desc' : sort.order === 'desc' ? 'none' : 'asc';
+    const next: SortOrder =
+      sort.order === 'asc' ? 'desc' : sort.order === 'desc' ? 'none' : 'asc';
     onSortChange(next === 'none' ? {kind: 'comprehensive'} : {kind: 'price', order: next});
   }
 
   const arrowsXml =
-    priceOrder === 'asc' ? sortArrowsAsc() : priceOrder === 'desc' ? sortArrowsDesc() : sortArrowsDefault();
+    priceOrder === 'asc'
+      ? sortArrowsAsc()
+      : priceOrder === 'desc'
+        ? sortArrowsDesc()
+        : sortArrowsDefault();
 
   return (
     <View style={styles.bar}>
@@ -65,7 +77,9 @@ export function MerchantSortBar({tab, onTabChange, sort, onSortChange, hideInqui
             ]}>
             价格
           </Text>
-          <SvgXml xml={arrowsXml} width={6} height={12} />
+          <View style={styles.iconWrap}>
+            <SvgXml xml={arrowsXml} width={6} height={12} />
+          </View>
         </Pressable>
       </View>
     </View>
@@ -103,4 +117,5 @@ const styles = StyleSheet.create({
   sortText: {color: '#3C4947', fontSize: 14, lineHeight: 20, textAlign: 'center'},
   sortTextActive: {color: colors.text, fontWeight: '600'},
   priceWrap: {flexDirection: 'row', alignItems: 'center', gap: 3},
+  iconWrap: {width: 12, height: 12, alignItems: 'center', justifyContent: 'center'},
 });

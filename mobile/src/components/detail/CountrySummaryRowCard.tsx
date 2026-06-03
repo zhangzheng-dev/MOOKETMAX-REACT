@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import {SvgXml} from 'react-native-svg';
@@ -17,7 +17,7 @@ type Props = {
   onPress?: () => void;
 };
 
-export function CountrySummaryRowCard({
+function CountrySummaryRowCardInner({
   title,
   factoryNos,
   factoryCount,
@@ -104,6 +104,8 @@ export function CountrySummaryRowCard({
   );
 }
 
+export const CountrySummaryRowCard = memo(CountrySummaryRowCardInner);
+
 function FactoryIcon() {
   return (
     <Svg width={12} height={12} viewBox="0 0 12 12" fill="none">
@@ -144,7 +146,7 @@ function formatPrice(min?: number | null, max?: number | null) {
     return {value: `¥ ${num(min)} - ${num(max)}`, unit: '/kg', hasRange: true};
   }
   if (min != null && min > 0) return {value: `¥ ${num(min)}`, unit: '/kg', hasRange: true};
-  return {value: '暂无报价', unit: '', hasRange: false};
+  return {value: '协商报价', unit: '', hasRange: false};
 }
 
 function num(value: number) {

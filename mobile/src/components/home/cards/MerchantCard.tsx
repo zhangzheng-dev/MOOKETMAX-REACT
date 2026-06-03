@@ -40,7 +40,7 @@ export function MerchantCard({card, onPress}: Props) {
               <View style={styles.offerInfo}>
                 <View style={styles.priceLine}>
                   <Text style={styles.priceValue}>
-                    {offer.price != null ? `${asText(offer.price)}` : '--'}
+                    {asText(offer.price) ? `¥${asText(offer.price)}` : '--'}
                   </Text>
                   <Text style={styles.priceUnit}>/kg </Text>
                 </View>

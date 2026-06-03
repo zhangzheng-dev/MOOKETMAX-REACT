@@ -72,14 +72,67 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     @Override
-    @Cacheable(value = "merchantProducts", key = "#merchantId + '_' + #category + '_' + #offerType + '_' + #page + '_' + #pageSize")
-    public MerchantProductPageDTO getMerchantProducts(Long merchantId, String category, String offerType, int page, int pageSize) {
+    @Cacheable(value = "merchantProducts", key = "#merchantId + '_' + #category + '_' + #offerType + '_' + #page + '_' + #pageSize + '_' + #sortBy")
+    public MerchantProductPageDTO getMerchantProducts(Long merchantId, String category, String offerType, int page, int pageSize, String sortBy) {
         DictMerchant merchant = merchantMapper.selectById(merchantId);
         if (merchant == null) {
             throw new RuntimeException("商家不存在");
         }
 
         String dbOfferType = "offer".equalsIgnoreCase(offerType) ? "报盘" : "求购";
+
+        // 价格排序需要全量获取再排序分页
+        boolean isPriceSort = "price_asc".equals(sortBy) || "price_desc".equals(sortBy);
+        
+        if (isPriceSort) {
+            // 全量获取，内存排序后分页
+            int totalCount = offerMapper.countMerchantOfferAgg(merchantId, category, dbOfferType);
+            int totalPages = (int) Math.ceil((double) totalCount / pageSize);
+            
+            List<BizOfferMapper.MerchantOfferAgg> allAgg = offerMapper.selectMerchantOfferAgg(
+                    merchantId, category, dbOfferType, totalCount, 0);
+            
+            List<OfferSummaryDTO> allSummaries = buildOfferSummaries(merchantId, category, dbOfferType, allAgg);
+            
+            // 排序：协商报价（无价格）放最后
+            if ("price_asc".equals(sortBy)) {
+                allSummaries.sort((a, b) -> {
+                    boolean aHas = a.getPrice() != null && a.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0;
+                    boolean bHas = b.getPrice() != null && b.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0;
+                    if (!aHas && !bHas) return 0;
+                    if (!aHas) return 1;
+                    if (!bHas) return -1;
+                    return a.getPrice().compareTo(b.getPrice());
+                });
+            } else {
+                allSummaries.sort((a, b) -> {
+                    boolean aHas = a.getPriceMax() != null && a.getPriceMax().compareTo(java.math.BigDecimal.ZERO) > 0;
+                    boolean bHas = b.getPriceMax() != null && b.getPriceMax().compareTo(java.math.BigDecimal.ZERO) > 0;
+                    if (!aHas && !bHas) return 0;
+                    if (!aHas) return 1;
+                    if (!bHas) return -1;
+                    return b.getPriceMax().compareTo(a.getPriceMax());
+                });
+            }
+            
+            // 内存分页
+            int offset = (page - 1) * pageSize;
+            int endIdx = Math.min(offset + pageSize, allSummaries.size());
+            List<OfferSummaryDTO> pagedSummaries = offset < allSummaries.size()
+                    ? allSummaries.subList(offset, endIdx)
+                    : Collections.emptyList();
+            
+            MerchantProductPageDTO result = new MerchantProductPageDTO();
+            result.setProducts(pagedSummaries);
+            result.setTotalCount(totalCount);
+            result.setPage(page);
+            result.setPageSize(pageSize);
+            result.setTotalPages(totalPages);
+            result.setOfferType(offerType);
+            return result;
+        }
+
+        // 非价格排序：正常分页查询
         int totalCount = offerMapper.countMerchantOfferAgg(merchantId, category, dbOfferType);
         int totalPages = (int) Math.ceil((double) totalCount / pageSize);
         int offset = (page - 1) * pageSize;

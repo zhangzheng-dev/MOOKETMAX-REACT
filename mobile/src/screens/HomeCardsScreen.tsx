@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import Svg, {Path} from 'react-native-svg';
+import {SvgXml} from 'react-native-svg';
 import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -17,15 +18,17 @@ import {mooketApi} from '../api/mooketApi';
 import {ChevronDownIcon, ClockIcon, StarIcon} from '../components/common/AppIcons';
 import {HomeCardSwitcher} from '../components/home/cards';
 import {DEFAULT_CATEGORY} from '../config/env';
-import {getHomeExampleCards} from '../mocks/homeExampleCards';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {HomeCardItem, HomeCardsResponse} from '../types/api';
+import {buildHomeCardSearchHistoryPayload, buildHomeFallbackExampleCards, getHomeCardEntityKey} from '../utils/homeFallbackCards';
 import {openHomeCard} from '../utils/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HomeCards'>;
 
 const categories = ['牛', '猪', '羊', '禽', '水产'];
+const archiveAddIconXml = `<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.51562 6.98914H6.23438" stroke="#171D1C" stroke-width="1.125" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.875 5.38782V8.66907" stroke="#171D1C" stroke-width="1.125" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.0382 1.3125H4.71196C3.31415 1.3125 2.17883 2.45438 2.17883 3.84563V13.0922C2.17883 14.2734 3.0254 14.7722 4.06227 14.2012L7.26477 12.4228C7.60602 12.2325 8.15727 12.2325 8.49196 12.4228L11.6945 14.2012C12.7313 14.7787 13.5779 14.28 13.5779 13.0922V3.84563C13.5713 2.45438 12.436 1.3125 11.0382 1.3125Z" stroke="#171D1C" stroke-width="1.125" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const archiveDelIconPath = "M12.6152 1.5C14.2125 1.50013 15.5098 2.80482 15.5176 4.39453V14.9629C15.5174 16.32 14.5499 16.8901 13.3652 16.2305L9.70508 14.1973C9.32267 13.9798 8.69274 13.9799 8.30273 14.1973L4.64258 16.2305C3.45775 16.8828 2.49042 16.3126 2.49023 14.9629V4.39453C2.49049 2.80482 3.78753 1.50012 5.38477 1.5H12.6152ZM7.125 7.4248C6.81756 7.4248 6.5626 7.67989 6.5625 7.9873C6.5625 8.2948 6.8175 8.5498 7.125 8.5498H10.875C11.1825 8.5498 11.4375 8.2948 11.4375 7.9873C11.4374 7.67989 11.1824 7.4248 10.875 7.4248H7.125Z";
 
 export function HomeCardsScreen({navigation, route}: Props) {
   const insets = useSafeAreaInsets();
@@ -35,6 +38,8 @@ export function HomeCardsScreen({navigation, route}: Props) {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dismissedExampleKeys, setDismissedExampleKeys] = useState<Set<string>>(new Set());
+  const [promotedExampleKeys, setPromotedExampleKeys] = useState<Set<string>>(new Set());
   const autoTabSwitchReadyRef = useRef(true);
 
   const loadFn = useCallback(async (cat: string, t: 0 | 1): Promise<HomeCardsResponse> => {
@@ -51,7 +56,9 @@ export function HomeCardsScreen({navigation, route}: Props) {
         setTab(1);
       }
       return {
-        cards: recentCards.length > 0 ? recentCards : getHomeExampleCards(),
+        cards: recentCards.length > 0
+          ? recentCards
+          : buildHomeFallbackExampleCards((await mooketApi.getHomeCards(cat, 0)).cards ?? [], promotedExampleKeys, dismissedExampleKeys),
         updateTime: recentData.updateTime ?? null,
       };
     }
@@ -59,10 +66,19 @@ export function HomeCardsScreen({navigation, route}: Props) {
     autoTabSwitchReadyRef.current = false;
 
     return {
-      cards: t === 0 ? selfSelectCards : (recentCards.length > 0 ? recentCards : (selfSelectCards.length === 0 ? getHomeExampleCards() : [])),
+      cards:
+        t === 0
+          ? selfSelectCards
+          : recentCards.length > 0
+            ? recentCards
+            : buildHomeFallbackExampleCards(
+                (await mooketApi.getHomeCards(cat, 0)).cards ?? [],
+                promotedExampleKeys,
+                dismissedExampleKeys,
+              ),
       updateTime: (t === 0 ? selfSelectData.updateTime : recentData.updateTime) ?? null,
     };
-  }, []);
+  }, [dismissedExampleKeys, promotedExampleKeys]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,6 +90,16 @@ export function HomeCardsScreen({navigation, route}: Props) {
     }
   }, [category, loadFn, tab]);
 
+  const handleEditToggle = useCallback(() => {
+    setEditMode(prev => {
+      const next = !prev;
+      if (prev && !next) {
+        load().catch(() => undefined);
+      }
+      return next;
+    });
+  }, [load]);
+
   useFocusEffect(
     useCallback(() => {
       load().catch(() => undefined);
@@ -84,6 +110,8 @@ export function HomeCardsScreen({navigation, route}: Props) {
     setCategory(value);
     setMenuOpen(false);
     setEditMode(false);
+    setDismissedExampleKeys(new Set());
+    setPromotedExampleKeys(new Set());
     autoTabSwitchReadyRef.current = true;
   }
 
@@ -126,6 +154,37 @@ export function HomeCardsScreen({navigation, route}: Props) {
     }
   }
 
+  async function addExampleCardToSelfSelect(card: HomeCardItem) {
+    const payload = buildHomeCardSearchHistoryPayload(card);
+    const entityKey = card.exampleEntityKey ?? getHomeCardEntityKey(card);
+    if (!payload || !entityKey) return;
+
+    try {
+      await mooketApi.saveSearchHistory({...payload, isSelfSelect: 1});
+      setPromotedExampleKeys(prev => {
+        const next = new Set(prev);
+        next.add(entityKey);
+        return next;
+      });
+      setCards(prev =>
+        prev.filter(item => (item.exampleEntityKey ?? getHomeCardEntityKey(item)) !== entityKey),
+      );
+    } catch (error) {
+      Alert.alert('添加失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }
+
+  function dismissExampleCard(card: HomeCardItem) {
+    const entityKey = card.exampleEntityKey ?? getHomeCardEntityKey(card);
+    if (!entityKey) return;
+    setDismissedExampleKeys(prev => {
+      const next = new Set(prev);
+      next.add(entityKey);
+      return next;
+    });
+    setCards(prev => prev.filter(item => (item.exampleEntityKey ?? getHomeCardEntityKey(item)) !== entityKey));
+  }
+
   const {leftColumn, rightColumn} = useMemo(() => splitColumns(cards), [cards]);
 
   return (
@@ -142,7 +201,7 @@ export function HomeCardsScreen({navigation, route}: Props) {
             <Text style={styles.categoryTriggerText}>{category}</Text>
             <ChevronDownIcon size={14} />
           </Pressable>
-          <Pressable hitSlop={8} onPress={() => setEditMode(prev => !prev)}>
+          <Pressable hitSlop={8} onPress={handleEditToggle}>
             <Text style={[styles.editText, editMode && styles.editTextActive]}>
               {editMode ? '完成' : '编辑'}
             </Text>
@@ -199,9 +258,9 @@ export function HomeCardsScreen({navigation, route}: Props) {
                   category={category}
                   tab={tab}
                   editMode={editMode}
-                  onPress={card.isExample ? undefined : () => openHomeCard(navigation, category, card)}
-                  onDelete={() => confirmDelete(card.historyId, deleteHistory)}
-                  onMoveToSelfSelect={() => confirmMoveToSelfSelect(card.historyId, moveToSelfSelect)}
+                  onPress={() => openHomeCard(navigation, category, card)}
+                  onDelete={() => (card.isExample ? confirmDeleteExample(card, dismissExampleCard) : confirmDelete(card.historyId, deleteHistory))}
+                  onMoveToSelfSelect={() => (card.isExample ? confirmMoveExampleToSelfSelect(card, addExampleCardToSelfSelect) : confirmMoveToSelfSelect(card.historyId, moveToSelfSelect))}
                   onCancelSelfSelect={() => confirmCancelSelfSelect(card.historyId, cancelSelfSelect)}
                 />
               ))}
@@ -214,9 +273,9 @@ export function HomeCardsScreen({navigation, route}: Props) {
                   category={category}
                   tab={tab}
                   editMode={editMode}
-                  onPress={card.isExample ? undefined : () => openHomeCard(navigation, category, card)}
-                  onDelete={() => confirmDelete(card.historyId, deleteHistory)}
-                  onMoveToSelfSelect={() => confirmMoveToSelfSelect(card.historyId, moveToSelfSelect)}
+                  onPress={() => openHomeCard(navigation, category, card)}
+                  onDelete={() => (card.isExample ? confirmDeleteExample(card, dismissExampleCard) : confirmDelete(card.historyId, deleteHistory))}
+                  onMoveToSelfSelect={() => (card.isExample ? confirmMoveExampleToSelfSelect(card, addExampleCardToSelfSelect) : confirmMoveToSelfSelect(card.historyId, moveToSelfSelect))}
                   onCancelSelfSelect={() => confirmCancelSelfSelect(card.historyId, cancelSelfSelect)}
                 />
               ))}
@@ -249,28 +308,32 @@ function CardWithActions({
   return (
     <View style={styles.cardWrap}>
       <HomeCardSwitcher card={card} onPress={onPress} />
-      {card.isExample ? (
+      {card.isExample && !editMode ? (
         <View style={styles.exampleBadge}>
           <Text style={styles.exampleBadgeText}>例</Text>
         </View>
       ) : null}
-      {editMode && !card.isExample ? (
-        <View style={styles.actions}>
+      {editMode && (card.historyId || (tab === 1 && card.isExample)) ? (
+        <>
           {tab === 0 ? (
-            <Pressable style={styles.actionButton} onPress={onCancelSelfSelect}>
-              <Text style={styles.actionText}>移出自选</Text>
+            <Pressable hitSlop={4} onPress={onCancelSelfSelect} style={styles.editIconSingle}>
+              <Svg width={16} height={16} viewBox="0 0 18 18" fill="none">
+                <Path d={archiveDelIconPath} fill="#006A61" />
+              </Svg>
             </Pressable>
           ) : (
-            <>
-              <Pressable style={styles.actionButton} onPress={onMoveToSelfSelect}>
-                <Text style={styles.actionText}>添加自选</Text>
+            <View style={styles.editIconColumn}>
+              <Pressable hitSlop={4} onPress={onMoveToSelfSelect} style={styles.editIconAdd}>
+                <SvgXml xml={archiveAddIconXml} width={16} height={16} />
               </Pressable>
-              <Pressable style={[styles.actionButton, styles.actionDanger]} onPress={onDelete}>
-                <Text style={[styles.actionText, styles.actionDangerText]}>删除</Text>
+              <Pressable hitSlop={4} onPress={onDelete} style={styles.editIconDel}>
+                <Svg width={16} height={16} viewBox="0 0 18 18" fill="none">
+                  <Path d={archiveDelIconPath} fill="#006A61" />
+                </Svg>
               </Pressable>
-            </>
+            </View>
           )}
-        </View>
+        </>
       ) : null}
     </View>
   );
@@ -316,11 +379,28 @@ function confirmDelete(historyId: number | null | undefined, onConfirm: (id: num
   ]);
 }
 
+function confirmDeleteExample(card: HomeCardItem, onConfirm: (card: HomeCardItem) => void) {
+  Alert.alert('删除示例', '确定删除这张示例卡片吗？', [
+    {text: '取消', style: 'cancel'},
+    {text: '删除', style: 'destructive', onPress: () => onConfirm(card)},
+  ]);
+}
+
 function confirmMoveToSelfSelect(historyId: number | null | undefined, onConfirm: (id: number) => void | Promise<void>) {
   if (!historyId) return;
   Alert.alert('添加自选', '确定把这张卡片加入自选吗？', [
     {text: '取消', style: 'cancel'},
     {text: '确定', onPress: () => onConfirm(historyId)},
+  ]);
+}
+
+function confirmMoveExampleToSelfSelect(
+  card: HomeCardItem,
+  onConfirm: (card: HomeCardItem) => void | Promise<void>,
+) {
+  Alert.alert('添加自选', '确定把这张卡片加入自选吗？', [
+    {text: '取消', style: 'cancel'},
+    {text: '确定', onPress: () => onConfirm(card)},
   ]);
 }
 
@@ -402,20 +482,45 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   exampleBadgeText: {color: '#FFFFFF', fontSize: 9, fontWeight: '700'},
-  actions: {flexDirection: 'row', gap: 8, justifyContent: 'flex-end'},
-  actionButton: {
-    height: 26,
-    paddingHorizontal: 10,
-    borderRadius: 4,
+  editIconColumn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  editIconAdd: {
+    width: 28,
+    height: 28,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.04)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF5F3',
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  actionDanger: {backgroundColor: '#FFF4F2', borderColor: '#F3C8BF'},
-  actionText: {color: colors.primary, fontSize: 11, fontWeight: '700'},
-  actionDangerText: {color: colors.danger},
+  editIconDel: {
+    width: 28,
+    height: 28,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: 'rgba(0,106,97,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  editIconSingle: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
   loading: {marginTop: 32},
   empty: {marginTop: 48, textAlign: 'center', color: '#9DA4A3', fontSize: 14},
 });

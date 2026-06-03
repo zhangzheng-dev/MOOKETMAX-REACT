@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {memo, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
@@ -23,7 +23,7 @@ type Props = {
  * - 折叠态：商家名 + 知名标签 + 价格区间 + 标签 chips + 右侧箭头（点击展开）
  * - 展开态：员工报盘列表
  */
-export function MerchantOfferGroupCard({group, isInquiry, onCopyPhone, onDial, onViewOriginalText, defaultExpanded}: Props) {
+function MerchantOfferGroupCardInner({group, isInquiry, onCopyPhone, onDial, onViewOriginalText, defaultExpanded}: Props) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const merchantName = group.merchantName || `商家-${group.merchantId ?? ''}`;
 
@@ -109,6 +109,8 @@ export function MerchantOfferGroupCard({group, isInquiry, onCopyPhone, onDial, o
     </View>
   );
 }
+
+export const MerchantOfferGroupCard = memo(MerchantOfferGroupCardInner);
 
 function FamousCrown() {
   // 黄色皇冠

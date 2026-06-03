@@ -157,19 +157,27 @@ public class SubstituteProductServiceImpl implements SubstituteProductService {
 
         List<MerchantOfferGroup> merchantGroups = groupOffersByMerchant(offers);
 
-        // 内存排序
+        // 内存排序；协商报价（价格为0）放最后
         if ("price_asc".equals(sortBy)) {
-            // 升序：取每个产品近两日报盘价格区间的最小值，升序排列
             merchantGroups.sort((a, b) -> {
                 BigDecimal priceA = getMinPrice(a.getEmployeeOffers());
                 BigDecimal priceB = getMinPrice(b.getEmployeeOffers());
+                boolean aHas = priceA.compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = priceB.compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
                 return priceA.compareTo(priceB);
             });
         } else if ("price_desc".equals(sortBy)) {
-            // 降序：取每个产品近两日报盘价格区间的最大值，降序排列
             merchantGroups.sort((a, b) -> {
                 BigDecimal priceA = getMaxPrice(a.getEmployeeOffers());
                 BigDecimal priceB = getMaxPrice(b.getEmployeeOffers());
+                boolean aHas = priceA.compareTo(BigDecimal.ZERO) > 0;
+                boolean bHas = priceB.compareTo(BigDecimal.ZERO) > 0;
+                if (!aHas && !bHas) return 0;
+                if (!aHas) return 1;
+                if (!bHas) return -1;
                 return priceB.compareTo(priceA);
             });
         } else if ("publish_time".equals(sortBy)) {
