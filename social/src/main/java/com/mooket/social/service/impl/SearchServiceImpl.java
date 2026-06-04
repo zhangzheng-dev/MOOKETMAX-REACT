@@ -134,6 +134,9 @@ public class SearchServiceImpl implements SearchService {
         }
 
         // 按优先级排序
+        if (suggestions.isEmpty()) {
+            suggestions.addAll(generateCountryProductAliasFallbackSuggestions(category, keyword, normalizedKeyword, parsed));
+        }
         suggestions.sort(Comparator.comparingInt(SearchSuggestDTO::getPriority));
 
         return suggestions;
@@ -298,12 +301,18 @@ public class SearchServiceImpl implements SearchService {
                         String fNoNorm = f.getFactoryNo().replace(" ", "").toLowerCase();
                         String fPureNum = extractPureNumber(f.getFactoryNo());
                         String keywordLower = keyword.toLowerCase();
+                        String keywordPure = extractPureNumber(keyword);
                         int matchLen = keywordLower.contains(fNoNorm) ? fNoNorm.length() :
                                       (fPureNum != null && keyword.contains(fPureNum) ? fPureNum.length() : 0);
+                        if (matchLen == 0 && fPureNum != null && keywordPure != null && fPureNum.contains(keywordPure)) {
+                            matchLen = keywordPure.length();
+                        }
                         if (matchLen > countryMatchLen) {
                             countryMatchLen = matchLen;
                             countryFactoryNo = f.getFactoryNo();
-                            countryFactoryInput = keywordLower.contains(fNoNorm) ? f.getFactoryNo() : fPureNum;
+                            countryFactoryInput = keywordLower.contains(fNoNorm)
+                                ? f.getFactoryNo()
+                                : (keywordPure != null ? keywordPure : fPureNum);
                         }
                     }
                 }
@@ -414,6 +423,30 @@ public class SearchServiceImpl implements SearchService {
             }
 
             // 如果别名没匹配，检查产品名
+            if (matchedAlias == null && hasCountryContext && product.getAliasList() != null && !product.getAliasList().isEmpty()) {
+                    String[] aliases = product.getAliasList().split("[,，、]");
+                for (String alias : aliases) {
+                    String aliasNoSpace = alias.replace(" ", "");
+                    if (keywordForMatch.equals(aliasNoSpace)) {
+                        matchedAlias = alias.trim();
+                        currentMatchLength = aliasNoSpace.length() + 1200;
+                        break;
+                    }
+                }
+                if (matchedAlias == null) {
+                    for (String alias : aliases) {
+                        String aliasNoSpace = alias.replace(" ", "");
+                        if (keywordForMatch.contains(aliasNoSpace) ||
+                            aliasNoSpace.startsWith(keywordForMatch) ||
+                            (keywordForMatch.length() <= aliasNoSpace.length() && aliasNoSpace.contains(keywordForMatch))) {
+                            matchedAlias = alias.trim();
+                            currentMatchLength = aliasNoSpace.length() + 800;
+                            break;
+                        }
+                    }
+                }
+            }
+
             if (matchedAlias == null) {
                 // 产品名精确匹配（关键词包含产品名，且长度相等）
                 if (keywordForMatch.equals(productNameNoSpace)) {
@@ -724,6 +757,9 @@ public class SearchServiceImpl implements SearchService {
         }
         if (pureNumber != null && keyword.contains(pureNumber.toLowerCase())) {
             return pureNumber.length();
+        }
+        if (pureNumber != null && keywordPure != null && pureNumber.contains(keywordPure)) {
+            return keywordPure.length();
         }
         String normalized = factoryNo.replace(" ", "").toLowerCase();
         if (keyword.contains(normalized)) {
@@ -1141,6 +1177,104 @@ public class SearchServiceImpl implements SearchService {
     /**
      * 构建厂号+产品的显示文本（处理别名显示）
      */
+    private List<SearchSuggestDTO> generateCountryProductAliasFallbackSuggestions(String category,
+                                                                                  String keyword,
+                                                                                  String normalizedKeyword,
+                                                                                  ParsedEntities parsed) {
+        List<SearchSuggestDTO> suggestions = new ArrayList<>();
+        if (parsed.hasFactory()) {
+            return suggestions;
+        }
+
+        String country = parsed.country;
+        String remaining = parsed.remainingKeywordAfterCountry != null
+                ? parsed.remainingKeywordAfterCountry.replace(" ", "")
+                : "";
+
+        if (country == null || remaining.isBlank()) {
+            for (DictFactory factory : factoryMapper.selectByCategory(category)) {
+                String factoryCountry = factory.getCountry();
+                if (factoryCountry == null || factoryCountry.isBlank()) {
+                    continue;
+                }
+                String normalizedCountry = factoryCountry.replace(" ", "");
+                if (normalizedKeyword.startsWith(normalizedCountry)) {
+                    country = factoryCountry;
+                    remaining = normalizedKeyword.substring(normalizedCountry.length());
+                    break;
+                }
+                for (String alias : splitAliases(factory.getCountryAlias())) {
+                    String normalizedAlias = alias.replace(" ", "");
+                    if (!normalizedAlias.isEmpty() && normalizedKeyword.startsWith(normalizedAlias)) {
+                        country = factoryCountry;
+                        remaining = normalizedKeyword.substring(normalizedAlias.length());
+                        break;
+                    }
+                }
+                if (country != null && !remaining.isBlank()) {
+                    break;
+                }
+            }
+        }
+
+        if (country == null || remaining.isBlank()) {
+            return suggestions;
+        }
+
+        List<DictProduct> products = productMapper.selectByCategory(category);
+        for (DictProduct product : products) {
+            if (matchesProductAlias(product, remaining)) {
+                SearchSuggestDTO dto = new SearchSuggestDTO();
+                dto.setText(country + " " + product.getProductName());
+                dto.setKeyword(keyword);
+                dto.setType("??+??");
+                dto.setPriority(3);
+                dto.setTargetId(0L);
+                dto.setMatchType("combined");
+                dto.setInputKeyword(remaining);
+                dto.setStandardName(country + " " + product.getProductName());
+                dto.setAliasName(remaining);
+                setStandardFields(dto, country, null, product.getProductName(), null, null);
+                suggestions.add(dto);
+                return suggestions;
+            }
+        }
+
+        return suggestions;
+    }
+
+    private boolean matchesProductAlias(DictProduct product, String remaining) {
+        String normalizedRemaining = remaining == null ? "" : remaining.replace(" ", "");
+        if (normalizedRemaining.isBlank()) {
+            return false;
+        }
+        String productName = product.getProductName() == null ? "" : product.getProductName().replace(" ", "");
+        if (productName.equals(normalizedRemaining)
+                || productName.startsWith(normalizedRemaining)
+                || productName.contains(normalizedRemaining)) {
+            return true;
+        }
+        for (String alias : splitAliases(product.getAliasList())) {
+            String normalizedAlias = alias.replace(" ", "");
+            if (normalizedAlias.equals(normalizedRemaining)
+                    || normalizedAlias.startsWith(normalizedRemaining)
+                    || normalizedAlias.contains(normalizedRemaining)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> splitAliases(String aliasList) {
+        if (aliasList == null || aliasList.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(aliasList.split("[,\uFF0C\u3001]"))
+                .map(String::trim)
+                .filter(part -> !part.isEmpty())
+                .collect(Collectors.toList());
+    }
+
     private String buildFactoryProductText(DictFactory factory, DictProduct product, ParsedEntities parsed) {
         String countryText = parsed.hasCountry() ? buildCountryText(parsed) : factory.getCountry();
         String productText = buildProductText(parsed);

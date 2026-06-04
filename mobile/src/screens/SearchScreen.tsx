@@ -4,13 +4,15 @@ import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
-import {DeleteIcon, HistoryIcon, SearchIcon} from '../components/common/AppIcons';
+import {ChevronDownIcon, DeleteIcon, HistoryIcon, SearchIcon} from '../components/common/AppIcons';
 import {ArrowLeftIcon, ClearInputIcon} from '../components/login/LoginIcons';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {SearchHistory, SearchSuggest} from '../types/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Search'>;
+
+const categoryOptions = ['牛', '猪'] as const;
 
 const examples: Array<[string, string]> = [
   ['巴西', '查找国家相关信息'],
@@ -24,7 +26,14 @@ const examples: Array<[string, string]> = [
 export function SearchScreen({route, navigation}: Props) {
   const {category} = route.params;
   const insets = useSafeAreaInsets();
+  const [selectedCategory, setSelectedCategory] = useState<(typeof categoryOptions)[number]>(
+    categoryOptions.includes(category as (typeof categoryOptions)[number])
+      ? (category as (typeof categoryOptions)[number])
+      : '牛',
+  );
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<SearchSuggest[]>([]);
   const [histories, setHistories] = useState<SearchHistory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +65,7 @@ export function SearchScreen({route, navigation}: Props) {
       setLoading(true);
       const timer = setTimeout(() => {
         mooketApi
-          .getSearchSuggestions(category, value)
+          .getSearchSuggestions(selectedCategory, value)
           .then(result => {
             setSuggestions(result);
             setLoading(false);
@@ -68,7 +77,7 @@ export function SearchScreen({route, navigation}: Props) {
       }, 250);
 
       return () => clearTimeout(timer);
-    }, [category, keyword]),
+    }, [selectedCategory, keyword]),
   );
 
   const historyEntries = useMemo(
@@ -106,7 +115,7 @@ export function SearchScreen({route, navigation}: Props) {
     const searchWord = getStandardSearchWord(history.searchWord);
 
     if (history.merchantId) {
-      navigation.navigate('Merchant', {merchantId: history.merchantId, category});
+      navigation.navigate('Merchant', {merchantId: history.merchantId, category: selectedCategory});
       return;
     }
 
@@ -115,7 +124,7 @@ export function SearchScreen({route, navigation}: Props) {
         country: history.country,
         factoryNo: history.factoryNo,
         productName: history.productName,
-        category,
+        category: selectedCategory,
       });
       return;
     }
@@ -124,32 +133,32 @@ export function SearchScreen({route, navigation}: Props) {
       navigation.navigate('CountryProduct', {
         country: history.country,
         productName: history.productName,
-        category,
+        category: selectedCategory,
       });
       return;
     }
 
     if (history.country && history.factoryNo) {
-      navigation.navigate('Factory', {country: history.country, factoryNo: history.factoryNo, category});
+      navigation.navigate('Factory', {country: history.country, factoryNo: history.factoryNo, category: selectedCategory});
       return;
     }
 
     if (history.productId) {
       navigation.navigate('Product', {
         productId: history.productId,
-        category,
+        category: selectedCategory,
         productName: history.productName ?? searchWord,
       });
       return;
     }
 
     if (history.brandId) {
-      navigation.navigate('Brand', {brandName: searchWord, category});
+      navigation.navigate('Brand', {brandName: searchWord, category: selectedCategory});
       return;
     }
 
     if (history.country) {
-      navigation.navigate('Country', {country: history.country, category});
+      navigation.navigate('Country', {country: history.country, category: selectedCategory});
       return;
     }
 
@@ -168,30 +177,30 @@ export function SearchScreen({route, navigation}: Props) {
   ) {
     switch (item.matchType) {
       case 'merchant':
-        navigation.navigate('Merchant', {merchantId: item.targetId, category});
+        navigation.navigate('Merchant', {merchantId: item.targetId, category: selectedCategory});
         return;
       case 'product':
-        navigation.navigate('Product', {productId: item.targetId, category, productName: standard.productName ?? item.text});
+        navigation.navigate('Product', {productId: item.targetId, category: selectedCategory, productName: standard.productName ?? item.text});
         return;
       case 'country':
-        navigation.navigate('Country', {country: standard.country ?? getStandardSearchWord(item.text), category});
+        navigation.navigate('Country', {country: standard.country ?? getStandardSearchWord(item.text), category: selectedCategory});
         return;
       case 'brand':
         if (item.type === '品牌+产品' && (standard.brandName || parts.length >= 2)) {
           navigation.navigate('BrandProduct', {
             brandName: standard.brandName ?? parts[0],
             productName: standard.productName ?? parts.slice(1).join(' '),
-            category,
+            category: selectedCategory,
           });
         } else {
-          navigation.navigate('Brand', {brandName: standard.brandName ?? getStandardSearchWord(item.text), category});
+          navigation.navigate('Brand', {brandName: standard.brandName ?? getStandardSearchWord(item.text), category: selectedCategory});
         }
         return;
       case 'factory':
         if (standard.country && standard.factoryNo) {
-          navigation.navigate('Factory', {country: standard.country, factoryNo: standard.factoryNo, category});
+          navigation.navigate('Factory', {country: standard.country, factoryNo: standard.factoryNo, category: selectedCategory});
         } else if (parts.length >= 2) {
-          navigation.navigate('Factory', {country: getCountryFromText(parts[0]), factoryNo: parts[1], category});
+          navigation.navigate('Factory', {country: getCountryFromText(parts[0]), factoryNo: parts[1], category: selectedCategory});
         }
         return;
       case 'combined':
@@ -199,21 +208,21 @@ export function SearchScreen({route, navigation}: Props) {
           navigation.navigate('CountryProduct', {
             country: standard.country ?? getCountryFromText(parts[0]),
             productName: standard.productName ?? parts.slice(1).join(' '),
-            category,
+            category: selectedCategory,
           });
         } else if (standard.country && standard.factoryNo && standard.productName) {
           navigation.navigate('CountryFactoryProduct', {
             country: standard.country,
             factoryNo: standard.factoryNo,
             productName: standard.productName,
-            category,
+            category: selectedCategory,
           });
         } else if (parts.length >= 3) {
           navigation.navigate('CountryFactoryProduct', {
             country: getCountryFromText(parts[0]),
             factoryNo: parts[1],
             productName: parts.slice(2).join(' '),
-            category,
+            category: selectedCategory,
           });
         }
         return;
@@ -222,7 +231,7 @@ export function SearchScreen({route, navigation}: Props) {
           navigation.navigate('CountryProduct', {
             country: standard.country ?? getCountryFromText(parts[0]),
             productName: standard.productName ?? parts.slice(1).join(' '),
-            category,
+            category: selectedCategory,
           });
         }
     }
@@ -257,14 +266,24 @@ export function SearchScreen({route, navigation}: Props) {
           <ArrowLeftIcon size={18} />
         </Pressable>
         <View style={styles.searchInputWrap}>
-          <SearchIcon size={16} color="#ADB7B5" />
+          <Pressable onPress={() => setCategoryMenuOpen(prev => !prev)} style={styles.categoryButton}>
+            <Text style={styles.categoryText}>{selectedCategory}</Text>
+            <ChevronDownIcon size={14} color="#3C4947" />
+          </Pressable>
+          <View style={styles.searchDivider} />
+          {!isInputFocused ? <SearchIcon size={16} color="#ADB7B5" /> : null}
           <TextInput
             autoFocus
             value={keyword}
-            onChangeText={setKeyword}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
+            onChangeText={text => {
+              setKeyword(text);
+              setCategoryMenuOpen(false);
+            }}
             placeholder="搜索国家、厂号、产品、商家、品牌"
             placeholderTextColor="#ADB7B5"
-            style={styles.input}
+            style={[styles.input, isInputFocused && styles.inputFocused]}
           />
           {keyword.length > 0 ? (
             <Pressable hitSlop={8} onPress={() => setKeyword('')} style={styles.inputClear}>
@@ -273,6 +292,28 @@ export function SearchScreen({route, navigation}: Props) {
           ) : null}
         </View>
       </View>
+
+      {categoryMenuOpen ? (
+        <>
+          <Pressable style={styles.categoryMenuBackdrop} onPress={() => setCategoryMenuOpen(false)} />
+          <View style={[styles.categoryMenu, {top: insets.top + 56}]}>
+            {categoryOptions.map(item => (
+              <Pressable
+                key={item}
+                onPress={() => {
+                  setSelectedCategory(item);
+                  setCategoryMenuOpen(false);
+                  setSuggestions([]);
+                }}
+                style={[styles.categoryMenuItem, item === selectedCategory && styles.categoryMenuItemActive]}>
+                <Text style={[styles.categoryMenuText, item === selectedCategory && styles.categoryMenuTextActive]}>
+                  {item}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       {keyword.trim() ? (
         <FlatList
@@ -286,7 +327,7 @@ export function SearchScreen({route, navigation}: Props) {
             loading ? (
               <Text style={styles.loadingText}>搜索中...</Text>
             ) : (
-              <Text style={styles.empty}>当前'{category}'大类下暂未找到相关内容</Text>
+              <Text style={styles.empty}>当前'{selectedCategory}'大类下暂未找到相关内容</Text>
             )
           }
         />
@@ -461,6 +502,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: '#FFFFFF',
+    zIndex: 20,
   },
   backButton: {
     width: 24,
@@ -480,12 +522,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
   },
+  categoryButton: {
+    height: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingRight: 6,
+  },
+  categoryText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  searchDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 16,
+    backgroundColor: '#D4DFDC',
+    marginRight: 8,
+  },
+  categoryMenuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 15,
+  },
+  categoryMenu: {
+    position: 'absolute',
+    left: 48,
+    width: 72,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DEE4E1',
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: {width: 0, height: 4},
+    elevation: 8,
+    overflow: 'hidden',
+    zIndex: 30,
+  },
+  categoryMenuItem: {
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryMenuItemActive: {
+    backgroundColor: '#EFF5F3',
+  },
+  categoryMenuText: {
+    color: '#3C4947',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  categoryMenuTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
   input: {
     flex: 1,
     marginLeft: 8,
     color: colors.text,
     fontSize: 14,
     paddingVertical: 0,
+  },
+  inputFocused: {
+    marginLeft: 0,
   },
   inputClear: {width: 18, height: 18, alignItems: 'center', justifyContent: 'center'},
   resultRow: {

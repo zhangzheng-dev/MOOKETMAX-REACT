@@ -8,6 +8,7 @@ DROP TABLE IF EXISTS dict_product CASCADE;
 
 CREATE TABLE dict_product (
     product_id SERIAL PRIMARY KEY,
+    source_goods_id BIGINT,
     category VARCHAR(10) NOT NULL,
     product_name VARCHAR(100) NOT NULL,
     alias_list VARCHAR(500) DEFAULT '',
@@ -19,6 +20,18 @@ CREATE TABLE dict_product (
 -- 创建索引
 CREATE INDEX idx_product_category ON dict_product(category);
 CREATE INDEX idx_product_name ON dict_product(product_name);
+CREATE UNIQUE INDEX uk_dict_product_source_goods_id ON dict_product(source_goods_id);
+
+DROP TABLE IF EXISTS dict_product_source_map;
+
+CREATE TABLE dict_product_source_map (
+    source_goods_id BIGINT PRIMARY KEY,
+    product_id INT NOT NULL,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_dict_product_source_map_product_id ON dict_product_source_map(product_id);
 
 -- =============================================
 -- 示例数据（牛肉产品）

@@ -39,10 +39,15 @@ export function MerchantCard({card, onPress}: Props) {
               </Text>
               <View style={styles.offerInfo}>
                 <View style={styles.priceLine}>
-                  <Text style={styles.priceValue}>
-                    {asText(offer.price) ? `¥${asText(offer.price)}` : '--'}
-                  </Text>
-                  <Text style={styles.priceUnit}>/kg </Text>
+                  {(() => {
+                    const price = formatLatestOfferPrice(offer.price);
+                    return (
+                      <>
+                        <Text style={styles.priceValue}>{price.text}</Text>
+                        {price.unit ? <Text style={styles.priceUnit}>{price.unit}</Text> : null}
+                      </>
+                    );
+                  })()}
                 </View>
                 <View style={styles.weightLine}>
                   <Text style={styles.weightValue}>{formatWeightNumber(offer.weight)}</Text>
@@ -64,6 +69,20 @@ export function MerchantCard({card, onPress}: Props) {
       </View>
     </Pressable>
   );
+}
+
+function formatLatestOfferPrice(value: unknown): {text: string; unit: string} {
+  const text = asText(value).trim();
+  if (!text || text === '-' || text === '--') {
+    return {text: '协商报价', unit: ''};
+  }
+
+  const numeric = Number(text);
+  if (Number.isFinite(numeric) && numeric <= 0) {
+    return {text: '协商报价', unit: ''};
+  }
+
+  return {text: `¥${text}`, unit: '/kg '};
 }
 
 function formatWeightNumber(value: unknown): string {

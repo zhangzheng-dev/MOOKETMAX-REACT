@@ -25,6 +25,48 @@ import type {
   UserProfile,
 } from '../types/api';
 
+const DETAIL_REQUEST_TTL_MS = 5 * 60 * 1000;
+
+type DetailRequestCacheEntry<T> = {
+  expiresAt: number;
+  promise?: Promise<T>;
+  value?: T;
+};
+
+const detailRequestCache = new Map<string, DetailRequestCacheEntry<unknown>>();
+
+function withDetailCache<T>(key: string, loader: () => Promise<T>, ttlMs = DETAIL_REQUEST_TTL_MS): Promise<T> {
+  const now = Date.now();
+  const cached = detailRequestCache.get(key) as DetailRequestCacheEntry<T> | undefined;
+  if (cached && cached.value !== undefined && cached.expiresAt > now) {
+    return Promise.resolve(cached.value);
+  }
+  if (cached?.promise) {
+    return cached.promise;
+  }
+  const promise = loader()
+    .then(result => {
+      detailRequestCache.set(key, {
+        value: result,
+        expiresAt: Date.now() + ttlMs,
+      });
+      return result;
+    })
+    .catch(error => {
+      const current = detailRequestCache.get(key) as DetailRequestCacheEntry<T> | undefined;
+      if (current?.promise === promise) {
+        detailRequestCache.delete(key);
+      }
+      throw error;
+    });
+
+  detailRequestCache.set(key, {
+    promise,
+    expiresAt: now + ttlMs,
+  });
+  return promise;
+}
+
 export const mooketApi = {
   getHotSearchRecommendations(category: string) {
     return unwrap<HotSearchItem[]>(apiClient.get('api/v1/home/hot-search', {params: {category}}));
@@ -153,7 +195,10 @@ export const mooketApi = {
   },
 
   getMerchantDetail(merchantId: number | string, category: string) {
-    return unwrap<MerchantDetail>(apiClient.get(`api/v1/merchant/${merchantId}`, {params: {category}}));
+    return withDetailCache(
+      `merchantDetail:${merchantId}:${category}`,
+      () => unwrap<MerchantDetail>(apiClient.get(`api/v1/merchant/${merchantId}`, {params: {category}})),
+    );
   },
 
   getMerchantProducts(
@@ -164,10 +209,13 @@ export const mooketApi = {
     pageSize: number,
     sortBy = 'comprehensive',
   ) {
-    return unwrap<import('../types/api').MerchantProductPage>(
-      apiClient.get(`api/v1/merchant/${merchantId}/products`, {
-        params: {type, category, page, pageSize, sortBy},
-      }),
+    return withDetailCache(
+      `merchantProducts:${merchantId}:${type}:${category}:${page}:${pageSize}:${sortBy}`,
+      () => unwrap<import('../types/api').MerchantProductPage>(
+        apiClient.get(`api/v1/merchant/${merchantId}/products`, {
+          params: {type, category, page, pageSize, sortBy},
+        }),
+      ),
     );
   },
 
@@ -179,10 +227,13 @@ export const mooketApi = {
     page = 1,
     pageSize = 20,
   ) {
-    return unwrap<ProductDetail>(
-      apiClient.get(`api/v1/product/${productId}`, {
-        params: {category, type, sortBy, page, pageSize},
-      }),
+    return withDetailCache(
+      `productDetail:${productId}:${category}:${type}:${sortBy}:${page}:${pageSize}`,
+      () => unwrap<ProductDetail>(
+        apiClient.get(`api/v1/product/${productId}`, {
+          params: {category, type, sortBy, page, pageSize},
+        }),
+      ),
     );
   },
 
@@ -194,10 +245,13 @@ export const mooketApi = {
     page = 1,
     pageSize = 20,
   ) {
-    return unwrap<CountryDetail>(
-      apiClient.get(`api/v1/country/${country}`, {
-        params: {category, type, sortBy, page, pageSize},
-      }),
+    return withDetailCache(
+      `countryDetail:${country}:${category}:${type}:${sortBy}:${page}:${pageSize}`,
+      () => unwrap<CountryDetail>(
+        apiClient.get(`api/v1/country/${country}`, {
+          params: {category, type, sortBy, page, pageSize},
+        }),
+      ),
     );
   },
 
@@ -210,10 +264,13 @@ export const mooketApi = {
     page = 1,
     pageSize = 20,
   ) {
-    return unwrap<FactoryDetail>(
-      apiClient.get('api/v1/factory/detail', {
-        params: {country, factoryNo, category, type, sortBy, page, pageSize},
-      }),
+    return withDetailCache(
+      `factoryDetail:${country}:${factoryNo}:${category}:${type}:${sortBy}:${page}:${pageSize}`,
+      () => unwrap<FactoryDetail>(
+        apiClient.get('api/v1/factory/detail', {
+          params: {country, factoryNo, category, type, sortBy, page, pageSize},
+        }),
+      ),
     );
   },
 
@@ -226,10 +283,13 @@ export const mooketApi = {
     page = 1,
     pageSize = 20,
   ) {
-    return unwrap<CountryProductDetail>(
-      apiClient.get('api/v1/country-product', {
-        params: {country, productName, category, type, sortBy, page, pageSize},
-      }),
+    return withDetailCache(
+      `countryProductDetail:${country}:${productName}:${category}:${type}:${sortBy}:${page}:${pageSize}`,
+      () => unwrap<CountryProductDetail>(
+        apiClient.get('api/v1/country-product', {
+          params: {country, productName, category, type, sortBy, page, pageSize},
+        }),
+      ),
     );
   },
 
@@ -243,18 +303,24 @@ export const mooketApi = {
     page = 1,
     pageSize = 20,
   ) {
-    return unwrap<CountryFactoryProductDetail>(
-      apiClient.get('api/v1/country-factory-product', {
-        params: {country, factoryNo, productName, category, type, sortBy, page, pageSize},
-      }),
+    return withDetailCache(
+      `countryFactoryProductDetail:${country}:${factoryNo}:${productName}:${category}:${type}:${sortBy}:${page}:${pageSize}`,
+      () => unwrap<CountryFactoryProductDetail>(
+        apiClient.get('api/v1/country-factory-product', {
+          params: {country, factoryNo, productName, category, type, sortBy, page, pageSize},
+        }),
+      ),
     );
   },
 
   getSubstituteProducts(country: string, factoryNo: string, productName: string, category: string) {
-    return unwrap<SubstituteProduct>(
-      apiClient.get('api/v1/substitute/products', {
-        params: {country, factoryNo, productName, category},
-      }),
+    return withDetailCache(
+      `substituteProducts:${country}:${factoryNo}:${productName}:${category}`,
+      () => unwrap<SubstituteProduct>(
+        apiClient.get('api/v1/substitute/products', {
+          params: {country, factoryNo, productName, category},
+        }),
+      ),
     );
   },
 
@@ -268,10 +334,13 @@ export const mooketApi = {
     page = 1,
     pageSize = 10,
   ) {
-    return unwrap<SubstituteProductDetail>(
-      apiClient.get('api/v1/substitute/product/detail', {
-        params: {country, factoryNo, productName, category, type, sortBy, page, pageSize},
-      }),
+    return withDetailCache(
+      `substituteProductDetail:${country}:${factoryNo}:${productName}:${category}:${type}:${sortBy}:${page}:${pageSize}`,
+      () => unwrap<SubstituteProductDetail>(
+        apiClient.get('api/v1/substitute/product/detail', {
+          params: {country, factoryNo, productName, category, type, sortBy, page, pageSize},
+        }),
+      ),
     );
   },
 
@@ -283,10 +352,13 @@ export const mooketApi = {
     offerType = '报盘',
     days = 30,
   ) {
-    return unwrap<FactoryPriceComparison>(
-      apiClient.get('api/v1/price-trend/compare', {
-        params: {country, factoryNos: factoryNos.join(','), productName, category, offerType, days},
-      }),
+    return withDetailCache(
+      `factoryPriceComparison:${country}:${factoryNos.join(',')}:${productName}:${category}:${offerType}:${days}`,
+      () => unwrap<FactoryPriceComparison>(
+        apiClient.get('api/v1/price-trend/compare', {
+          params: {country, factoryNos: factoryNos.join(','), productName, category, offerType, days},
+        }),
+      ),
     );
   },
 
@@ -298,10 +370,13 @@ export const mooketApi = {
     page = 1,
     pageSize = 20,
   ) {
-    return unwrap<BrandDetail>(
-      apiClient.get(`api/v1/brand/${brandName}`, {
-        params: {category, type, sortBy, page, pageSize},
-      }),
+    return withDetailCache(
+      `brandDetail:${brandName}:${category}:${type}:${sortBy}:${page}:${pageSize}`,
+      () => unwrap<BrandDetail>(
+        apiClient.get(`api/v1/brand/${brandName}`, {
+          params: {category, type, sortBy, page, pageSize},
+        }),
+      ),
     );
   },
 
@@ -314,10 +389,13 @@ export const mooketApi = {
     page = 1,
     pageSize = 20,
   ) {
-    return unwrap<BrandProductDetailResult>(
-      apiClient.get(`api/v1/brand/${brandName}/product/${productName}`, {
-        params: {category, type, sortBy, page, pageSize},
-      }),
+    return withDetailCache(
+      `brandProductDetail:${brandName}:${productName}:${category}:${type}:${sortBy}:${page}:${pageSize}`,
+      () => unwrap<BrandProductDetailResult>(
+        apiClient.get(`api/v1/brand/${brandName}/product/${productName}`, {
+          params: {category, type, sortBy, page, pageSize},
+        }),
+      ),
     );
   },
 };

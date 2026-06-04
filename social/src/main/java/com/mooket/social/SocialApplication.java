@@ -58,7 +58,89 @@ public class SocialApplication {
             migrateStatBrand(jdbc);
             migrateStatMerchant(jdbc);
             migrateStatFactoryProduct(jdbc);
+            migrateDictProductSourceGoodsId(jdbc);
+            migrateDictProductSourceMap(jdbc);
+            migrateBizOfferSourceBusinessId(jdbc);
         };
+    }
+
+    private void migrateDictProductSourceGoodsId(JdbcTemplate jdbc) {
+        try {
+            boolean colExists = jdbc.queryForList(
+                "SELECT 1 FROM information_schema.columns WHERE table_name='dict_product' AND column_name='source_goods_id'").size() > 0;
+            if (!colExists) {
+                jdbc.execute("ALTER TABLE dict_product ADD COLUMN source_goods_id BIGINT");
+                System.out.println("[Migration] dict_product.source_goods_id added");
+            } else {
+                System.out.println("[Migration] dict_product.source_goods_id already exists, skipping");
+            }
+            try {
+                jdbc.execute("DROP INDEX IF EXISTS uk_dict_product_source_goods_id");
+                jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS uk_dict_product_source_goods_id ON dict_product(source_goods_id) WHERE source_goods_id IS NOT NULL");
+                jdbc.execute("CREATE INDEX IF NOT EXISTS idx_dict_product_source_goods_id ON dict_product(source_goods_id)");
+            } catch (Exception e) {
+                System.out.println("[Migration] dict_product source_goods_id indexes: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            System.err.println("[Migration] dict_product source_goods_id FAILED: " + e.getMessage());
+        }
+    }
+
+    private void migrateDictProductSourceMap(JdbcTemplate jdbc) {
+        try {
+            jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS dict_product_source_map (
+                    source_goods_id BIGINT PRIMARY KEY,
+                    product_id INT NOT NULL,
+                    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
+            jdbc.execute("CREATE INDEX IF NOT EXISTS idx_dict_product_source_map_product_id ON dict_product_source_map(product_id)");
+            jdbc.update("""
+                INSERT INTO dict_product_source_map (source_goods_id, product_id, create_time, update_time)
+                SELECT source_goods_id, product_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                FROM dict_product
+                WHERE source_goods_id IS NOT NULL
+                ON CONFLICT (source_goods_id) DO UPDATE
+                SET product_id = EXCLUDED.product_id, update_time = EXCLUDED.update_time
+                """);
+            System.out.println("[Migration] dict_product_source_map ready");
+        } catch (Exception e) {
+            System.err.println("[Migration] dict_product_source_map FAILED: " + e.getMessage());
+        }
+    }
+
+    private void migrateBizOfferSourceBusinessId(JdbcTemplate jdbc) {
+        try {
+            boolean colExists = jdbc.queryForList(
+                "SELECT 1 FROM information_schema.columns WHERE table_name='biz_offer' AND column_name='source_business_id'").size() > 0;
+            if (!colExists) {
+                jdbc.execute("ALTER TABLE biz_offer ADD COLUMN source_business_id BIGINT");
+                System.out.println("[Migration] biz_offer.source_business_id added");
+            } else {
+                System.out.println("[Migration] biz_offer.source_business_id already exists, skipping");
+            }
+            int deletedLegacyRows = jdbc.update("DELETE FROM biz_offer WHERE source_business_id IS NULL");
+            if (deletedLegacyRows > 0) {
+                System.out.println("[Migration] biz_offer legacy rows without source_business_id deleted: " + deletedLegacyRows);
+            }
+            try {
+                jdbc.execute("ALTER TABLE biz_offer ALTER COLUMN product_id DROP NOT NULL");
+                System.out.println("[Migration] biz_offer.product_id nullable");
+            } catch (Exception e) {
+                System.out.println("[Migration] biz_offer product_id nullable: " + e.getMessage());
+            }
+            try {
+                jdbc.execute("DROP INDEX IF EXISTS biz_offer_unique_key");
+                jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS uk_biz_offer_source_business_id ON biz_offer(source_business_id)");
+                jdbc.execute("CREATE INDEX IF NOT EXISTS idx_biz_offer_source_business_id ON biz_offer(source_business_id)");
+            } catch (Exception e) {
+                System.out.println("[Migration] biz_offer source index: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            System.err.println("[Migration] biz_offer source_business_id FAILED: " + e.getMessage());
+        }
     }
 
     private void migrateStatBrand(JdbcTemplate jdbc) {

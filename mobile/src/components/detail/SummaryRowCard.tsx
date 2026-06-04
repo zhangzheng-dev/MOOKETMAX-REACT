@@ -30,24 +30,22 @@ function SummaryRowCardInner({
   const hasPress = Boolean(onPress);
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      onPress={onPress}
+      disabled={!hasPress}
+      style={({pressed}) => [styles.card, pressed && hasPress && styles.pressed]}>
       <View style={styles.body}>
-        <Pressable
-          onPress={onPress}
-          disabled={!hasPress}
-          style={({pressed}) => [styles.titleRowPressable, pressed && hasPress && styles.pressed]}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={1}>
-              {title}
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+          <View style={styles.priceWrap}>
+            <Text style={[styles.priceValue, !priceText.hasRange && styles.priceMuted]}>
+              {priceText.value}
             </Text>
-            <View style={styles.priceWrap}>
-              <Text style={[styles.priceValue, !priceText.hasRange && styles.priceMuted]}>
-                {priceText.value}
-              </Text>
-              {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
-            </View>
+            {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
           </View>
-        </Pressable>
+        </View>
 
         <View style={styles.metaRow}>
           <ScrollView
@@ -67,10 +65,7 @@ function SummaryRowCardInner({
             ))}
           </ScrollView>
 
-          <Pressable
-            onPress={onPress}
-            disabled={!hasPress}
-            style={({pressed}) => [styles.metaAction, pressed && hasPress && styles.pressed]}>
+          <View style={styles.metaAction}>
             <View style={styles.countRow}>
               {merchantCount != null ? (
                 <View style={styles.countCell}>
@@ -90,16 +85,15 @@ function SummaryRowCardInner({
                 </View>
               ) : null}
             </View>
-
-            {hasPress ? (
-              <View style={styles.arrowWrap}>
-                <SvgXml xml={rightArrowXml} width={16} height={16} />
-              </View>
-            ) : null}
-          </Pressable>
+          </View>
         </View>
       </View>
-    </View>
+      {hasPress ? (
+        <View style={styles.arrowWrap}>
+          <SvgXml xml={rightArrowXml} width={16} height={16} />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -125,12 +119,22 @@ function dedupeNames(names?: string[] | null): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const name of names) {
-    const trimmed = name?.trim();
+    const trimmed = normalizeMerchantName(name);
     if (!trimmed || seen.has(trimmed)) continue;
     seen.add(trimmed);
     out.push(trimmed);
   }
   return out;
+}
+
+function normalizeMerchantName(name?: string | null): string {
+  const trimmed = name?.trim() ?? '';
+  if (!trimmed) return '';
+  const sep = trimmed.indexOf('|');
+  if (sep <= 0) return trimmed;
+  const shortName = trimmed.slice(0, sep).trim();
+  const fullName = trimmed.slice(sep + 1).trim();
+  return shortName && shortName.toUpperCase() !== 'NULL' ? shortName : fullName;
 }
 
 const styles = StyleSheet.create({
@@ -147,9 +151,6 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     gap: 8,
-  },
-  titleRowPressable: {
-    borderRadius: 4,
   },
   titleRow: {
     flexDirection: 'row',
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
   arrowWrap: {
     width: 16,
     height: 16,
-    marginLeft: 8,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

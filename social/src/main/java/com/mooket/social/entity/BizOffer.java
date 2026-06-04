@@ -19,6 +19,8 @@ public class BizOffer {
     @TableId(type = IdType.AUTO)
     private Long offerId;
 
+    private Long sourceBusinessId;      // 源表 social_online_business.id
+
     private String offerOriginalText;   // 报盘原文
 
     private String category;            // 大类（牛/猪）

@@ -3,9 +3,11 @@ package com.mooket.social.service.impl;
 import com.mooket.social.dto.BrandDetailDTO;
 import com.mooket.social.dto.BrandProductSummaryDTO;
 import com.mooket.social.entity.DictBrand;
+import com.mooket.social.entity.DictProduct;
 import com.mooket.social.entity.StatBrand;
 import com.mooket.social.mapper.BizOfferMapper;
 import com.mooket.social.mapper.DictBrandMapper;
+import com.mooket.social.mapper.DictProductMapper;
 import com.mooket.social.mapper.StatBrandMapper;
 import com.mooket.social.service.BrandService;
 import org.slf4j.Logger;
@@ -35,12 +37,14 @@ public class BrandServiceImpl implements BrandService {
 private final BizOfferMapper offerMapper;
     private final StatBrandMapper statBrandMapper;
     private final DictBrandMapper dictBrandMapper;
+    private final DictProductMapper dictProductMapper;
     private static final Logger log = LoggerFactory.getLogger(BrandServiceImpl.class);
 
-    public BrandServiceImpl(BizOfferMapper offerMapper, StatBrandMapper statBrandMapper, DictBrandMapper dictBrandMapper) {
+    public BrandServiceImpl(BizOfferMapper offerMapper, StatBrandMapper statBrandMapper, DictBrandMapper dictBrandMapper, DictProductMapper dictProductMapper) {
         this.offerMapper = offerMapper;
         this.statBrandMapper = statBrandMapper;
         this.dictBrandMapper = dictBrandMapper;
+        this.dictProductMapper = dictProductMapper;
     }
 
     @Override
@@ -248,6 +252,7 @@ private final BizOfferMapper offerMapper;
     }
 
     @Override
+    @Cacheable(value = "brandProductDetail", key = "#brandName + '_' + #productName + '_' + #category + '_' + #type + '_' + #sortBy + '_' + #page + '_' + #pageSize")
     public BrandDetailDTO getBrandProductDetail(String brandName, String productName, String category, String type, String sortBy, int page, int pageSize) {
         log.info("getBrandProductDetail: brandName={}, productName={}, category={}, type={}, sortBy={}, page={}, pageSize={}",
                 brandName, productName, category, type, sortBy, page, pageSize);
@@ -271,6 +276,8 @@ private final BizOfferMapper offerMapper;
         }
 
         List<Integer> brandIds = brandList.stream().map(DictBrand::getBrandId).collect(Collectors.toList());
+        DictProduct product = dictProductMapper.findByName(category, productName);
+        Integer productId = product != null ? product.getProductId() : null;
 
         // 近2日计数
         Long todayOfferCount = 0L;
@@ -290,7 +297,9 @@ private final BizOfferMapper offerMapper;
         }
 
         // 聚合查询（按 brandIds + productName，按 country + factory_no 分组）
-        List<BizOfferMapper.BrandProductDetailAgg> aggList = offerMapper.selectBrandProductDetailByBrandIdsAndProductName(brandIds, productName, category, dbOfferType);
+        List<BizOfferMapper.BrandProductDetailAgg> aggList = productId != null
+                ? offerMapper.selectBrandProductDetailByBrandIdsAndProductId(brandIds, productId, productName, category, dbOfferType)
+                : offerMapper.selectBrandProductDetailByBrandIdsAndProductName(brandIds, productName, category, dbOfferType);
 
         // 设置统计数据
         int factoryCount = (int) aggList.stream()
@@ -331,11 +340,7 @@ private final BizOfferMapper offerMapper;
             summary.setOfferCount(agg.offerCount);
             summary.setMerchantCount(agg.merchantCount);
             // merchantNames 是 "shortName|fullName,shortName|fullName" 格式，解析为 List
-            if (agg.merchantNames != null && !agg.merchantNames.isEmpty()) {
-                summary.setMerchantNames(Arrays.asList(agg.merchantNames.split(",")));
-            } else {
-                summary.setMerchantNames(new ArrayList<>());
-            }
+            summary.setMerchantNames(parseMerchantNames(agg.merchantNames));
             summaries.add(summary);
         }
 
@@ -402,5 +407,26 @@ private final BizOfferMapper offerMapper;
                 dto.getSummaries().size(), dto.getTotalCount(), dto.getTotalPages());
 
         return dto;
+    }
+
+    private List<String> parseMerchantNames(String merchantNames) {
+        if (merchantNames == null || merchantNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(merchantNames.split(","))
+                .filter(raw -> raw != null && !raw.trim().isEmpty())
+                .map(raw -> {
+                    String trimmed = raw.trim();
+                    int sep = trimmed.indexOf('|');
+                    if (sep > 0) {
+                        String shortName = trimmed.substring(0, sep).trim();
+                        String fullName = trimmed.substring(sep + 1).trim();
+                        return (!shortName.isEmpty() && !"NULL".equalsIgnoreCase(shortName)) ? shortName : fullName;
+                    }
+                    return trimmed;
+                })
+                .filter(name -> name != null && !name.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
     }
 }

@@ -6,9 +6,10 @@ DROP TABLE IF EXISTS biz_offer CASCADE;
 
 CREATE TABLE biz_offer (
     offer_id BIGSERIAL PRIMARY KEY,
+    source_business_id BIGINT,
     offer_original_text TEXT DEFAULT '',
     category VARCHAR(10) NOT NULL,
-    product_id INT NOT NULL,
+    product_id INT DEFAULT NULL,
     product_name VARCHAR(100) NOT NULL,
     country VARCHAR(50) DEFAULT '',
     factory_no VARCHAR(50) DEFAULT '',
@@ -48,6 +49,7 @@ CREATE INDEX idx_offer_status ON biz_offer(status);
 CREATE INDEX idx_offer_goods_location ON biz_offer(goods_location);
 CREATE INDEX idx_offer_goods_type ON biz_offer(goods_type);
 CREATE INDEX idx_offer_feeding_type ON biz_offer(feeding_type);
+CREATE UNIQUE INDEX uk_biz_offer_source_business_id ON biz_offer(source_business_id);
 
 -- 创建联合索引用于搜索
 CREATE INDEX idx_offer_search ON biz_offer(category, offer_type, status, data_date);

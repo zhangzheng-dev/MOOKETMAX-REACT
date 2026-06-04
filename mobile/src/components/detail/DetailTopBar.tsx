@@ -8,11 +8,13 @@ import {backArrowXml, searchIconXml, tagCloseXml} from './productIcons';
 type Tag = {
   text: string;
   onClose: () => void;
+  onPress?: () => void;
 };
 
 type Props = {
   onBack: () => void;
   tags: Tag[];
+  onSearchPress?: () => void;
 };
 
 /**
@@ -20,7 +22,7 @@ type Props = {
  * - 高 48dp（py:12 + 24px back icon）
  * - 4dp gap，含返回 + 类搜索框（绿底 chip + 搜索图标）
  */
-export function DetailTopBar({onBack, tags}: Props) {
+export function DetailTopBar({onBack, tags, onSearchPress}: Props) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -28,7 +30,7 @@ export function DetailTopBar({onBack, tags}: Props) {
       <Pressable onPress={onBack} hitSlop={8} style={styles.backButton}>
         <SvgXml xml={backArrowXml} width={24} height={24} />
       </Pressable>
-      <View style={styles.searchBox}>
+      <Pressable onPress={onSearchPress} style={styles.searchBox}>
         <View style={styles.tagsRow}>
           {tags.map((tag, index) => (
             <SearchTag key={`${tag.text}-${index}`} text={tag.text} onPress={tag.onClose} />
@@ -37,20 +39,31 @@ export function DetailTopBar({onBack, tags}: Props) {
         <View style={styles.searchIcon}>
           <SvgXml xml={searchIconXml} width={16} height={16} />
         </View>
-      </View>
+      </Pressable>
     </View>
   );
 }
 
 function SearchTag({text, onPress}: {text: string; onPress: () => void}) {
   return (
-    <Pressable onPress={onPress} style={styles.tag}>
+    <Pressable
+      onPress={event => {
+        event.stopPropagation();
+        onPress();
+      }}
+      style={styles.tag}>
       <Text style={styles.tagText} numberOfLines={1}>
         {text}
       </Text>
-      <View style={styles.tagClose}>
+      <Pressable
+        hitSlop={8}
+        onPress={event => {
+          event.stopPropagation();
+          onPress();
+        }}
+        style={styles.tagClose}>
         <SvgXml xml={tagCloseXml} width={8} height={8} />
-      </View>
+      </Pressable>
     </Pressable>
   );
 }
@@ -89,6 +102,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     flex: 1,
+    minWidth: 0,
   },
   tag: {
     flexDirection: 'row',
@@ -99,13 +113,15 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 2,
     backgroundColor: colors.primary,
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   tagText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '500',
     lineHeight: 18,
-    maxWidth: 120,
+    flexShrink: 1,
   },
   tagClose: {
     width: 8,
@@ -116,6 +132,8 @@ const styles = StyleSheet.create({
   searchIcon: {
     width: 16,
     height: 16,
+    marginLeft: 8,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

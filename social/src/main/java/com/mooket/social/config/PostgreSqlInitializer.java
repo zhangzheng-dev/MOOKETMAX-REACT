@@ -8,7 +8,7 @@ import java.sql.Connection;
 import java.sql.Statement;
 
 /**
- * PostgreSQL 表初始化器 - 简化版
+ * PostgreSQL table initializer for fresh environments.
  */
 @Component
 public class PostgreSqlInitializer implements CommandLineRunner {
@@ -21,15 +21,15 @@ public class PostgreSqlInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        System.out.println("[PostgreSqlInitializer] 开始创建表...");
+        System.out.println("[PostgreSqlInitializer] Initializing core tables...");
 
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
 
-            // 创建 dict_product 表
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS dict_product (
                     product_id SERIAL PRIMARY KEY,
+                    source_goods_id BIGINT,
                     category VARCHAR(10) NOT NULL,
                     product_name VARCHAR(100) NOT NULL,
                     alias_list VARCHAR(500) DEFAULT '',
@@ -39,7 +39,18 @@ public class PostgreSqlInitializer implements CommandLineRunner {
                 )
                 """);
 
-            System.out.println("[PostgreSqlInitializer] dict_product 表创建成功！");
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS dict_product_source_map (
+                    source_goods_id BIGINT PRIMARY KEY,
+                    product_id INT NOT NULL,
+                    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
+
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_dict_product_source_map_product_id ON dict_product_source_map(product_id)");
+
+            System.out.println("[PostgreSqlInitializer] dict_product and dict_product_source_map ready");
         }
     }
 }

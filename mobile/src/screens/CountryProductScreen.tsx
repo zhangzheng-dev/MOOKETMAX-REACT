@@ -86,6 +86,10 @@ export function CountryProductScreen({navigation, route}: Props) {
     <View style={styles.container}>
       <DetailTopBar
         onBack={() => navigation.goBack()}
+        onSearchPress={() => {
+          navigation.popToTop();
+          navigation.navigate('Search', {category});
+        }}
         tags={[
           {
             text: country,

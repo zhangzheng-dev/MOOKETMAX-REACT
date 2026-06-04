@@ -16,6 +16,7 @@ public class DictProduct {
 
     @TableId(type = IdType.AUTO)
     private Integer productId;
+    private Long sourceGoodsId;
 
     private String category;       // 大类（牛/猪）
 

@@ -13,6 +13,9 @@ public interface DictProductMapper extends BaseMapper<DictProduct> {
     @Select({"SELECT * FROM dict_product WHERE REPLACE(product_name, ' ', '') = REPLACE(#{productName}, ' ', '')"})
     DictProduct selectByProductName(@Param("productName") String productName);
 
+    @Select({"SELECT * FROM dict_product WHERE source_goods_id = #{sourceGoodsId}"})
+    DictProduct selectBySourceGoodsId(@Param("sourceGoodsId") Long sourceGoodsId);
+
     @Select({"SELECT * FROM dict_product WHERE category = #{category}"})
     List<DictProduct> selectByCategory(@Param("category") String category);
 

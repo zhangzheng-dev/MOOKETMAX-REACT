@@ -43,6 +43,7 @@ export function CountryProductDashboard({
   const trend7 = (history7Days ?? [])
     .map(d => Number(d.avgPrice))
     .filter(v => Number.isFinite(v) && v > 0) as number[];
+  const hasTrend7 = trend7.length > 1;
   const hasValidChange = priceChange != null && priceChangeRate != null;
 
   let effectiveChange = priceChange;
@@ -90,16 +91,14 @@ export function CountryProductDashboard({
           </View>
         </View>
 
-        <View style={styles.right}>
-          <Text style={styles.trendLabel}>7日报价走势</Text>
-          <View style={styles.trendChart}>
-            {trend7.length > 1 ? (
+        {hasTrend7 ? (
+          <View style={styles.right}>
+            <Text style={styles.trendLabel}>7日报价走势</Text>
+            <View style={styles.trendChart}>
               <MiniTrendChart data={trend7} width={82} height={28} />
-            ) : (
-              <View style={styles.chartPlaceholder} />
-            )}
+            </View>
           </View>
-        </View>
+        ) : null}
       </View>
 
       <View style={styles.statsFooter}>
@@ -335,7 +334,6 @@ const styles = StyleSheet.create({
   },
   trendLabel: {color: '#9DA4A3', fontSize: 10, lineHeight: 14, textAlign: 'right'},
   trendChart: {height: 28, width: 82, overflow: 'hidden'},
-  chartPlaceholder: {height: 28, width: 82, backgroundColor: '#F4FBF8'},
   statsFooter: {
     paddingTop: 12,
     paddingBottom: 12,

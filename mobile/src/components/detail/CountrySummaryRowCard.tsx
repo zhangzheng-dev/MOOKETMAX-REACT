@@ -31,24 +31,22 @@ function CountrySummaryRowCardInner({
   const hasPress = Boolean(onPress);
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      onPress={onPress}
+      disabled={!hasPress}
+      style={({pressed}) => [styles.card, pressed && hasPress && styles.pressed]}>
       <View style={styles.body}>
-        <Pressable
-          onPress={onPress}
-          disabled={!hasPress}
-          style={({pressed}) => [styles.titleRowPressable, pressed && hasPress && styles.pressed]}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={1}>
-              {title}
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+          <View style={styles.priceWrap}>
+            <Text style={[styles.priceValue, !priceText.hasRange && styles.priceMuted]}>
+              {priceText.value}
             </Text>
-            <View style={styles.priceWrap}>
-              <Text style={[styles.priceValue, !priceText.hasRange && styles.priceMuted]}>
-                {priceText.value}
-              </Text>
-              {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
-            </View>
+            {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
           </View>
-        </Pressable>
+        </View>
 
         <View style={styles.metaRow}>
           <ScrollView
@@ -68,10 +66,7 @@ function CountrySummaryRowCardInner({
             ))}
           </ScrollView>
 
-          <Pressable
-            onPress={onPress}
-            disabled={!hasPress}
-            style={({pressed}) => [styles.metaAction, pressed && hasPress && styles.pressed]}>
+          <View style={styles.metaAction}>
             <View style={styles.countRow}>
               {factoryCount != null ? (
                 <View style={styles.countCell}>
@@ -91,16 +86,15 @@ function CountrySummaryRowCardInner({
                 </View>
               ) : null}
             </View>
-
-            {hasPress ? (
-              <View style={styles.arrowWrap}>
-                <SvgXml xml={rightArrowXml} width={16} height={16} />
-              </View>
-            ) : null}
-          </Pressable>
+          </View>
         </View>
       </View>
-    </View>
+      {hasPress ? (
+        <View style={styles.arrowWrap}>
+          <SvgXml xml={rightArrowXml} width={16} height={16} />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -167,9 +161,6 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     gap: 8,
-  },
-  titleRowPressable: {
-    borderRadius: 4,
   },
   titleRow: {
     flexDirection: 'row',
@@ -251,7 +242,7 @@ const styles = StyleSheet.create({
   },
   countLabelText: {color: '#3C4947', fontSize: 11, lineHeight: 14},
   dotWrap: {width: 4, height: 4, marginHorizontal: 4, alignItems: 'center', justifyContent: 'center'},
-  arrowWrap: {width: 16, height: 16, marginLeft: 8, alignItems: 'center', justifyContent: 'center'},
+  arrowWrap: {width: 16, height: 16, flexShrink: 0, alignItems: 'center', justifyContent: 'center'},
   pressed: {
     opacity: 0.75,
   },

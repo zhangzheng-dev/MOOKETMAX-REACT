@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.sql.PreparedStatement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -110,8 +111,9 @@ public class DataSyncService {
         System.out.println("[DataSyncService] 开始执行增量同步...");
 
         // 1. 获取源数据（基于 update_time 增量查询）
-        LocalDateTime startTime = (lastSyncTime != null) ? lastSyncTime : LocalDateTime.now().minusDays(2);
-        return doSync(startTime);
+        boolean reconcileRecentWindow = (lastSyncTime == null);
+        LocalDateTime startTime = reconcileRecentWindow ? LocalDateTime.now().minusDays(2) : lastSyncTime;
+        return doSync(startTime, reconcileRecentWindow);
     }
 
     /**
@@ -121,17 +123,17 @@ public class DataSyncService {
         System.out.println("[DataSyncService] 开始执行全量同步（最近2天）...");
         lastSyncTime = null; // 重置同步时间，强制全量
         LocalDateTime startTime = LocalDateTime.now().minusDays(2);
-        return doSync(startTime);
+        return doSync(startTime, true);
     }
 
     /**
      * 实际执行同步
      */
-    private int doSync(LocalDateTime startTime) {
+    private int doSync(LocalDateTime startTime, boolean reconcileRecentWindow) {
         List<SocialOnlineBusiness> sourceData = sourceMapper.selectIncrementData(startTime);
         System.out.println("[DataSyncService] 查询起始时间: " + startTime + "，待同步数据: " + sourceData.size() + " 条");
 
-        if (sourceData == null || sourceData.isEmpty()) {
+        if ((sourceData == null || sourceData.isEmpty()) && !reconcileRecentWindow) {
             System.out.println("[DataSyncService] 没有需要同步的数据");
             return 0;
         }
@@ -143,7 +145,7 @@ public class DataSyncService {
         Map<String, Long> merchantMap = batchGetMerchants(sourceData);
         Map<String, Long> factoryIdMap = batchGetFactoryIds(sourceData);
         Map<String, Integer> productIdMap = batchGetProductIds(sourceData);
-        Map<Long, Integer> brandIdMap = batchGetBrandIds(sourceData);
+        Map<Long, Integer> brandIdMap = batchGetBrandIds(sourceData, factoryIdMap);
 
         // 3. 转换为目标实体并插入
         int successCount = 0;
@@ -167,6 +169,9 @@ public class DataSyncService {
         }
 
         // 4. 更新上次同步时间
+        if (reconcileRecentWindow) {
+            reconcileRecentSourceBusinessIds();
+        }
         lastSyncTime = LocalDateTime.now();
 
         System.out.println("[DataSyncService] 同步完成: 成功=" + successCount + ", 失败=" + failCount);
@@ -225,6 +230,46 @@ public class DataSyncService {
         }
 
         return result;
+    }
+
+    private void reconcileRecentSourceBusinessIds() {
+        LocalDateTime recentWindowStart = LocalDate.now().minusDays(1).atStartOfDay();
+        List<Long> activeSourceIds = sourceMapper.selectActiveIdsByOfferDate(recentWindowStart);
+        System.out.println("[DataSyncService] recent active source ids: " + activeSourceIds.size());
+
+        Integer deleted = pgJdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Integer>) connection -> {
+            try (PreparedStatement insertStmt = connection.prepareStatement(
+                    "INSERT INTO temp_active_source_business_ids (source_business_id) VALUES (?) ON CONFLICT DO NOTHING")) {
+                connection.createStatement().execute("DROP TABLE IF EXISTS temp_active_source_business_ids");
+                connection.createStatement().execute(
+                        "CREATE TEMP TABLE temp_active_source_business_ids (source_business_id BIGINT PRIMARY KEY)");
+
+                for (int i = 0; i < activeSourceIds.size(); i++) {
+                    insertStmt.setLong(1, activeSourceIds.get(i));
+                    insertStmt.addBatch();
+                    if ((i + 1) % 1000 == 0) {
+                        insertStmt.executeBatch();
+                    }
+                }
+                if (!activeSourceIds.isEmpty()) {
+                    insertStmt.executeBatch();
+                }
+
+                int rows = connection.createStatement().executeUpdate("""
+                        DELETE FROM biz_offer bo
+                        WHERE bo.data_date >= CURRENT_DATE - INTERVAL '1 day'
+                          AND bo.source_business_id IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM temp_active_source_business_ids tmp
+                              WHERE tmp.source_business_id = bo.source_business_id
+                          )
+                        """);
+                connection.createStatement().execute("DROP TABLE IF EXISTS temp_active_source_business_ids");
+                return rows;
+            }
+        });
+        System.out.println("[DataSyncService] reconciled stale recent biz_offer rows: " + deleted);
     }
 
     /**
@@ -322,6 +367,31 @@ public class DataSyncService {
      */
     private Map<String, Integer> batchGetProductIds(List<SocialOnlineBusiness> sourceData) {
         Map<String, Integer> result = new HashMap<>();
+        List<Long> standardGoodsIds = sourceData.stream()
+                .map(SocialOnlineBusiness::getStandardGoodsNameId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (!standardGoodsIds.isEmpty()) {
+            String inClause = standardGoodsIds.stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(","));
+            try {
+                List<Map<String, Object>> rows = pgJdbcTemplate.queryForList(
+                        "SELECT source_goods_id, product_id FROM dict_product_source_map WHERE source_goods_id IN (" + inClause + ")"
+                );
+                for (Map<String, Object> row : rows) {
+                    Object sourceGoodsId = row.get("source_goods_id");
+                    Object productId = row.get("product_id");
+                    if (sourceGoodsId instanceof Number && productId instanceof Number) {
+                        result.put("id:" + ((Number) sourceGoodsId).longValue(), ((Number) productId).intValue());
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[DataSyncService] dict_product_source_map query failed: " + e.getMessage());
+            }
+        }
 
         // 收集所有不重复的产品名称
         List<String> productNames = sourceData.stream()
@@ -340,7 +410,7 @@ public class DataSyncService {
             try {
                 DictProduct product = productMapper.selectByProductName(productName);
                 if (product != null) {
-                    result.put(productName, product.getProductId());
+                    result.putIfAbsent("name:" + productName, product.getProductId());
                 }
             } catch (Exception e) {
                 // ignore
@@ -353,7 +423,7 @@ public class DataSyncService {
     /**
      * 批量获取品牌ID（通过factory_id查询）
      */
-    private Map<Long, Integer> batchGetBrandIds(List<SocialOnlineBusiness> sourceData) {
+    private Map<Long, Integer> batchGetBrandIds(List<SocialOnlineBusiness> sourceData, Map<String, Long> factoryIdMap) {
         Map<Long, Integer> result = new HashMap<>();
 
         // 收集所有不重复的factory_id（用于兼容原有调用方）
@@ -363,12 +433,7 @@ public class DataSyncService {
                     String factoryNo = src.getPlantNo();
                     String category = convertCategory(src.getGoodsCategory());
                     if (factoryNo == null || factoryNo.isEmpty() || category == null) return null;
-                    // 通过factory_no + category 查找factory_id，避免跨类混淆
-                    var factories = factoryMapper.selectByFactoryNoWithCategory(factoryNo, category);
-                    if (factories != null && !factories.isEmpty()) {
-                        return factories.get(0).getFactoryId().longValue();
-                    }
-                    return null;
+                    return factoryIdMap.get(factoryNo + "|" + category);
                 })
                 .filter(Objects::nonNull)
                 .distinct()
@@ -419,9 +484,8 @@ public class DataSyncService {
             if (factoryNo == null || factoryNo.isEmpty() || category == null) continue;
             Integer brandId = factoryNoBrandMap.get(factoryNo + "_" + category);
             if (brandId != null) {
-                var factories = factoryMapper.selectByFactoryNoWithCategory(factoryNo, category);
-                if (factories != null && !factories.isEmpty()) {
-                    Long factoryId = factories.get(0).getFactoryId().longValue();
+                Long factoryId = factoryIdMap.get(factoryNo + "|" + category);
+                if (factoryId != null) {
                     result.putIfAbsent(factoryId, brandId);
                 }
             }
@@ -469,6 +533,9 @@ public class DataSyncService {
                                         Map<Long, Integer> brandIdMap) {
         BizOffer target = new BizOffer();
 
+        // source_business_id: 保留源表主键，保证 social_online_business 一条记录对应 biz_offer 一条记录
+        target.setSourceBusinessId(src.getId());
+
         // offer_original_text: 通过 online_business_content_id 关联
         if (src.getOnlineBusinessContentId() != null) {
             target.setOfferOriginalText(contentMap.get(src.getOnlineBusinessContentId()));
@@ -481,8 +548,11 @@ public class DataSyncService {
         target.setProductName(src.getGoodsName());
 
         // product_id: 通过 goodsName 查询 dict_product 表获取
-        if (src.getGoodsName() != null && !src.getGoodsName().isEmpty()) {
-            target.setProductId(productIdMap.get(src.getGoodsName()));
+        if (src.getStandardGoodsNameId() != null) {
+            target.setProductId(productIdMap.get("id:" + src.getStandardGoodsNameId()));
+        }
+        if (target.getProductId() == null && src.getGoodsName() != null && !src.getGoodsName().isEmpty()) {
+            target.setProductId(productIdMap.get("name:" + src.getGoodsName()));
         }
 
         // country: 通过国家编码映射（包括哥伦比亚49等）

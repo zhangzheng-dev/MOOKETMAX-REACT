@@ -23,7 +23,9 @@ export function BrandProductCard({card, onPress}: Props) {
       onPress={onPress}
       style={({pressed}) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.titleWrap}>
-        <BrandIcon />
+        <View style={styles.brandIconWrap}>
+          <BrandIcon />
+        </View>
         <Text style={styles.titleText} numberOfLines={2}>
           {`${card.brandName || ''} ${card.productName || ''}`}
         </Text>
@@ -107,7 +109,8 @@ function formatChange(change?: number | null): string {
 const styles = StyleSheet.create({
   card: {...cardBaseStyle, gap: 6},
   pressed: {opacity: 0.85},
-  titleWrap: {flexDirection: 'row', alignItems: 'center', gap: 6},
+  titleWrap: {flexDirection: 'row', alignItems: 'flex-start', gap: 6},
+  brandIconWrap: {marginTop: 3},
   titleText: {color: colors.text, fontSize: 16, lineHeight: 28, fontWeight: '500', flex: 1},
   priceLine: {flexDirection: 'row', alignItems: 'baseline'},
   priceValue: {fontFamily: fonts.manropeBold, color: colors.price, fontSize: 20, lineHeight: 26},
