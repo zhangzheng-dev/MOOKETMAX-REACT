@@ -1,5 +1,5 @@
 import React from 'react';
-import {Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors} from '../../theme/colors';
 
@@ -31,12 +31,38 @@ export function OriginalTextSheet({visible, text, onClose, title = '原文内容
             showsVerticalScrollIndicator
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled">
-            <Text style={[styles.text, !text && styles.textMuted]}>{text || '抱歉，暂无原文！'}</Text>
+            {text ? (
+              <Text style={styles.text}>{renderTextWithPhones(text)}</Text>
+            ) : (
+              <Text style={[styles.text, styles.textMuted]}>抱歉，暂无原文！</Text>
+            )}
           </ScrollView>
         </View>
       </View>
     </Modal>
   );
+}
+
+function renderTextWithPhones(text: string) {
+  const parts = text.split(/(1\d{10})/g);
+  return parts.map((part, index) => {
+    if (/^1\d{10}$/.test(part)) {
+      return (
+        <Text key={`${part}-${index}`} style={styles.phoneText} onPress={() => void dialPhone(part)}>
+          {part}
+        </Text>
+      );
+    }
+    return <Text key={`${index}`}>{part}</Text>;
+  });
+}
+
+async function dialPhone(phone: string) {
+  const url = `tel:${phone}`;
+  const supported = await Linking.canOpenURL(url);
+  if (supported) {
+    await Linking.openURL(url);
+  }
 }
 
 const styles = StyleSheet.create({
@@ -91,6 +117,10 @@ const styles = StyleSheet.create({
     color: '#3C4947',
     fontSize: 14,
     lineHeight: 22,
+  },
+  phoneText: {
+    color: colors.primary,
+    textDecorationLine: 'underline',
   },
   textMuted: {
     color: '#9DA4A3',
