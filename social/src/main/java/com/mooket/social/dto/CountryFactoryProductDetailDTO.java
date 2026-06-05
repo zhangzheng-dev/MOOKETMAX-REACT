@@ -87,7 +87,11 @@ public class CountryFactoryProductDetailDTO {
         private String weight;        // 重量
         private String goodsLocation; // 货物所在地
         private String goodsType;    // 货物类型
+        private String feedingType;  // 饲养方式/规格1
+        private String fatRatio;     // 瘦肉率
+        private String cattleBreed;  // 规格2（安格斯/和牛等）
         private String tags;         // 标签列表
+        private String remark;       // 备注
         private String offerType;    // 报盘类型：报盘/求购
         private String publishTime;  // 发布时间
         private String offerOriginalText; // 原文内容

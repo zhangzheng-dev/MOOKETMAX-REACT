@@ -59,9 +59,9 @@ public class MerchantServiceImpl implements MerchantService {
         dto.setTodayFactoryCount(stats.recentFactoryCount != null ? stats.recentFactoryCount.intValue() : 0);
 
         List<BizOfferMapper.MerchantOfferAgg> offerAggs = offerMapper.selectMerchantOfferAgg(
-                merchantId, category, "报盘", DETAIL_INITIAL_PAGE_SIZE, 0);
+                merchantId, category, "报盘", DETAIL_INITIAL_PAGE_SIZE, 0, "comprehensive");
         List<BizOfferMapper.MerchantOfferAgg> inquiryAggs = offerMapper.selectMerchantOfferAgg(
-                merchantId, category, "求购", DETAIL_INITIAL_PAGE_SIZE, 0);
+                merchantId, category, "求购", DETAIL_INITIAL_PAGE_SIZE, 0, "comprehensive");
 
         dto.setOffers(buildOfferSummaries(merchantId, category, "报盘", offerAggs));
         dto.setInquiries(buildOfferSummaries(merchantId, category, "求购", inquiryAggs));
@@ -80,65 +80,12 @@ public class MerchantServiceImpl implements MerchantService {
         }
 
         String dbOfferType = "offer".equalsIgnoreCase(offerType) ? "报盘" : "求购";
-
-        // 价格排序需要全量获取再排序分页
-        boolean isPriceSort = "price_asc".equals(sortBy) || "price_desc".equals(sortBy);
-        
-        if (isPriceSort) {
-            // 全量获取，内存排序后分页
-            int totalCount = offerMapper.countMerchantOfferAgg(merchantId, category, dbOfferType);
-            int totalPages = (int) Math.ceil((double) totalCount / pageSize);
-            
-            List<BizOfferMapper.MerchantOfferAgg> allAgg = offerMapper.selectMerchantOfferAgg(
-                    merchantId, category, dbOfferType, totalCount, 0);
-            
-            List<OfferSummaryDTO> allSummaries = buildOfferSummaries(merchantId, category, dbOfferType, allAgg);
-            
-            // 排序：协商报价（无价格）放最后
-            if ("price_asc".equals(sortBy)) {
-                allSummaries.sort((a, b) -> {
-                    boolean aHas = a.getPrice() != null && a.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0;
-                    boolean bHas = b.getPrice() != null && b.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0;
-                    if (!aHas && !bHas) return 0;
-                    if (!aHas) return 1;
-                    if (!bHas) return -1;
-                    return a.getPrice().compareTo(b.getPrice());
-                });
-            } else {
-                allSummaries.sort((a, b) -> {
-                    boolean aHas = a.getPriceMax() != null && a.getPriceMax().compareTo(java.math.BigDecimal.ZERO) > 0;
-                    boolean bHas = b.getPriceMax() != null && b.getPriceMax().compareTo(java.math.BigDecimal.ZERO) > 0;
-                    if (!aHas && !bHas) return 0;
-                    if (!aHas) return 1;
-                    if (!bHas) return -1;
-                    return b.getPriceMax().compareTo(a.getPriceMax());
-                });
-            }
-            
-            // 内存分页
-            int offset = (page - 1) * pageSize;
-            int endIdx = Math.min(offset + pageSize, allSummaries.size());
-            List<OfferSummaryDTO> pagedSummaries = offset < allSummaries.size()
-                    ? allSummaries.subList(offset, endIdx)
-                    : Collections.emptyList();
-            
-            MerchantProductPageDTO result = new MerchantProductPageDTO();
-            result.setProducts(pagedSummaries);
-            result.setTotalCount(totalCount);
-            result.setPage(page);
-            result.setPageSize(pageSize);
-            result.setTotalPages(totalPages);
-            result.setOfferType(offerType);
-            return result;
-        }
-
-        // 非价格排序：正常分页查询
         int totalCount = offerMapper.countMerchantOfferAgg(merchantId, category, dbOfferType);
         int totalPages = (int) Math.ceil((double) totalCount / pageSize);
         int offset = (page - 1) * pageSize;
 
         List<BizOfferMapper.MerchantOfferAgg> aggList = offerMapper.selectMerchantOfferAgg(
-                merchantId, category, dbOfferType, pageSize, offset);
+                merchantId, category, dbOfferType, pageSize, offset, normalizeSortBy(sortBy));
 
         MerchantProductPageDTO result = new MerchantProductPageDTO();
         result.setProducts(buildOfferSummaries(merchantId, category, dbOfferType, aggList));
@@ -212,6 +159,10 @@ public class MerchantServiceImpl implements MerchantService {
         dto.setTags(offer.getTags());
         dto.setGoodsType(offer.getGoodsType());
         dto.setFeedingMethod(offer.getFeedingType());
+        dto.setFeedingType(offer.getFeedingType());
+        dto.setFatRatio(offer.getFatRatio());
+        dto.setCattleBreed(offer.getCattleBreed());
+        dto.setRemark(offer.getRemark());
         dto.setOfferOriginalText(offer.getOfferOriginalText());
         if (offer.getPublishTime() != null) {
             dto.setPublishTime(offer.getPublishTime().format(PUBLISH_TIME_FORMATTER));
@@ -225,5 +176,12 @@ public class MerchantServiceImpl implements MerchantService {
 
     private String nullToEmpty(String value) {
         return Objects.toString(value, "");
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "comprehensive";
+        }
+        return sortBy;
     }
 }

@@ -149,62 +149,14 @@ public class SubstituteProductServiceImpl implements SubstituteProductService {
         dto.setPriceHistory7Days(getPriceHistory7Days(country, factoryNo, dto.getProductId(), productName, category, offerType));
         dto.setPriceHistory30Days(getPriceHistory30Days(country, factoryNo, dto.getProductId(), productName, category, offerType));
 
-        // 报盘列表
-        String dbSortBy = "price_asc".equals(sortBy) || "price_desc".equals(sortBy) ? "comprehensive" : sortBy;
-        int fetchLimit = 1000;
-        List<BizOffer> offers = offerMapper.selectOfferListByCountryFactoryProduct(
-                country, factoryNo, productName, category, offerType, dbSortBy, fetchLimit, 0);
-
-        List<MerchantOfferGroup> merchantGroups = groupOffersByMerchant(offers);
-
-        // 内存排序；协商报价（价格为0）放最后
-        if ("price_asc".equals(sortBy)) {
-            merchantGroups.sort((a, b) -> {
-                BigDecimal priceA = getMinPrice(a.getEmployeeOffers());
-                BigDecimal priceB = getMinPrice(b.getEmployeeOffers());
-                boolean aHas = priceA.compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = priceB.compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return priceA.compareTo(priceB);
-            });
-        } else if ("price_desc".equals(sortBy)) {
-            merchantGroups.sort((a, b) -> {
-                BigDecimal priceA = getMaxPrice(a.getEmployeeOffers());
-                BigDecimal priceB = getMaxPrice(b.getEmployeeOffers());
-                boolean aHas = priceA.compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = priceB.compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return priceB.compareTo(priceA);
-            });
-        } else if ("publish_time".equals(sortBy)) {
-            merchantGroups.sort((a, b) -> {
-                String timeA = a.getEmployeeOffers().stream()
-                        .map(EmployeeOfferDTO::getPublishTime)
-                        .filter(Objects::nonNull)
-                        .max(String::compareTo)
-                        .orElse("");
-                String timeB = b.getEmployeeOffers().stream()
-                        .map(EmployeeOfferDTO::getPublishTime)
-                        .filter(Objects::nonNull)
-                        .max(String::compareTo)
-                        .orElse("");
-                return timeB.compareTo(timeA);
-            });
-        } else {
-            merchantGroups.sort((a, b) -> b.getOfferCount().compareTo(a.getOfferCount()));
-        }
-
-        int totalCount = merchantGroups.size();
+        // 报盘列表：统一改为数据库全局排序 + 分页
+        int offset = (page - 1) * pageSize;
+        List<BizOfferMapper.MerchantGroupAgg> merchantAggs = offerMapper.selectCountryFactoryProductMerchantAgg(
+                country, factoryNo, productName, category, offerType, normalizeSortBy(sortBy), pageSize, offset);
+        int totalCount = offerMapper.countCountryFactoryProductMerchantAgg(country, factoryNo, productName, category, offerType);
         int totalPages = (int) Math.ceil((double) totalCount / pageSize);
-        int fromIndex = (page - 1) * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, merchantGroups.size());
-        List<MerchantOfferGroup> pagedGroups = fromIndex < merchantGroups.size()
-                ? merchantGroups.subList(fromIndex, toIndex)
-                : Collections.emptyList();
+        List<MerchantOfferGroup> pagedGroups = buildMerchantOfferGroupsPage(
+                country, factoryNo, productName, category, offerType, merchantAggs);
 
         dto.setMerchantOffers(pagedGroups);
         dto.setTotalCount(totalCount);
@@ -337,61 +289,87 @@ public class SubstituteProductServiceImpl implements SubstituteProductService {
                 .collect(Collectors.toList());
     }
 
-    private List<MerchantOfferGroup> groupOffersByMerchant(List<BizOffer> offers) {
-        Map<String, List<BizOffer>> groupedByKey = new LinkedHashMap<>();
-
-        for (BizOffer offer : offers) {
-            String groupKey;
-            if (offer.getMerchantId() != null) {
-                groupKey = "merchant_" + offer.getMerchantId();
-            } else {
-                groupKey = "NO_MERCHANT";
-            }
-            groupedByKey.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(offer);
+    private List<MerchantOfferGroup> buildMerchantOfferGroupsPage(String country, String factoryNo,
+                                                                  String productName, String category,
+                                                                  String offerType,
+                                                                  List<BizOfferMapper.MerchantGroupAgg> merchantAggs) {
+        if (merchantAggs == null || merchantAggs.isEmpty()) {
+            return Collections.emptyList();
         }
 
+        List<Long> merchantIds = merchantAggs.stream()
+                .map(agg -> agg.merchantId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, DictMerchant> merchantMap = merchantIds.isEmpty()
+                ? Collections.emptyMap()
+                : merchantMapper.selectBatchIds(merchantIds).stream()
+                .collect(Collectors.toMap(DictMerchant::getMerchantId, merchant -> merchant, (left, right) -> left));
+
+        List<BizOffer> offerDetails = new ArrayList<>();
+        if (!merchantIds.isEmpty()) {
+            offerDetails.addAll(offerMapper.selectOfferListByCountryFactoryProductMerchantIds(
+                    country, factoryNo, productName, category, offerType, merchantIds));
+        }
+        offerDetails.addAll(offerMapper.selectOfferListByCountryFactoryProductNoMerchant(
+                country, factoryNo, productName, category, offerType));
+
+        Map<String, List<BizOffer>> offersByGroup = offerDetails.stream()
+                .collect(Collectors.groupingBy(
+                        offer -> merchantGroupKey(offer.getMerchantId()),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
         List<MerchantOfferGroup> groups = new ArrayList<>();
-        for (Map.Entry<String, List<BizOffer>> entry : groupedByKey.entrySet()) {
-            List<BizOffer> groupOffers = entry.getValue();
-            if (groupOffers.isEmpty()) continue;
+        for (BizOfferMapper.MerchantGroupAgg agg : merchantAggs) {
+            List<BizOffer> groupOffers = offersByGroup.getOrDefault(
+                    merchantGroupKey(agg.merchantId),
+                    Collections.emptyList());
 
-            BizOffer firstOffer = groupOffers.get(0);
             MerchantOfferGroup group = new MerchantOfferGroup();
+            group.setMerchantId(agg.merchantId);
+            group.setMerchantPhone(agg.contactPhone);
+            group.setOfferCount(agg.offerCount != null ? agg.offerCount : groupOffers.size());
 
-            if (entry.getKey().startsWith("merchant_")) {
-                Long merchantId = firstOffer.getMerchantId();
-                group.setMerchantId(merchantId);
-                group.setMerchantPhone(firstOffer.getContactPhone());
-
-                DictMerchant merchant = merchantMapper.selectById(merchantId);
+            if (agg.merchantId != null) {
+                DictMerchant merchant = merchantMap.get(agg.merchantId);
                 if (merchant != null) {
                     group.setMerchantName(merchant.getMerchantName());
                     boolean isFamous = merchant.getMerchantTags() != null &&
                             merchant.getMerchantTags().contains("知名商家");
                     group.setFamousMerchant(isFamous);
                 } else {
-                    group.setMerchantName(firstOffer.getContactPhone());
+                    group.setMerchantName(agg.contactPhone);
                     group.setFamousMerchant(false);
                 }
             } else {
                 group.setMerchantId(null);
                 group.setMerchantName("暂未关联行业商家");
-                group.setMerchantPhone(firstOffer.getContactPhone());
+                group.setMerchantPhone(agg.contactPhone);
                 group.setFamousMerchant(false);
             }
 
-            group.setOfferCount(groupOffers.size());
-
             List<EmployeeOfferDTO> employeeOfferDTOs = groupOffers.stream()
+                    .sorted(Comparator.comparing(BizOffer::getPublishTime, Comparator.nullsLast(Comparator.reverseOrder())))
                     .map(this::convertToEmployeeOfferDTO)
                     .collect(Collectors.toList());
             group.setEmployeeOffers(employeeOfferDTOs);
-
             groups.add(group);
         }
-
-        groups.sort((a, b) -> b.getOfferCount().compareTo(a.getOfferCount()));
         return groups;
+    }
+
+    private String merchantGroupKey(Long merchantId) {
+        return merchantId != null ? "merchant_" + merchantId : "NO_MERCHANT";
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "comprehensive";
+        }
+        return sortBy;
     }
 
     private EmployeeOfferDTO convertToEmployeeOfferDTO(BizOffer offer) {

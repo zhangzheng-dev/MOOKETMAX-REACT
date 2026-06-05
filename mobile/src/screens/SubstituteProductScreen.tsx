@@ -426,7 +426,7 @@ function SubstituteHeaderCard({
         </View>
         <Text style={cardStyles.subtitle}>
           近2日报盘价格区间：<Text style={cardStyles.subtitlePrice}>{priceText}</Text>
-          {priceText !== '协商报价' ? <Text style={cardStyles.subtitleUnit}>/kg</Text> : null}
+          {priceText !== '暂无报价' ? <Text style={cardStyles.subtitleUnit}>/kg</Text> : null}
         </Text>
       </View>
       <Pressable onPress={onCompare} style={cardStyles.compareButton}>
@@ -483,7 +483,7 @@ function FactorySelector({
                 {item.factoryNo}
               </Text>
               <Text style={[selectorStyles.priceText, active && selectorStyles.priceTextActive]} numberOfLines={1}>
-                {priceText}{priceText !== '协商报价' ? '/kg' : ''}
+                {priceText}{priceText !== '暂无报价' ? '/kg' : ''}
               </Text>
               {active ? (
                 <View style={selectorStyles.arrowWrap}>
@@ -553,7 +553,7 @@ function formatPriceText(min?: number | null, max?: number | null): string {
     return `¥${num(min)}-${num(max)}`;
   }
   if (min != null && min > 0) return `¥${num(min)}`;
-  return '协商报价';
+  return '暂无报价';
 }
 
 function num(value: number) {

@@ -445,7 +445,8 @@ public class SearchHistoryServiceImpl implements SearchHistoryService {
         // 直接查聚合SQL，不走 BrandService.getBrandDetail（避免重复计算）
         try {
             if (!allBrandIds.isEmpty()) {
-                List<BizOfferMapper.BrandProductAgg> aggList = bizOfferMapper.selectBrandProductAggByBrandIds(allBrandIds, category, "报盘");
+                List<BizOfferMapper.BrandProductAgg> aggList = bizOfferMapper.selectBrandProductAggByBrandIds(
+                        allBrandIds, category, "报盘", "comprehensive", 1000, 0);
                 // factoryCount = 所有 factory_no 去重数量
                 long factoryCount = aggList.stream()
                         .flatMap(a -> Arrays.stream(a.factoryNos.split(",")))

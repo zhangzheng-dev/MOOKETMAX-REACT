@@ -82,7 +82,7 @@ public class CountryProductServiceImpl implements CountryProductService {
         int offset = (page - 1) * pageSize;
         String offerType = "offer".equalsIgnoreCase(type) ? "报盘" : ("inquiry".equalsIgnoreCase(type) ? "求购" : null);
         List<BizOfferMapper.CountryProductFactoryAgg> aggList = offerMapper.selectCountryProductFactoryAgg(
-                country, productName, category, offerType, pageSize, offset);
+                country, productName, category, offerType, pageSize, offset, sortBy);
 
         List<CountryProductFactoryDTO> factories = aggList.stream()
                 .map(agg -> convertToFactoryDTO(agg))

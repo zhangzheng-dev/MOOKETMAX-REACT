@@ -156,6 +156,10 @@ export type EmployeeOffer = {
   tags?: string | null;
   goodsType?: string | null;
   feedingMethod?: string | null;
+  feedingType?: string | null;
+  fatRatio?: string | null;
+  cattleBreed?: string | null;
+  remark?: string | null;
   offerOriginalText?: string | null;
   publishTime?: string | null;
 };
@@ -338,7 +342,10 @@ export type EmployeeOfferItem = {
   goodsLocation?: string | null;
   goodsType?: string | null;
   feedingType?: string | null;
+  fatRatio?: string | null;
+  cattleBreed?: string | null;
   tags?: string | null;
+  remark?: string | null;
   offerType?: string | null;
   publishTime?: string | null;
   offerOriginalText?: string | null;

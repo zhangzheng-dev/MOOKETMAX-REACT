@@ -5,19 +5,18 @@ import {colors} from '../../theme/colors';
 
 type Props = {
   text: string;
-  /** location: 带定位图标，使用主色 */
   variant?: 'location' | 'plain' | 'colored';
   bg?: string;
   fg?: string;
+  maxWidth?: number;
 };
 
-/** 报盘列表中的彩色小标签 */
-export function OfferTagChip({text, variant = 'plain', bg, fg}: Props) {
+export function OfferTagChip({text, variant = 'plain', bg, fg, maxWidth}: Props) {
   const finalBg = bg ?? (variant === 'location' ? '#F2F8F7' : '#F3F6F5');
   const finalFg = fg ?? (variant === 'location' ? colors.primary : '#3C4947');
 
   return (
-    <View style={[styles.chip, {backgroundColor: finalBg}]}>
+    <View style={[styles.chip, {backgroundColor: finalBg}, maxWidth ? {maxWidth} : null]}>
       {variant === 'location' ? <LocationIcon color={finalFg} /> : null}
       <Text style={[styles.text, {color: finalFg}]} numberOfLines={1}>
         {text}
@@ -54,8 +53,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 2,
     borderRadius: 1,
+    alignSelf: 'flex-start',
   },
   text: {
     fontSize: 10,
+    flexShrink: 1,
   },
 });

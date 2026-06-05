@@ -23,6 +23,55 @@ const examples: Array<[string, string]> = [
   ['河南冠乐食品有限公司', '查找商家'],
 ];
 
+function fireAndForget(task?: Promise<unknown>) {
+  task?.catch(() => undefined);
+}
+
+function prefetchProduct(category: string, productId?: number | null) {
+  if (!productId) return;
+  fireAndForget(mooketApi.getProductDetail(productId, category));
+}
+
+function prefetchCountry(category: string, country?: string | null) {
+  if (!country) return;
+  fireAndForget(mooketApi.getCountryDetail(country, category));
+}
+
+function prefetchBrand(category: string, brandName?: string | null) {
+  if (!brandName) return;
+  fireAndForget(mooketApi.getBrandDetail(brandName, category));
+}
+
+function prefetchMerchant(category: string, merchantId?: number | string | null) {
+  if (!merchantId) return;
+  fireAndForget(mooketApi.getMerchantDetail(merchantId, category));
+}
+
+function prefetchFactory(category: string, country?: string | null, factoryNo?: string | null) {
+  if (!country || !factoryNo) return;
+  fireAndForget(mooketApi.getFactoryDetail(country, factoryNo, category));
+}
+
+function prefetchCountryProduct(category: string, country?: string | null, productName?: string | null) {
+  if (!country || !productName) return;
+  fireAndForget(mooketApi.getCountryProductDetail(country, productName, category));
+}
+
+function prefetchCountryFactoryProduct(
+  category: string,
+  country?: string | null,
+  factoryNo?: string | null,
+  productName?: string | null,
+) {
+  if (!country || !factoryNo || !productName) return;
+  fireAndForget(mooketApi.getCountryFactoryProductDetail(country, factoryNo, productName, category));
+}
+
+function prefetchBrandProduct(category: string, brandName?: string | null, productName?: string | null) {
+  if (!brandName || !productName) return;
+  fireAndForget(mooketApi.getBrandProductDetail(brandName, productName, category));
+}
+
 export function SearchScreen({route, navigation}: Props) {
   const {category} = route.params;
   const insets = useSafeAreaInsets();
@@ -115,11 +164,15 @@ export function SearchScreen({route, navigation}: Props) {
     const searchWord = getStandardSearchWord(history.searchWord);
 
     if (history.merchantId) {
+      prefetchMerchant(selectedCategory, history.merchantId);
+      prefetchMerchant(selectedCategory, history.merchantId);
       navigation.navigate('Merchant', {merchantId: history.merchantId, category: selectedCategory});
       return;
     }
 
     if (history.country && history.factoryNo && history.productName) {
+      prefetchCountryFactoryProduct(selectedCategory, history.country, history.factoryNo, history.productName);
+      prefetchCountryFactoryProduct(selectedCategory, history.country, history.factoryNo, history.productName);
       navigation.navigate('CountryFactoryProduct', {
         country: history.country,
         factoryNo: history.factoryNo,
@@ -130,6 +183,8 @@ export function SearchScreen({route, navigation}: Props) {
     }
 
     if (history.country && history.productName) {
+      prefetchCountryProduct(selectedCategory, history.country, history.productName);
+      prefetchCountryProduct(selectedCategory, history.country, history.productName);
       navigation.navigate('CountryProduct', {
         country: history.country,
         productName: history.productName,
@@ -139,11 +194,15 @@ export function SearchScreen({route, navigation}: Props) {
     }
 
     if (history.country && history.factoryNo) {
+      prefetchFactory(selectedCategory, history.country, history.factoryNo);
+      prefetchFactory(selectedCategory, history.country, history.factoryNo);
       navigation.navigate('Factory', {country: history.country, factoryNo: history.factoryNo, category: selectedCategory});
       return;
     }
 
     if (history.productId) {
+      prefetchProduct(selectedCategory, history.productId);
+      prefetchProduct(selectedCategory, history.productId);
       navigation.navigate('Product', {
         productId: history.productId,
         category: selectedCategory,
@@ -153,11 +212,15 @@ export function SearchScreen({route, navigation}: Props) {
     }
 
     if (history.brandId) {
+      prefetchBrand(selectedCategory, searchWord);
+      prefetchBrand(selectedCategory, searchWord);
       navigation.navigate('Brand', {brandName: searchWord, category: selectedCategory});
       return;
     }
 
     if (history.country) {
+      prefetchCountry(selectedCategory, history.country);
+      prefetchCountry(selectedCategory, history.country);
       navigation.navigate('Country', {country: history.country, category: selectedCategory});
       return;
     }
@@ -177,40 +240,49 @@ export function SearchScreen({route, navigation}: Props) {
   ) {
     switch (item.matchType) {
       case 'merchant':
+        prefetchMerchant(selectedCategory, item.targetId);
         navigation.navigate('Merchant', {merchantId: item.targetId, category: selectedCategory});
         return;
       case 'product':
+        prefetchProduct(selectedCategory, item.targetId);
         navigation.navigate('Product', {productId: item.targetId, category: selectedCategory, productName: standard.productName ?? item.text});
         return;
       case 'country':
+        prefetchCountry(selectedCategory, standard.country ?? getStandardSearchWord(item.text));
         navigation.navigate('Country', {country: standard.country ?? getStandardSearchWord(item.text), category: selectedCategory});
         return;
       case 'brand':
         if (item.type === '品牌+产品' && (standard.brandName || parts.length >= 2)) {
+          prefetchBrandProduct(selectedCategory, standard.brandName ?? parts[0], standard.productName ?? parts.slice(1).join(' '));
           navigation.navigate('BrandProduct', {
             brandName: standard.brandName ?? parts[0],
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
           });
         } else {
+          prefetchBrand(selectedCategory, standard.brandName ?? getStandardSearchWord(item.text));
           navigation.navigate('Brand', {brandName: standard.brandName ?? getStandardSearchWord(item.text), category: selectedCategory});
         }
         return;
       case 'factory':
         if (standard.country && standard.factoryNo) {
+          prefetchFactory(selectedCategory, standard.country, standard.factoryNo);
           navigation.navigate('Factory', {country: standard.country, factoryNo: standard.factoryNo, category: selectedCategory});
         } else if (parts.length >= 2) {
+          prefetchFactory(selectedCategory, getCountryFromText(parts[0]), parts[1]);
           navigation.navigate('Factory', {country: getCountryFromText(parts[0]), factoryNo: parts[1], category: selectedCategory});
         }
         return;
       case 'combined':
         if (item.type === '国家+产品' && (standard.country || parts.length >= 2)) {
+          prefetchCountryProduct(selectedCategory, standard.country ?? getCountryFromText(parts[0]), standard.productName ?? parts.slice(1).join(' '));
           navigation.navigate('CountryProduct', {
             country: standard.country ?? getCountryFromText(parts[0]),
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
           });
         } else if (standard.country && standard.factoryNo && standard.productName) {
+          prefetchCountryFactoryProduct(selectedCategory, standard.country, standard.factoryNo, standard.productName);
           navigation.navigate('CountryFactoryProduct', {
             country: standard.country,
             factoryNo: standard.factoryNo,
@@ -218,6 +290,7 @@ export function SearchScreen({route, navigation}: Props) {
             category: selectedCategory,
           });
         } else if (parts.length >= 3) {
+          prefetchCountryFactoryProduct(selectedCategory, getCountryFromText(parts[0]), parts[1], parts.slice(2).join(' '));
           navigation.navigate('CountryFactoryProduct', {
             country: getCountryFromText(parts[0]),
             factoryNo: parts[1],
@@ -228,6 +301,7 @@ export function SearchScreen({route, navigation}: Props) {
         return;
       default:
         if (item.type === '国家+产品' && parts.length >= 2) {
+          prefetchCountryProduct(selectedCategory, standard.country ?? getCountryFromText(parts[0]), standard.productName ?? parts.slice(1).join(' '));
           navigation.navigate('CountryProduct', {
             country: standard.country ?? getCountryFromText(parts[0]),
             productName: standard.productName ?? parts.slice(1).join(' '),

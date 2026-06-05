@@ -21,7 +21,7 @@ export function MerchantCard({card, onPress}: Props) {
       style={({pressed}) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.titleWrap}>
         <SvgXml xml={merchantIconXml} width={22} height={21} />
-        <Text style={styles.titleText} numberOfLines={1}>
+        <Text style={styles.titleText} numberOfLines={2}>
           {card.merchantShortName ?? card.merchantName ?? '--'}
         </Text>
       </View>
@@ -107,8 +107,15 @@ function formatWeightUnit(value: unknown): string {
 const styles = StyleSheet.create({
   card: {...cardBaseStyle, gap: 8},
   pressed: {opacity: 0.85},
-  titleWrap: {flexDirection: 'row', alignItems: 'center', gap: 6},
-  titleText: {color: colors.text, fontSize: 16, lineHeight: 28, fontWeight: '500', flex: 1},
+  titleWrap: {flexDirection: 'row', alignItems: 'flex-start', gap: 6},
+  titleText: {
+    color: colors.text,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '500',
+    flex: 1,
+    flexShrink: 1,
+  },
   body: {gap: 4},
   bodyDivider: {
     height: 0.5,

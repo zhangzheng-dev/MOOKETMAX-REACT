@@ -12,7 +12,6 @@ import {navigationRef} from './navigationService';
 import type {RootStackParamList} from './routes';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
 const getSearchScreen = () => require('../screens/SearchScreen').SearchScreen;
 const getHomeCardsScreen = () => require('../screens/HomeCardsScreen').HomeCardsScreen;
 const getMerchantScreen = () => require('../screens/MerchantScreen').MerchantScreen;

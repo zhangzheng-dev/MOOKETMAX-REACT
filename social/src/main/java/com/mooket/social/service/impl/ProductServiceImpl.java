@@ -8,19 +8,14 @@ import com.mooket.social.mapper.BizOfferMapper;
 import com.mooket.social.mapper.DictProductMapper;
 import com.mooket.social.mapper.StatProductMapper;
 import com.mooket.social.service.ProductService;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
-
-/**
- * 产品服务实现
- */
 @Service
 public class ProductServiceImpl implements ProductService {
 
@@ -28,9 +23,10 @@ public class ProductServiceImpl implements ProductService {
     private final BizOfferMapper offerMapper;
     private final StatProductMapper statProductMapper;
 
-    public ProductServiceImpl(DictProductMapper productMapper,
-                              BizOfferMapper offerMapper,
-                              StatProductMapper statProductMapper) {
+    public ProductServiceImpl(
+            DictProductMapper productMapper,
+            BizOfferMapper offerMapper,
+            StatProductMapper statProductMapper) {
         this.productMapper = productMapper;
         this.offerMapper = offerMapper;
         this.statProductMapper = statProductMapper;
@@ -43,18 +39,13 @@ public class ProductServiceImpl implements ProductService {
         return buildProductDetail(productId, category, offerType, sortBy, page, pageSize);
     }
 
-    /**
-     * 构建产品详情（内部方法，不使用缓存）
-     */
     private ProductDetailDTO buildProductDetail(Integer productId, String category, String offerType,
                                                 String sortBy, int page, int pageSize) {
-        // 1. 获取产品信息
         DictProduct product = productMapper.selectById(productId);
         if (product == null) {
             throw new RuntimeException("产品不存在");
         }
 
-        // 2. 确定查询类型
         String dbOfferType = "offer".equalsIgnoreCase(offerType) ? "报盘" : "求购";
         boolean isOffer = "报盘".equals(dbOfferType);
 
@@ -63,28 +54,39 @@ public class ProductServiceImpl implements ProductService {
         dto.setProductName(product.getProductName());
         dto.setCategory(product.getCategory());
 
-        // 3. 报盘和求购都实时查询（统一数据源，不用stat_product，避免口径不一致）
-        BizOfferMapper.ProductDashboardStats dashboardStats =
-                offerMapper.selectProductDashboardStats(productId, category, dbOfferType);
-        dto.setOfferCount(dashboardStats.totalOfferCount != null ? dashboardStats.totalOfferCount : 0L);
-        dto.setMerchantCount(dashboardStats.merchantCount != null ? dashboardStats.merchantCount : 0);
-        dto.setFactoryCount(dashboardStats.factoryCount != null ? dashboardStats.factoryCount : 0);
-        // 价格区间直接用dashboardStats（无IQR，只过滤price<=0）
-        dto.setPriceMin(dashboardStats.priceMin);
-        dto.setPriceMax(dashboardStats.priceMax);
+        if (isOffer) {
+            StatProduct stat = statProductMapper.selectByProductIdAndCategory(productId, category);
+            if (stat != null) {
+                dto.setOfferCount(stat.getTodayOfferCount() != null ? stat.getTodayOfferCount().longValue() : 0L);
+                dto.setMerchantCount(stat.getTodayMerchantCount() != null ? stat.getTodayMerchantCount() : 0);
+                dto.setFactoryCount(stat.getTodayFactoryCount() != null ? stat.getTodayFactoryCount() : 0);
+                dto.setPriceMin(stat.getPriceMin());
+                dto.setPriceMax(stat.getPriceMax());
+            } else {
+                BizOfferMapper.ProductDashboardStats dashboardStats =
+                        offerMapper.selectProductDashboardStats(productId, category, dbOfferType);
+                dto.setOfferCount(dashboardStats.totalOfferCount != null ? dashboardStats.totalOfferCount : 0L);
+                dto.setMerchantCount(dashboardStats.merchantCount != null ? dashboardStats.merchantCount : 0);
+                dto.setFactoryCount(dashboardStats.factoryCount != null ? dashboardStats.factoryCount : 0);
+                dto.setPriceMin(dashboardStats.priceMin);
+                dto.setPriceMax(dashboardStats.priceMax);
+            }
+        } else {
+            BizOfferMapper.ProductDashboardStats dashboardStats =
+                    offerMapper.selectProductDashboardStats(productId, category, dbOfferType);
+            dto.setOfferCount(dashboardStats.totalOfferCount != null ? dashboardStats.totalOfferCount : 0L);
+            dto.setMerchantCount(dashboardStats.merchantCount != null ? dashboardStats.merchantCount : 0);
+            dto.setFactoryCount(dashboardStats.factoryCount != null ? dashboardStats.factoryCount : 0);
+            dto.setPriceMin(dashboardStats.priceMin);
+            dto.setPriceMax(dashboardStats.priceMax);
+        }
 
-        // 5. 使用SQL聚合查询获取分页数据
-        int offset = (page - 1) * pageSize;
-
-        // 报盘和求购都用无IQR的SQL（统一口径，避免看板数量和列表不一致）
+        int offset = Math.max(0, (page - 1) * pageSize);
         List<BizOfferMapper.ProductStatAgg> aggList = offerMapper.selectProductStatsAgg(
-                productId, category, dbOfferType, pageSize, offset);
-
-        // 获取总数
+                productId, category, dbOfferType, pageSize, offset, sortBy);
         int totalCount = offerMapper.countProductStatsAgg(productId, category, dbOfferType);
         int totalPages = (int) Math.ceil((double) totalCount / pageSize);
 
-        // 6. 转换聚合数据为DTO
         List<ProductSummaryDTO> summaries = aggList.stream()
                 .map(agg -> {
                     ProductSummaryDTO summary = new ProductSummaryDTO();
@@ -96,7 +98,6 @@ public class ProductServiceImpl implements ProductService {
                     summary.setPriceMax(agg.priceMax);
                     summary.setOfferCount(agg.offerCount);
                     summary.setMerchantCount(agg.merchantCount);
-                    // 解析商家名称（shortName|fullName格式，最多取前3个）
                     if (agg.merchantNames != null && !agg.merchantNames.isEmpty()) {
                         List<String> names = Arrays.stream(agg.merchantNames.split(","))
                                 .filter(n -> n != null && !n.isEmpty())
@@ -105,56 +106,30 @@ public class ProductServiceImpl implements ProductService {
                                     if (sep > 0) {
                                         String shortName = raw.substring(0, sep);
                                         String fullName = raw.substring(sep + 1);
-                                        return (!shortName.isEmpty() && !"NULL".equalsIgnoreCase(shortName)) ? shortName : fullName;
+                                        return (!shortName.isEmpty() && !"NULL".equalsIgnoreCase(shortName))
+                                                ? shortName
+                                                : fullName;
                                     }
                                     return raw;
                                 })
                                 .collect(Collectors.toList());
                         summary.setMerchantNames(names);
                     } else {
-                        summary.setMerchantNames(java.util.Collections.emptyList());
+                        summary.setMerchantNames(Collections.emptyList());
                     }
                     return summary;
                 })
                 .collect(Collectors.toList());
 
-        // 7. 排序（内存中排序，因为数据量已经很小了）
-        if ("price_asc".equalsIgnoreCase(sortBy)) {
-            summaries.sort((a, b) -> {
-                boolean aHas = a.getPriceMin() != null && a.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = b.getPriceMin() != null && b.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return a.getPriceMin().compareTo(b.getPriceMin());
-            });
-        } else if ("price_desc".equalsIgnoreCase(sortBy)) {
-            summaries.sort((a, b) -> {
-                boolean aHas = a.getPriceMax() != null && a.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = b.getPriceMax() != null && b.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return b.getPriceMax().compareTo(a.getPriceMax());
-            });
-        }
-        // else: 默认按报盘数降序已在SQL中处理
-
-        // 8. 设置返回结果
         dto.setSummaries(summaries);
         dto.setTotalCount(totalCount);
         dto.setPage(page);
         dto.setPageSize(pageSize);
         dto.setTotalPages(totalPages);
-
         return dto;
     }
 
-    /**
-     * 清除产品缓存（数据同步后调用）
-     */
     @CacheEvict(value = "productDetail", allEntries = true)
     public void clearProductCache() {
-        // 缓存将在数据同步后自动清除
     }
 }

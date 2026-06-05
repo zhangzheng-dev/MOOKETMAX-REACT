@@ -4,7 +4,6 @@ import com.mooket.social.dto.BrandDetailDTO;
 import com.mooket.social.dto.BrandProductSummaryDTO;
 import com.mooket.social.entity.DictBrand;
 import com.mooket.social.entity.DictProduct;
-import com.mooket.social.entity.StatBrand;
 import com.mooket.social.mapper.BizOfferMapper;
 import com.mooket.social.mapper.DictBrandMapper;
 import com.mooket.social.mapper.DictProductMapper;
@@ -12,35 +11,31 @@ import com.mooket.social.mapper.StatBrandMapper;
 import com.mooket.social.service.BrandService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * 品牌 Service 实现
- */
 @Service
 public class BrandServiceImpl implements BrandService {
 
-private final BizOfferMapper offerMapper;
+    private static final Logger log = LoggerFactory.getLogger(BrandServiceImpl.class);
+
+    private final BizOfferMapper offerMapper;
     private final StatBrandMapper statBrandMapper;
     private final DictBrandMapper dictBrandMapper;
     private final DictProductMapper dictProductMapper;
-    private static final Logger log = LoggerFactory.getLogger(BrandServiceImpl.class);
 
-    public BrandServiceImpl(BizOfferMapper offerMapper, StatBrandMapper statBrandMapper, DictBrandMapper dictBrandMapper, DictProductMapper dictProductMapper) {
+    public BrandServiceImpl(BizOfferMapper offerMapper,
+                            StatBrandMapper statBrandMapper,
+                            DictBrandMapper dictBrandMapper,
+                            DictProductMapper dictProductMapper) {
         this.offerMapper = offerMapper;
         this.statBrandMapper = statBrandMapper;
         this.dictBrandMapper = dictBrandMapper;
@@ -58,196 +53,90 @@ private final BizOfferMapper offerMapper;
         dto.setPage(page);
         dto.setPageSize(pageSize);
 
-        LocalDate today = LocalDate.now();
-        LocalDate yesterday = today.minusDays(1);
         String dbOfferType = "offer".equalsIgnoreCase(type) ? "报盘" : "求购";
+        String normalizedSortBy = normalizeSortBy(sortBy);
+        int offset = (page - 1) * pageSize;
 
-        // ========== 核心：判断是品牌还是产品，选择查询路径 ==========
-        // 查 dict_brand：确认 brandName 是否是真正的品牌（可能有多条记录，一个品牌对应多个厂号）
         List<DictBrand> brandList = dictBrandMapper.selectByName(brandName);
         boolean isRealBrand = !brandList.isEmpty();
 
-        // 统计数据和聚合结果
-        Long todayOfferCount = 0L;
-        Long yesterdayOfferCount = 0L;
-        Long todayInquiryCount = 0L;
-        Long yesterdayInquiryCount = 0L;
-        int factoryCount = 0;
-
+        long todayOfferCount = 0L;
+        long yesterdayOfferCount = 0L;
+        long todayInquiryCount = 0L;
+        long yesterdayInquiryCount = 0L;
+        int totalCount;
         List<BizOfferMapper.BrandProductAgg> aggList;
 
         if (isRealBrand) {
-            // ========== 路径A：真实品牌（dict_brand 有记录）→ 用所有 brand_id 查 biz_offer ==========
-            // 一个品牌 = 多个 brand_id（每个厂号一个 brand_id）
-            List<Integer> brandIds = brandList.stream().map(DictBrand::getBrandId).collect(Collectors.toList());
-            log.info("getBrandDetail: brandName={} 是真实品牌, brandIds={} (共{}个厂号)", brandName, brandIds, brandIds.size());
+            List<Integer> brandIds = brandList.stream()
+                    .map(DictBrand::getBrandId)
+                    .collect(Collectors.toList());
 
-            // 报盘/求购计数（按所有 brand_id + type 精确查）
             BizOfferMapper.BrandStatByType offerStat = offerMapper.countByBrandIdsAndType(brandIds, category, "报盘");
             if (offerStat != null) {
-                todayOfferCount = offerStat.todayCount != null ? offerStat.todayCount : 0L;
-                yesterdayOfferCount = offerStat.yesterdayCount != null ? offerStat.yesterdayCount : 0L;
+                todayOfferCount = valueOrZero(offerStat.todayCount);
+                yesterdayOfferCount = valueOrZero(offerStat.yesterdayCount);
             }
             BizOfferMapper.BrandStatByType inquiryStat = offerMapper.countByBrandIdsAndType(brandIds, category, "求购");
             if (inquiryStat != null) {
-                todayInquiryCount = inquiryStat.todayCount != null ? inquiryStat.todayCount : 0L;
-                yesterdayInquiryCount = inquiryStat.yesterdayCount != null ? inquiryStat.yesterdayCount : 0L;
+                todayInquiryCount = valueOrZero(inquiryStat.todayCount);
+                yesterdayInquiryCount = valueOrZero(inquiryStat.yesterdayCount);
             }
 
-            // 聚合查询（按所有 brand_id）
-            aggList = offerMapper.selectBrandProductAggByBrandIds(brandIds, category, dbOfferType);
-
+            totalCount = offerMapper.countBrandProductAggByBrandIds(brandIds, category, dbOfferType);
+            aggList = offerMapper.selectBrandProductAggByBrandIds(
+                    brandIds, category, dbOfferType, normalizedSortBy, pageSize, offset);
+            dto.setFactoryCount((int) brandList.stream()
+                    .map(DictBrand::getFactoryNo)
+                    .filter(factoryNo -> factoryNo != null && !factoryNo.isBlank())
+                    .distinct()
+                    .count());
         } else {
-            // ========== 路径B：产品名（非品牌，如"牛前八件套"）→ 用 product_name 查 biz_offer ==========
-            log.info("getBrandDetail: brandName={} 是产品名（非品牌）", brandName);
-
-            if ("inquiry".equalsIgnoreCase(type)) {
-                // 求购：直接 SUM 聚合结果
-                aggList = offerMapper.selectBrandProductAggByProductName(brandName, category, "求购");
-                long totalInquiry = aggList.stream().mapToLong(a -> a.offerCount != null ? a.offerCount : 0L).sum();
-                todayInquiryCount = totalInquiry;
-                yesterdayInquiryCount = 0L;
-            } else {
-                // 报盘：按 product_name + type 精确查今日/昨日
-                BizOfferMapper.BrandStatByType offerStat = offerMapper.countByProductNameAndType(brandName, category, "报盘");
-                if (offerStat != null) {
-                    todayOfferCount = offerStat.todayCount != null ? offerStat.todayCount : 0L;
-                    yesterdayOfferCount = offerStat.yesterdayCount != null ? offerStat.yesterdayCount : 0L;
-                }
-                aggList = offerMapper.selectBrandProductAggByProductName(brandName, category, "报盘");
+            BizOfferMapper.BrandStatByType offerStat = offerMapper.countByProductNameAndType(brandName, category, "报盘");
+            if (offerStat != null) {
+                todayOfferCount = valueOrZero(offerStat.todayCount);
+                yesterdayOfferCount = valueOrZero(offerStat.yesterdayCount);
             }
+            BizOfferMapper.BrandStatByType inquiryStat = offerMapper.countByProductNameAndType(brandName, category, "求购");
+            if (inquiryStat != null) {
+                todayInquiryCount = valueOrZero(inquiryStat.todayCount);
+                yesterdayInquiryCount = valueOrZero(inquiryStat.yesterdayCount);
+            }
+
+            totalCount = offerMapper.countBrandProductAggByProductName(brandName, category, dbOfferType);
+            aggList = offerMapper.selectBrandProductAggByProductName(
+                    brandName, category, dbOfferType, normalizedSortBy, pageSize, offset);
         }
 
-        // 设置统计数据
-        dto.setFactoryCount(factoryCount);
-        dto.setProductCount(0);
+        List<BrandProductSummaryDTO> summaries = aggList.stream()
+                .map(this::toBrandProductSummary)
+                .collect(Collectors.toList());
+
+        dto.setSummaries(summaries);
+        dto.setProductCount(totalCount);
         dto.setTodayOfferCount(todayOfferCount);
         dto.setYesterdayOfferCount(yesterdayOfferCount);
         dto.setTotalOfferCount(todayOfferCount + yesterdayOfferCount);
         dto.setTodayInquiryCount(todayInquiryCount);
         dto.setYesterdayInquiryCount(yesterdayInquiryCount);
         dto.setTotalInquiryCount(todayInquiryCount + yesterdayInquiryCount);
-
-        // 获取产品汇总列表
-        List<BrandProductSummaryDTO> summaries = new ArrayList<>();
-        for (BizOfferMapper.BrandProductAgg agg : aggList) {
-            BrandProductSummaryDTO summary = new BrandProductSummaryDTO();
-            summary.setProductId(agg.productId);
-            summary.setProductName(agg.productName);
-            summary.setPriceMin(agg.priceMin);
-            summary.setPriceMax(agg.priceMax);
-            summary.setFactoryNos(agg.factoryNos);
-            summary.setFactoryCount(agg.factoryCount);
-            summary.setOfferCount(agg.offerCount);
-            summaries.add(summary);
-        }
-
-        // 从聚合结果推导 factoryCount（不同 factory_no 的去重数量）
-        factoryCount = (int) aggList.stream()
-                    .flatMap(a -> Arrays.stream(a.factoryNos.split(",")))
-                    .filter(f -> f != null && !f.trim().isEmpty())
-                    .distinct()
-                    .count();
-
-        // 设置最终的 factoryCount
-        dto.setFactoryCount(factoryCount);
-
-        // 按 offerCount 排序
-        if ("price".equals(sortBy)) {
-            // 价格排序时按价格区间排序（简化为按 priceMin 排序）
-            summaries.sort((a, b) -> {
-                if (a.getPriceMin() == null && b.getPriceMin() == null) return 0;
-                if (a.getPriceMin() == null) return 1;
-                if (b.getPriceMin() == null) return -1;
-                return a.getPriceMin().compareTo(b.getPriceMin());
-            });
-        } else {
-            // 综合排序按报盘数
-            summaries.sort((a, b) -> Integer.compare(
-                    b.getOfferCount() != null ? b.getOfferCount() : 0,
-                    a.getOfferCount() != null ? a.getOfferCount() : 0
-            ));
-        }
-
-        // ========== 先按 productId 合并，再分页（解决前端重复合并导致的列表抖动） ==========
-        // groupBy productId：将同一产品的多个厂号合并为一条记录
-        Map<Integer, BrandProductSummaryDTO> mergedMap = new LinkedHashMap<>();
-        for (BrandProductSummaryDTO s : summaries) {
-            if (mergedMap.containsKey(s.getProductId())) {
-                BrandProductSummaryDTO existing = mergedMap.get(s.getProductId());
-                // 追加厂号（逗号分隔去重）
-                Set<String> factoryNoSet = new LinkedHashSet<>(Arrays.asList(existing.getFactoryNos().split(",")));
-                Collections.addAll(factoryNoSet, s.getFactoryNos().split(","));
-                String combinedFactoryNos = String.join(",", factoryNoSet.stream().filter(f -> f != null && !f.trim().isEmpty()).toArray(String[]::new));
-                existing.setFactoryNos(combinedFactoryNos);
-                existing.setFactoryCount(factoryNoSet.size());
-                // 价格区间取全局 min/max
-                if (s.getPriceMin() != null && (existing.getPriceMin() == null || s.getPriceMin().compareTo(existing.getPriceMin()) < 0)) {
-                    existing.setPriceMin(s.getPriceMin());
-                }
-                if (s.getPriceMax() != null && (existing.getPriceMax() == null || s.getPriceMax().compareTo(existing.getPriceMax()) > 0)) {
-                    existing.setPriceMax(s.getPriceMax());
-                }
-                // 报盘数累加
-                existing.setOfferCount(existing.getOfferCount() + s.getOfferCount());
-            } else {
-                mergedMap.put(s.getProductId(), s);
-            }
-        }
-        List<BrandProductSummaryDTO> mergedSummaries = new ArrayList<>(mergedMap.values());
-
-        // 对合并后的数据重新排序
-        if ("price_asc".equals(sortBy)) {
-            // 升序：取每个产品近两日报盘价格区间的最小值，升序排列；协商报价放最后
-            mergedSummaries.sort((a, b) -> {
-                boolean aHas = a.getPriceMin() != null && a.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = b.getPriceMin() != null && b.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return a.getPriceMin().compareTo(b.getPriceMin());
-            });
-        } else if ("price_desc".equals(sortBy)) {
-            // 降序：取每个产品近两日报盘价格区间的最大值，降序排列；协商报价放最后
-            mergedSummaries.sort((a, b) -> {
-                boolean aHas = a.getPriceMax() != null && a.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = b.getPriceMax() != null && b.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return b.getPriceMax().compareTo(a.getPriceMax());
-            });
-        } else {
-            // 综合推荐：按报盘数降序
-            mergedSummaries.sort((a, b) -> Integer.compare(
-                    b.getOfferCount() != null ? b.getOfferCount() : 0,
-                    a.getOfferCount() != null ? a.getOfferCount() : 0
-            ));
-        }
-
-        // productCount = 合并后的产品数
-        dto.setProductCount(mergedSummaries.size());
-
-        // 分页（基于合并后的条数）
-        int totalCount = mergedSummaries.size();
-        int totalPages = (int) Math.ceil((double) totalCount / pageSize);
-        int fromIndex = (page - 1) * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, totalCount);
-
-        if (fromIndex >= totalCount) {
-            dto.setSummaries(new ArrayList<>());
-        } else {
-            dto.setSummaries(new ArrayList<>(mergedSummaries.subList(fromIndex, toIndex)));
-        }
-
+        dto.setPriceMin(summaries.stream()
+                .map(BrandProductSummaryDTO::getPriceMin)
+                .filter(value -> value != null && value.compareTo(BigDecimal.ZERO) > 0)
+                .min(BigDecimal::compareTo)
+                .orElse(null));
+        dto.setPriceMax(summaries.stream()
+                .map(BrandProductSummaryDTO::getPriceMax)
+                .filter(value -> value != null && value.compareTo(BigDecimal.ZERO) > 0)
+                .max(BigDecimal::compareTo)
+                .orElse(null));
+        dto.setMerchantCount(null);
         dto.setTotalCount(totalCount);
-        dto.setTotalPages(totalPages);
+        dto.setTotalPages((int) Math.ceil((double) totalCount / pageSize));
 
-        log.info("getBrandDetail result: factoryCount={}, productCount={}, todayOffer={}, yesterdayOffer={}, totalOffer={}, todayInquiry={}, yesterdayInquiry={}, totalInquiry={}, summaries.size={}, totalCount={}, totalPages={}",
-                factoryCount, dto.getProductCount(), todayOfferCount, yesterdayOfferCount, dto.getTotalOfferCount(),
-                todayInquiryCount, yesterdayInquiryCount, dto.getTotalInquiryCount(),
-                dto.getSummaries().size(), dto.getTotalCount(), dto.getTotalPages());
-
+        if (!isRealBrand) {
+            dto.setFactoryCount(countFactoriesFromSummaries(summaries));
+        }
         return dto;
     }
 
@@ -262,151 +151,152 @@ private final BizOfferMapper offerMapper;
         dto.setPage(page);
         dto.setPageSize(pageSize);
 
-        LocalDate today = LocalDate.now();
-        String dbOfferType = "offer".equalsIgnoreCase(type) ? "报盘" : "求购";
-
-        // 查询该品牌的所有 brand_id（一个品牌可能有多个厂号）
         List<DictBrand> brandList = dictBrandMapper.selectByName(brandName);
         if (brandList.isEmpty()) {
-            log.info("getBrandProductDetail: brandName={} 在 dict_brand 中不存在", brandName);
-            dto.setSummaries(new ArrayList<>());
+            dto.setSummaries(Collections.emptyList());
             dto.setTotalCount(0);
             dto.setTotalPages(0);
             return dto;
         }
 
-        List<Integer> brandIds = brandList.stream().map(DictBrand::getBrandId).collect(Collectors.toList());
+        List<Integer> brandIds = brandList.stream()
+                .map(DictBrand::getBrandId)
+                .collect(Collectors.toList());
         DictProduct product = dictProductMapper.findByName(category, productName);
         Integer productId = product != null ? product.getProductId() : null;
+        String dbOfferType = "offer".equalsIgnoreCase(type) ? "报盘" : "求购";
+        String normalizedSortBy = normalizeSortBy(sortBy);
+        int offset = (page - 1) * pageSize;
 
-        // 近2日计数
-        Long todayOfferCount = 0L;
-        Long yesterdayOfferCount = 0L;
-        Long todayInquiryCount = 0L;
-        Long yesterdayInquiryCount = 0L;
+        long todayOfferCount = 0L;
+        long yesterdayOfferCount = 0L;
+        long todayInquiryCount = 0L;
+        long yesterdayInquiryCount = 0L;
+        int totalCount;
+        List<BizOfferMapper.BrandProductDetailAgg> aggList;
 
-        BizOfferMapper.BrandStatByType offerStat = offerMapper.countByBrandIdsAndProductNameAndType(brandIds, productName, category, "报盘");
-        if (offerStat != null) {
-            todayOfferCount = offerStat.todayCount != null ? offerStat.todayCount : 0L;
-            yesterdayOfferCount = offerStat.yesterdayCount != null ? offerStat.yesterdayCount : 0L;
+        if (productId != null) {
+            BizOfferMapper.BrandStatByType offerStat = offerMapper.countByBrandIdsAndProductIdAndType(brandIds, productId, category, "报盘");
+            if (offerStat != null) {
+                todayOfferCount = valueOrZero(offerStat.todayCount);
+                yesterdayOfferCount = valueOrZero(offerStat.yesterdayCount);
+            }
+            BizOfferMapper.BrandStatByType inquiryStat = offerMapper.countByBrandIdsAndProductIdAndType(brandIds, productId, category, "求购");
+            if (inquiryStat != null) {
+                todayInquiryCount = valueOrZero(inquiryStat.todayCount);
+                yesterdayInquiryCount = valueOrZero(inquiryStat.yesterdayCount);
+            }
+
+            totalCount = offerMapper.countBrandProductDetailByBrandIdsAndProductId(brandIds, productId, category, dbOfferType);
+            aggList = offerMapper.selectBrandProductDetailByBrandIdsAndProductId(
+                    brandIds, productId, productName, category, dbOfferType, normalizedSortBy, pageSize, offset);
+        } else {
+            BizOfferMapper.BrandStatByType offerStat = offerMapper.countByBrandIdsAndProductNameAndType(brandIds, productName, category, "报盘");
+            if (offerStat != null) {
+                todayOfferCount = valueOrZero(offerStat.todayCount);
+                yesterdayOfferCount = valueOrZero(offerStat.yesterdayCount);
+            }
+            BizOfferMapper.BrandStatByType inquiryStat = offerMapper.countByBrandIdsAndProductNameAndType(brandIds, productName, category, "求购");
+            if (inquiryStat != null) {
+                todayInquiryCount = valueOrZero(inquiryStat.todayCount);
+                yesterdayInquiryCount = valueOrZero(inquiryStat.yesterdayCount);
+            }
+
+            totalCount = offerMapper.countBrandProductDetailByBrandIdsAndProductName(brandIds, productName, category, dbOfferType);
+            aggList = offerMapper.selectBrandProductDetailByBrandIdsAndProductName(
+                    brandIds, productName, category, dbOfferType, normalizedSortBy, pageSize, offset);
         }
-        BizOfferMapper.BrandStatByType inquiryStat = offerMapper.countByBrandIdsAndProductNameAndType(brandIds, productName, category, "求购");
-        if (inquiryStat != null) {
-            todayInquiryCount = inquiryStat.todayCount != null ? inquiryStat.todayCount : 0L;
-            yesterdayInquiryCount = inquiryStat.yesterdayCount != null ? inquiryStat.yesterdayCount : 0L;
-        }
 
-        // 聚合查询（按 brandIds + productName，按 country + factory_no 分组）
-        List<BizOfferMapper.BrandProductDetailAgg> aggList = productId != null
-                ? offerMapper.selectBrandProductDetailByBrandIdsAndProductId(brandIds, productId, productName, category, dbOfferType)
-                : offerMapper.selectBrandProductDetailByBrandIdsAndProductName(brandIds, productName, category, dbOfferType);
+        List<BrandProductSummaryDTO> summaries = aggList.stream()
+                .map(agg -> {
+                    BrandProductSummaryDTO summary = new BrandProductSummaryDTO();
+                    summary.setCountry(agg.country);
+                    summary.setFactoryNo(agg.factoryNo);
+                    summary.setCountryFactory(buildCountryFactory(agg.country, agg.factoryNo));
+                    summary.setProductId(agg.productId);
+                    summary.setProductName(productName);
+                    summary.setPriceMin(agg.priceMin);
+                    summary.setPriceMax(agg.priceMax);
+                    summary.setOfferCount(agg.offerCount);
+                    summary.setMerchantCount(agg.merchantCount);
+                    summary.setMerchantNames(parseMerchantNames(agg.merchantNames));
+                    return summary;
+                })
+                .collect(Collectors.toList());
 
-        // 设置统计数据
-        int factoryCount = (int) aggList.stream()
-                    .map(a -> a.country + "_" + a.factoryNo)
-                    .filter(cf -> cf != null && !cf.contains("null") && !cf.trim().isEmpty())
-                    .distinct()
-                    .count();
-
-        dto.setFactoryCount(factoryCount);
-        dto.setProductCount(aggList.size());
+        dto.setSummaries(summaries);
+        dto.setFactoryCount(totalCount);
+        dto.setProductCount(totalCount);
         dto.setTodayOfferCount(todayOfferCount);
         dto.setYesterdayOfferCount(yesterdayOfferCount);
         dto.setTotalOfferCount(todayOfferCount + yesterdayOfferCount);
         dto.setTodayInquiryCount(todayInquiryCount);
         dto.setYesterdayInquiryCount(yesterdayInquiryCount);
         dto.setTotalInquiryCount(todayInquiryCount + yesterdayInquiryCount);
-
-        // 构建 summaries（按 country + factory 分组，包含商家信息）
-        List<BrandProductSummaryDTO> summaries = new ArrayList<>();
-        for (BizOfferMapper.BrandProductDetailAgg agg : aggList) {
-            BrandProductSummaryDTO summary = new BrandProductSummaryDTO();
-            summary.setCountry(agg.country);
-            summary.setFactoryNo(agg.factoryNo);
-            // countryFactory 组合显示
-            String countryFactory = "";
-            if (agg.country != null && agg.factoryNo != null) {
-                countryFactory = agg.country + " " + agg.factoryNo;
-            } else if (agg.country != null) {
-                countryFactory = agg.country;
-            } else if (agg.factoryNo != null) {
-                countryFactory = agg.factoryNo;
-            }
-            summary.setCountryFactory(countryFactory);
-            summary.setProductId(agg.productId);
-            summary.setProductName(productName); // 固定为搜索的产品名
-            summary.setPriceMin(agg.priceMin);
-            summary.setPriceMax(agg.priceMax);
-            summary.setOfferCount(agg.offerCount);
-            summary.setMerchantCount(agg.merchantCount);
-            // merchantNames 是 "shortName|fullName,shortName|fullName" 格式，解析为 List
-            summary.setMerchantNames(parseMerchantNames(agg.merchantNames));
-            summaries.add(summary);
-        }
-
-// ========== 从全量 aggList 聚合看板数据（在排序/pagination 之前计算，保持稳定）==========
-        BigDecimal fullPriceMin = aggList.stream()
-                .map(a -> a.priceMin)
-                .filter(p -> p != null && p.compareTo(BigDecimal.ZERO) > 0)
+        dto.setPriceMin(summaries.stream()
+                .map(BrandProductSummaryDTO::getPriceMin)
+                .filter(value -> value != null && value.compareTo(BigDecimal.ZERO) > 0)
                 .min(BigDecimal::compareTo)
-                .orElse(null);
-        BigDecimal fullPriceMax = aggList.stream()
-                .map(a -> a.priceMax)
-                .filter(p -> p != null && p.compareTo(BigDecimal.ZERO) > 0)
+                .orElse(null));
+        dto.setPriceMax(summaries.stream()
+                .map(BrandProductSummaryDTO::getPriceMax)
+                .filter(value -> value != null && value.compareTo(BigDecimal.ZERO) > 0)
                 .max(BigDecimal::compareTo)
-                .orElse(null);
-        int fullMerchantCount = aggList.stream()
-                .mapToInt(a -> a.merchantCount != null ? a.merchantCount : 0)
-                .sum();
-        dto.setPriceMin(fullPriceMin);
-        dto.setPriceMax(fullPriceMax);
-        dto.setMerchantCount(fullMerchantCount);
-
-// 按排序
-        if ("price_asc".equals(sortBy)) {
-            summaries.sort((a, b) -> {
-                boolean aHas = a.getPriceMin() != null && a.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = b.getPriceMin() != null && b.getPriceMin().compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return a.getPriceMin().compareTo(b.getPriceMin());
-            });
-        } else if ("price_desc".equals(sortBy)) {
-            summaries.sort((a, b) -> {
-                boolean aHas = a.getPriceMax() != null && a.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = b.getPriceMax() != null && b.getPriceMax().compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return b.getPriceMax().compareTo(a.getPriceMax());
-            });
-        } else {
-            summaries.sort((a, b) -> Integer.compare(
-                    b.getOfferCount() != null ? b.getOfferCount() : 0,
-                    a.getOfferCount() != null ? a.getOfferCount() : 0
-            ));
-        }
-
-        int totalCount = summaries.size();
-        int totalPages = (int) Math.ceil((double) totalCount / pageSize);
-        int fromIndex = (page - 1) * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, totalCount);
-
-        if (fromIndex >= totalCount) {
-            dto.setSummaries(new ArrayList<>());
-        } else {
-            dto.setSummaries(new ArrayList<>(summaries.subList(fromIndex, toIndex)));
-        }
-
+                .orElse(null));
+        dto.setMerchantCount(summaries.stream()
+                .map(BrandProductSummaryDTO::getMerchantCount)
+                .filter(value -> value != null)
+                .mapToInt(Integer::intValue)
+                .sum());
         dto.setTotalCount(totalCount);
-        dto.setTotalPages(totalPages);
-
-        log.info("getBrandProductDetail result: brandName={}, productName={}, factoryCount={}, productCount={}, todayOffer={}, yesterdayOffer={}, totalOffer={}, summaries.size={}, totalCount={}, totalPages={}",
-                brandName, productName, factoryCount, dto.getProductCount(), todayOfferCount, yesterdayOfferCount, dto.getTotalOfferCount(),
-                dto.getSummaries().size(), dto.getTotalCount(), dto.getTotalPages());
-
+        dto.setTotalPages((int) Math.ceil((double) totalCount / pageSize));
         return dto;
+    }
+
+    private BrandProductSummaryDTO toBrandProductSummary(BizOfferMapper.BrandProductAgg agg) {
+        BrandProductSummaryDTO summary = new BrandProductSummaryDTO();
+        summary.setProductId(agg.productId);
+        summary.setProductName(agg.productName);
+        summary.setPriceMin(agg.priceMin);
+        summary.setPriceMax(agg.priceMax);
+        summary.setFactoryNos(agg.factoryNos);
+        summary.setFactoryCount(agg.factoryCount);
+        summary.setOfferCount(agg.offerCount);
+        return summary;
+    }
+
+    private String buildCountryFactory(String country, String factoryNo) {
+        if (country != null && factoryNo != null) {
+            return country + " " + factoryNo;
+        }
+        if (country != null) {
+            return country;
+        }
+        return factoryNo;
+    }
+
+    private int countFactoriesFromSummaries(List<BrandProductSummaryDTO> summaries) {
+        Set<String> factories = new LinkedHashSet<>();
+        for (BrandProductSummaryDTO summary : summaries) {
+            if (summary.getFactoryNos() == null || summary.getFactoryNos().isBlank()) {
+                continue;
+            }
+            factories.addAll(Arrays.stream(summary.getFactoryNos().split(","))
+                    .filter(factoryNo -> factoryNo != null && !factoryNo.trim().isEmpty())
+                    .collect(Collectors.toSet()));
+        }
+        return factories.size();
+    }
+
+    private long valueOrZero(Long value) {
+        return value != null ? value : 0L;
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "comprehensive";
+        }
+        return sortBy;
     }
 
     private List<String> parseMerchantNames(String merchantNames) {

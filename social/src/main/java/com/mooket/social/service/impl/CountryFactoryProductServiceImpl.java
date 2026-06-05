@@ -121,71 +121,15 @@ private final BizOfferMapper offerMapper;
         List<DailyPrice> priceHistory30Days = getPriceHistory30Days(country, factoryNo, dto.getProductId(), productName, category, priceOfferType);
         dto.setPriceHistory30Days(priceHistory30Days);
 
-        // 6. 获取报盘列表（先获取所有记录，分组后再分页，避免分页位置不同导致分组数量不一致）
+        // 6. 统一走数据库全局排序 + 分页，避免先全量分组再内存排序导致慢且翻页不稳定
         String offerType = "offer".equalsIgnoreCase(type) ? "报盘" : ("inquiry".equalsIgnoreCase(type) ? "求购" : null);
-
-        // 价格排序需要在分组后按聚合的priceMin/priceMax排序，不在数据库层排序
-        String dbSortBy = "price_asc".equals(sortBy) || "price_desc".equals(sortBy) ? "comprehensive" : sortBy;
-
-        // 获取足够多的记录用于分组（一次性获取，分组后再分页）
-        int fetchLimit = 1000;
-        List<BizOffer> offers = offerMapper.selectOfferListByCountryFactoryProduct(
-                country, factoryNo, productName, category, offerType, dbSortBy, fetchLimit, 0);
-
-        // 按商家分组
-        List<MerchantOfferGroup> merchantGroups = groupOffersByMerchant(offers);
-
-        // 应用内存排序（分组后按聚合的价格排序）；协商报价（价格为0）放最后
-        if ("price_asc".equals(sortBy)) {
-            merchantGroups.sort((a, b) -> {
-                BigDecimal priceA = getMinPrice(a.getEmployeeOffers());
-                BigDecimal priceB = getMinPrice(b.getEmployeeOffers());
-                boolean aHas = priceA.compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = priceB.compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return priceA.compareTo(priceB);
-            });
-        } else if ("price_desc".equals(sortBy)) {
-            merchantGroups.sort((a, b) -> {
-                BigDecimal priceA = getMaxPrice(a.getEmployeeOffers());
-                BigDecimal priceB = getMaxPrice(b.getEmployeeOffers());
-                boolean aHas = priceA.compareTo(BigDecimal.ZERO) > 0;
-                boolean bHas = priceB.compareTo(BigDecimal.ZERO) > 0;
-                if (!aHas && !bHas) return 0;
-                if (!aHas) return 1;
-                if (!bHas) return -1;
-                return priceB.compareTo(priceA);
-            });
-        } else if ("publish_time".equals(sortBy)) {
-            // 发布时间排序：按最新发布排序
-            merchantGroups.sort((a, b) -> {
-                String timeA = a.getEmployeeOffers().stream()
-                    .map(EmployeeOfferDTO::getPublishTime)
-                    .filter(Objects::nonNull)
-                    .max(String::compareTo)
-                    .orElse("");
-                String timeB = b.getEmployeeOffers().stream()
-                    .map(EmployeeOfferDTO::getPublishTime)
-                    .filter(Objects::nonNull)
-                    .max(String::compareTo)
-                    .orElse("");
-                return timeB.compareTo(timeA);
-            });
-        } else {
-            // 综合排序：按报盘数降序
-            merchantGroups.sort((a, b) -> b.getOfferCount().compareTo(a.getOfferCount()));
-        }
-
-        // 内存分页
-        int totalCount = merchantGroups.size();
+        int offset = (page - 1) * pageSize;
+        List<BizOfferMapper.MerchantGroupAgg> merchantAggs = offerMapper.selectCountryFactoryProductMerchantAgg(
+                country, factoryNo, productName, category, offerType, normalizeSortBy(sortBy), pageSize, offset);
+        int totalCount = offerMapper.countCountryFactoryProductMerchantAgg(country, factoryNo, productName, category, offerType);
         int totalPages = (int) Math.ceil((double) totalCount / pageSize);
-        int fromIndex = (page - 1) * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, merchantGroups.size());
-        List<MerchantOfferGroup> pagedGroups = fromIndex < merchantGroups.size()
-            ? merchantGroups.subList(fromIndex, toIndex)
-            : Collections.emptyList();
+        List<MerchantOfferGroup> pagedGroups = buildMerchantOfferGroupsPage(
+                country, factoryNo, productName, category, offerType, merchantAggs);
 
         dto.setMerchantOffers(pagedGroups);
         dto.setTotalCount(totalCount);
@@ -194,6 +138,87 @@ private final BizOfferMapper offerMapper;
         dto.setTotalPages(totalPages);
 
         return dto;
+    }
+
+    private List<MerchantOfferGroup> buildMerchantOfferGroupsPage(String country, String factoryNo,
+                                                                  String productName, String category,
+                                                                  String offerType,
+                                                                  List<BizOfferMapper.MerchantGroupAgg> merchantAggs) {
+        if (merchantAggs == null || merchantAggs.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> merchantIds = merchantAggs.stream()
+                .map(agg -> agg.merchantId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, DictMerchant> merchantMap = merchantIds.isEmpty()
+                ? Collections.emptyMap()
+                : merchantMapper.selectBatchIds(merchantIds).stream()
+                .collect(Collectors.toMap(DictMerchant::getMerchantId, merchant -> merchant, (left, right) -> left));
+
+        List<BizOffer> offerDetails = new ArrayList<>();
+        if (!merchantIds.isEmpty()) {
+            offerDetails.addAll(offerMapper.selectOfferListByCountryFactoryProductMerchantIds(
+                    country, factoryNo, productName, category, offerType, merchantIds));
+        }
+        offerDetails.addAll(offerMapper.selectOfferListByCountryFactoryProductNoMerchant(
+                country, factoryNo, productName, category, offerType));
+
+        Map<String, List<BizOffer>> offersByGroup = offerDetails.stream()
+                .collect(Collectors.groupingBy(
+                        offer -> merchantGroupKey(offer.getMerchantId()),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        List<MerchantOfferGroup> groups = new ArrayList<>();
+        for (BizOfferMapper.MerchantGroupAgg agg : merchantAggs) {
+            List<BizOffer> groupOffers = offersByGroup.getOrDefault(
+                    merchantGroupKey(agg.merchantId),
+                    Collections.emptyList());
+
+            MerchantOfferGroup group = new MerchantOfferGroup();
+            group.setMerchantId(agg.merchantId);
+            group.setMerchantPhone(agg.contactPhone);
+            group.setOfferCount(agg.offerCount != null ? agg.offerCount : groupOffers.size());
+
+            if (agg.merchantId != null) {
+                DictMerchant merchant = merchantMap.get(agg.merchantId);
+                if (merchant != null) {
+                    group.setMerchantName(merchant.getMerchantName());
+                    boolean isFamous = merchant.getMerchantTags() != null &&
+                            merchant.getMerchantTags().contains("知名商家");
+                    group.setIsFamousMerchant(isFamous);
+                } else {
+                    group.setMerchantName(agg.contactPhone);
+                    group.setIsFamousMerchant(false);
+                }
+            } else {
+                group.setMerchantName("暂未关联行业商家");
+                group.setIsFamousMerchant(false);
+            }
+
+            List<EmployeeOfferDTO> employeeOfferDTOs = groupOffers.stream()
+                    .sorted(Comparator.comparing(BizOffer::getPublishTime, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .map(this::convertToEmployeeOfferDTO)
+                    .collect(Collectors.toList());
+            group.setEmployeeOffers(employeeOfferDTOs);
+            groups.add(group);
+        }
+        return groups;
+    }
+
+    private String merchantGroupKey(Long merchantId) {
+        return merchantId != null ? "merchant_" + merchantId : "NO_MERCHANT";
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "comprehensive";
+        }
+        return sortBy;
     }
 
     /**

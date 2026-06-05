@@ -87,7 +87,11 @@ public class SubstituteProductDTO {
         private String weight;
         private String goodsLocation;
         private String goodsType;
+        private String feedingType;
+        private String fatRatio;
+        private String cattleBreed;
         private String tags;
+        private String remark;
         private String offerType;
         private String publishTime;
         private String offerOriginalText;

@@ -5,7 +5,7 @@ import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import type {EmployeeOffer, OfferSummary} from '../../types/api';
-import {colorForTag, computePriceRange, extractCity, formatPublishTime, parseWeight, splitTags} from '../../utils/offer';
+import {colorForOfferField, colorForTag, computePriceRange, extractCity, formatPublishTime, parseWeight, splitTags} from '../../utils/offer';
 import {OfferTagChip} from './OfferTagChip';
 
 type Props = {
@@ -48,15 +48,24 @@ function OfferCardCompactInner({
   ]);
   const allFeedings = unique([
     offer.feedingType ?? '',
-    ...(offer.employeeOffers ?? []).map(item => item.feedingMethod ?? ''),
+    ...(offer.employeeOffers ?? []).map(item => item.feedingType ?? item.feedingMethod ?? ''),
   ]);
+  const allFatRatios = unique((offer.employeeOffers ?? []).map(item => item.fatRatio ?? ''));
+  const allBreeds = unique((offer.employeeOffers ?? []).map(item => item.cattleBreed ?? ''));
+  const allRemarks = unique((offer.employeeOffers ?? []).map(item => item.remark ?? ''));
   const allTags = unique([
     ...splitTags(offer.tags, 4),
     ...(offer.employeeOffers ?? []).flatMap(item => splitTags(item.tags, 4)),
   ]).slice(0, 4);
 
   const hasAnyTag =
-    allLocations.length > 0 || allGoodsTypes.length > 0 || allFeedings.length > 0 || allTags.length > 0;
+    allLocations.length > 0 ||
+    allGoodsTypes.length > 0 ||
+    allFeedings.length > 0 ||
+    allFatRatios.length > 0 ||
+    allBreeds.length > 0 ||
+    allRemarks.length > 0 ||
+    allTags.length > 0;
 
   return (
     <View style={styles.itemWrap}>
@@ -83,15 +92,24 @@ function OfferCardCompactInner({
                 <OfferTagChip key={`loc-${loc}`} text={loc} variant="location" />
               ))}
               {allGoodsTypes.map(t => (
-                <OfferTagChip key={`g-${t}`} text={t} />
+                <OfferTagChip key={`g-${t}`} text={t} variant="colored" {...colorForOfferField('goodsType')} />
               ))}
               {allFeedings.map(t => (
-                <OfferTagChip key={`f-${t}`} text={t} />
+                <OfferTagChip key={`f-${t}`} text={t} variant="colored" {...colorForOfferField('feedingType')} />
+              ))}
+              {allFatRatios.map(t => (
+                <OfferTagChip key={`fat-${t}`} text={t} variant="colored" {...colorForOfferField('fatRatio')} />
+              ))}
+              {allBreeds.map(t => (
+                <OfferTagChip key={`breed-${t}`} text={t} variant="colored" {...colorForOfferField('cattleBreed')} />
               ))}
               {allTags.map(tag => {
                 const {bg, fg} = colorForTag(tag);
                 return <OfferTagChip key={`t-${tag}`} text={tag} variant="colored" bg={bg} fg={fg} />;
               })}
+              {allRemarks.slice(0, 2).map(t => (
+                <OfferTagChip key={`remark-${t}`} text={t} variant="colored" maxWidth={180} {...colorForOfferField('remark')} />
+              ))}
             </ScrollView>
           ) : null}
         </View>
@@ -132,6 +150,10 @@ function EmployeeRow({
   const [weightValue, weightUnit] = parseWeight(offer.weight);
   const time = formatPublishTime(offer.publishTime);
   const tags = splitTags(offer.tags, 4);
+  const feedingType = offer.feedingType ?? offer.feedingMethod ?? '';
+  const fatRatio = offer.fatRatio?.trim() ?? '';
+  const cattleBreed = offer.cattleBreed?.trim() ?? '';
+  const remark = offer.remark?.trim() ?? '';
 
   return (
     <View style={empStyles.wrap}>
@@ -167,12 +189,15 @@ function EmployeeRow({
           {offer.goodsLocation ? (
             <OfferTagChip text={extractCity(offer.goodsLocation)} variant="location" />
           ) : null}
-          {offer.goodsType ? <OfferTagChip text={offer.goodsType} /> : null}
-          {offer.feedingMethod ? <OfferTagChip text={offer.feedingMethod} /> : null}
+          {offer.goodsType ? <OfferTagChip text={offer.goodsType} variant="colored" {...colorForOfferField('goodsType')} /> : null}
+          {feedingType ? <OfferTagChip text={feedingType} variant="colored" {...colorForOfferField('feedingType')} /> : null}
+          {fatRatio ? <OfferTagChip text={fatRatio} variant="colored" {...colorForOfferField('fatRatio')} /> : null}
+          {cattleBreed ? <OfferTagChip text={cattleBreed} variant="colored" {...colorForOfferField('cattleBreed')} /> : null}
           {tags.map(tag => {
             const {bg, fg} = colorForTag(tag);
             return <OfferTagChip key={tag} text={tag} variant="colored" bg={bg} fg={fg} />;
           })}
+          {remark ? <OfferTagChip text={remark} variant="colored" maxWidth={220} {...colorForOfferField('remark')} /> : null}
         </View>
 
         <View style={empStyles.actionDivider} />

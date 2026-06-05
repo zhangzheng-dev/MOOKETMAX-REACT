@@ -20,6 +20,10 @@ public class EmployeeOfferDTO {
     private String tags;
     private String goodsType;
     private String feedingMethod;
+    private String feedingType;
+    private String fatRatio;
+    private String cattleBreed;
+    private String remark;
     private String offerOriginalText;
     private String publishTime;
 }
