@@ -44,20 +44,9 @@ export function CountryProductDashboard({
     .map(d => Number(d.avgPrice))
     .filter(v => Number.isFinite(v) && v > 0) as number[];
   const hasTrend7 = trend7.length > 1;
-  const hasValidChange = priceChange != null && priceChangeRate != null;
-
-  let effectiveChange = priceChange;
-  let effectiveRate = priceChangeRate;
-  if ((!hasValidChange || (priceChange === 0 && priceChangeRate === 0)) && trend7.length >= 2) {
-    const todayAvg = trend7[trend7.length - 1];
-    const yesterdayAvg = trend7[trend7.length - 2];
-    if (todayAvg > 0 && yesterdayAvg > 0) {
-      effectiveChange = Number((todayAvg - yesterdayAvg).toFixed(2));
-      effectiveRate = Number(((effectiveChange / yesterdayAvg) * 100).toFixed(2));
-    }
-  }
-
-  const showChange = effectiveChange != null && effectiveRate != null;
+  const effectiveChange = priceChange;
+  const effectiveRate = priceChangeRate;
+  const showChange = true;
   const hasDuplicate =
     productName && country && (country.includes(productName) || country.endsWith(productName));
 
@@ -87,7 +76,7 @@ export function CountryProductDashboard({
               {priceText.value}
             </Text>
             {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
-            {showChange ? <PriceChange value={effectiveChange!} rate={effectiveRate!} /> : null}
+            {showChange ? <PriceChange value={effectiveChange} rate={effectiveRate} /> : null}
           </View>
         </View>
 
@@ -230,25 +219,31 @@ function Stat({label, value}: {label: string; value: number | string}) {
   );
 }
 
-function PriceChange({value, rate}: {value: number; rate: number}) {
-  const up = value >= 0;
-  const fg = up ? '#A53321' : '#0E8D41';
+function PriceChange({value, rate}: {value?: number | null; rate?: number | null}) {
+  const isNeutral = value == null || rate == null || (value === 0 && rate === 0);
+  const up = !isNeutral && value > 0;
+  const fg = isNeutral ? '#9DA4A3' : up ? '#A53321' : '#0E8D41';
 
   return (
     <View style={styles.changeRow}>
       <Svg width={10} height={6} viewBox="0 0 10 6">
-        <Path
-          d={
-            up
-              ? 'M0.7 6L0 5.3L3.7 1.575L5.7 3.575L8.3 1H7V0H10V3H9V1.7L5.7 5L3.7 3L0.7 6Z'
-              : 'M0.7 0L0 0.7L3.7 4.425L5.7 2.425L8.3 5H7V6H10V3H9V4.3L5.7 1L3.7 3L0.7 0Z'
-          }
-          fill={fg}
-        />
+        {isNeutral ? (
+          <Path d="M1 3H9" stroke={fg} strokeWidth={1.4} strokeLinecap="round" />
+        ) : (
+          <Path
+            d={
+              up
+                ? 'M0.7 6L0 5.3L3.7 1.575L5.7 3.575L8.3 1H7V0H10V3H9V1.7L5.7 5L3.7 3L0.7 6Z'
+                : 'M0.7 0L0 0.7L3.7 4.425L5.7 2.425L8.3 5H7V6H10V3H9V4.3L5.7 1L3.7 3L0.7 0Z'
+            }
+            fill={fg}
+          />
+        )}
       </Svg>
       <Text style={[styles.changeText, {color: fg}]} numberOfLines={1}>
-        {value > 0 ? '+' : ''}
-        {value.toFixed(2)} {Math.abs(rate).toFixed(2)}%
+        {isNeutral
+          ? '0.0 0.0%'
+          : `${value > 0 ? '+' : ''}${value.toFixed(2)} ${Math.abs(rate).toFixed(2)}%`}
       </Text>
     </View>
   );

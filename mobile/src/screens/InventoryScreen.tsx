@@ -32,6 +32,7 @@ import {
   ResolvedInventoryRow,
   resolveInventoryRows,
 } from '../utils/pivot';
+import {colors} from '../theme/colors';
 import {InventoryTheme, Mode, themes} from '../theme/inventoryTheme';
 
 type Props = Partial<NativeStackScreenProps<RootStackParamList, 'Inventory'>> & {
