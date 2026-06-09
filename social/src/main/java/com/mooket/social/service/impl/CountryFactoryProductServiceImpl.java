@@ -312,7 +312,11 @@ private final BizOfferMapper offerMapper;
         dto.setWeight(offer.getWeight());
         dto.setGoodsLocation(offer.getGoodsLocation());
         dto.setGoodsType(offer.getGoodsType());
+        dto.setFeedingType(offer.getFeedingType());
+        dto.setFatRatio(offer.getFatRatio());
+        dto.setCattleBreed(offer.getCattleBreed());
         dto.setTags(offer.getTags());
+        dto.setRemark(offer.getRemark());
         dto.setOfferType(offer.getOfferType());
         dto.setOfferOriginalText(offer.getOfferOriginalText());
 

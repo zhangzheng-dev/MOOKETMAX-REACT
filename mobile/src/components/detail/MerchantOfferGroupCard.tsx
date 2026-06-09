@@ -56,56 +56,56 @@ function MerchantOfferGroupCardInner({
   return (
     <View style={styles.wrap}>
       <Pressable onPress={() => setExpanded(prev => !prev)} style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.titleRow}>
-            {group.isFamousMerchant ? (
-              <View style={styles.famousBadge}>
-                <Text style={styles.famousText}>知名商家</Text>
-                <FamousCrown />
-              </View>
-            ) : null}
-            <Text style={styles.merchantName} numberOfLines={1}>
-              {merchantName}
-            </Text>
+        <View style={styles.headerTopRow}>
+          <View style={styles.headerLeft}>
+            <View style={styles.titleRow}>
+              {group.isFamousMerchant ? (
+                <View style={styles.famousBadge}>
+                  <Text style={styles.famousText}>知名商家</Text>
+                  <FamousCrown />
+                </View>
+              ) : null}
+              <Text style={styles.merchantName}>{merchantName}</Text>
+            </View>
           </View>
 
-          <View style={styles.tagRow}>
-            {firstLocation ? <OfferTagChip text={firstLocation} variant="location" /> : null}
-            {goodsTypes.slice(0, 2).map(text => renderFieldChip('goodsType', text))}
-            {feedings.slice(0, 2).map(text => renderFieldChip('feedingType', text))}
-            {fatRatios.slice(0, 2).map(text => renderFieldChip('fatRatio', text))}
-            {breeds.slice(0, 2).map(text => renderFieldChip('cattleBreed', text))}
-            {tags.slice(0, 4).map(tag => {
-              const {bg, fg} = colorForTag(tag);
-              return <OfferTagChip key={`tag-${tag}`} text={tag} variant="colored" bg={bg} fg={fg} />;
-            })}
-            {remarks.slice(0, 2).map(text => renderFieldChip('remark', text, 180))}
+          <View style={styles.headerRight}>
+            {priceMin != null && priceMax != null ? (
+              <View style={styles.priceLine}>
+                <Text style={styles.priceValue}>
+                  ¥ {numStr(priceMin)}
+                  {priceMin !== priceMax ? ` - ${numStr(priceMax)}` : ''}
+                </Text>
+                <Text style={styles.priceUnit}>/kg </Text>
+              </View>
+            ) : (
+              <Text style={styles.negotiateText}>协商报价</Text>
+            )}
+            <View style={[styles.arrow, expanded && styles.arrowDown]}>
+              <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+                <Path
+                  d={expanded ? 'M4 10L8 6L12 10' : 'M4 6L8 10L12 6'}
+                  stroke="#3C4947"
+                  strokeWidth={1.4}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            </View>
           </View>
         </View>
 
-        <View style={styles.headerRight}>
-          {priceMin != null && priceMax != null ? (
-            <View style={styles.priceLine}>
-              <Text style={styles.priceValue}>
-                ¥ {numStr(priceMin)}
-                {priceMin !== priceMax ? ` - ${numStr(priceMax)}` : ''}
-              </Text>
-              <Text style={styles.priceUnit}>/kg </Text>
-            </View>
-          ) : (
-            <Text style={styles.negotiateText}>协商报价</Text>
-          )}
-          <View style={[styles.arrow, expanded && styles.arrowDown]}>
-            <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-              <Path
-                d={expanded ? 'M4 10L8 6L12 10' : 'M4 6L8 10L12 6'}
-                stroke="#3C4947"
-                strokeWidth={1.4}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-          </View>
+        <View style={styles.tagRow}>
+          {firstLocation ? <OfferTagChip text={firstLocation} variant="location" /> : null}
+          {goodsTypes.slice(0, 2).map(text => renderFieldChip('goodsType', text))}
+          {feedings.slice(0, 2).map(text => renderFieldChip('feedingType', text))}
+          {fatRatios.slice(0, 2).map(text => renderFieldChip('fatRatio', text))}
+          {breeds.slice(0, 2).map(text => renderFieldChip('cattleBreed', text))}
+          {tags.slice(0, 4).map(tag => {
+            const {bg, fg} = colorForTag(tag);
+            return <OfferTagChip key={`tag-${tag}`} text={tag} variant="colored" bg={bg} fg={fg} />;
+          })}
+          {remarks.slice(0, 2).map(text => renderFieldChip('remark', text, 220))}
         </View>
       </Pressable>
 
@@ -235,6 +235,7 @@ function renderFieldChip(
       bg={bg}
       fg={fg}
       maxWidth={maxWidth}
+      fillRest={kind === 'remark'}
     />
   );
 }
@@ -352,14 +353,32 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingVertical: 12,
     gap: 8,
   },
-  headerLeft: {flex: 1, gap: 8},
-  headerRight: {flexDirection: 'row', alignItems: 'center', gap: 4},
-  titleRow: {flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1},
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  headerLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginLeft: 4,
+    flexShrink: 0,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 4,
+    flex: 1,
+    minWidth: 0,
+  },
   famousBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -369,22 +388,57 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF7D6',
     borderRadius: 2,
   },
-  famousText: {fontSize: 10, color: '#8A6600'},
+  famousText: {
+    fontSize: 10,
+    color: '#8A6600',
+  },
   merchantName: {
     flex: 1,
+    flexShrink: 1,
     color: colors.text,
     fontSize: 16,
     lineHeight: 22,
     fontWeight: '600',
+    flexWrap: 'wrap',
   },
-  tagRow: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6},
-  priceLine: {flexDirection: 'row', alignItems: 'baseline'},
-  priceValue: {fontFamily: fonts.manropeSemiBold, fontSize: 18, lineHeight: 22, color: colors.price},
-  priceUnit: {fontFamily: fonts.manropeRegular, fontSize: 10, lineHeight: 18, color: colors.text},
-  negotiateText: {fontFamily: fonts.manropeSemiBold, fontSize: 15, color: colors.primary},
-  arrow: {padding: 4},
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
+  },
+  priceLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  priceValue: {
+    fontFamily: fonts.manropeSemiBold,
+    fontSize: 17,
+    lineHeight: 21,
+    color: colors.price,
+  },
+  priceUnit: {
+    fontFamily: fonts.manropeRegular,
+    fontSize: 10,
+    lineHeight: 16,
+    color: colors.text,
+    marginLeft: 1,
+  },
+  negotiateText: {
+    fontFamily: fonts.manropeSemiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.primary,
+  },
+  arrow: {
+    padding: 4,
+  },
   arrowDown: {},
-  expandedBody: {paddingBottom: 12, gap: 12},
+  expandedBody: {
+    paddingBottom: 12,
+    gap: 12,
+  },
   offerCard: {
     borderRadius: 4,
     backgroundColor: '#FBFFFE',
@@ -393,23 +447,111 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 12,
   },
-  offerHead: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8},
-  userBlock: {flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1},
-  userName: {color: colors.text, fontSize: 14, fontWeight: '500', flexShrink: 1},
-  priceCol: {flexDirection: 'row', alignItems: 'center', gap: 16},
-  priceLineSmall: {flexDirection: 'row', alignItems: 'baseline'},
-  weightValue: {fontFamily: fonts.manropeSemiBold, color: colors.text, fontSize: 16, lineHeight: 20},
-  weightUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20, marginLeft: 1},
-  priceMain: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 16, lineHeight: 20},
-  priceUnitInner: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20, marginLeft: 1},
-  negotiateTextSmall: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 14, lineHeight: 20},
-  offerTagRow: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6},
-  timeText: {color: '#3C4947', fontSize: 11, lineHeight: 14},
-  actionDivider: {height: 1, backgroundColor: 'rgba(0,106,97,0.05)'},
-  actionRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
-  actionButton: {flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 4},
-  actionText: {color: '#3C4947', fontSize: 12, lineHeight: 16},
-  actionTextPrimary: {color: colors.primary, fontWeight: '500'},
-  actionVDivider: {width: 0.5, height: 13, backgroundColor: '#3C4947', opacity: 0.3},
-  moreCount: {color: '#9DA4A3', fontSize: 11, textAlign: 'center'},
+  offerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  userBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  userName: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  priceCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  priceLineSmall: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  weightValue: {
+    fontFamily: fonts.manropeSemiBold,
+    color: colors.text,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  weightUnit: {
+    fontFamily: fonts.manropeRegular,
+    color: colors.text,
+    fontSize: 10,
+    lineHeight: 20,
+    marginLeft: 1,
+  },
+  priceMain: {
+    fontFamily: fonts.manropeSemiBold,
+    color: colors.price,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  priceUnitInner: {
+    fontFamily: fonts.manropeRegular,
+    color: colors.text,
+    fontSize: 10,
+    lineHeight: 20,
+    marginLeft: 1,
+  },
+  negotiateTextSmall: {
+    fontFamily: fonts.manropeSemiBold,
+    color: colors.primary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  offerTagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timeText: {
+    color: '#3C4947',
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  actionDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0,106,97,0.05)',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 4,
+  },
+  actionText: {
+    color: '#3C4947',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  actionTextPrimary: {
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  actionVDivider: {
+    width: 0.5,
+    height: 13,
+    backgroundColor: '#3C4947',
+    opacity: 0.3,
+  },
+  moreCount: {
+    color: '#9DA4A3',
+    fontSize: 11,
+    textAlign: 'center',
+  },
 });
