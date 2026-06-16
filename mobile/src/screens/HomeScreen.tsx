@@ -19,13 +19,12 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {mooketApi} from '../api/mooketApi';
 import {HomeCardSwitcher} from '../components/home/cards';
-import {UpdateModal} from '../components/common/UpdateModal';
 import {MooketMaxLogo} from '../components/login/LoginIcons';
-import {CURRENT_APP_VERSION_CODE, DEFAULT_CATEGORY} from '../config/env';
+import {DEFAULT_CATEGORY} from '../config/env';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
-import type {AppVersionInfo, HomeCardItem, HomeStatData, HotSearchItem} from '../types/api';
+import type {HomeCardItem, HomeStatData, HotSearchItem} from '../types/api';
 import {buildHomeCardSearchHistoryPayload, buildHomeFallbackExampleCards, getHomeCardEntityKey} from '../utils/homeFallbackCards';
 import {openHomeCard, openHotSearch} from '../utils/navigation';
 
@@ -78,9 +77,6 @@ export function HomeScreen({navigation}: Props) {
   const [promotedExampleKeys, setPromotedExampleKeys] = useState<Set<string>>(new Set());
   const headerHeightRef = useRef(0);
   const [fixedTopBottom, setFixedTopBottom] = useState(0);
-  const [updateInfo, setUpdateInfo] = useState<AppVersionInfo | null>(null);
-  const [showUpdate, setShowUpdate] = useState(false);
-  const updateCheckedRef = useRef(false);
   const focusRefreshReadyRef = useRef(false);
   const autoTabSwitchReadyRef = useRef(true);
   const loadRef = useRef<(mode?: 'initial' | 'refresh' | 'silent') => Promise<void>>(async () => undefined);
@@ -197,24 +193,6 @@ export function HomeScreen({navigation}: Props) {
         loadRef.current('silent').catch(() => undefined);
       } else {
         focusRefreshReadyRef.current = true;
-      }
-
-      if (!updateCheckedRef.current) {
-        updateCheckedRef.current = true;
-        mooketApi
-          .getAppVersion()
-          .then(info => {
-            if (
-              Platform.OS === 'android' &&
-              info &&
-              info.hasUpdate &&
-              (info.versionCode ?? 0) > CURRENT_APP_VERSION_CODE
-            ) {
-              setUpdateInfo(info);
-              setShowUpdate(true);
-            }
-          })
-          .catch(() => undefined);
       }
     }, []),
   );
@@ -594,14 +572,6 @@ export function HomeScreen({navigation}: Props) {
             <Path d="M19.3795 19.3794L24.3292 24.3291" stroke="white" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
           </Svg>
         </Pressable>
-      ) : null}
-
-      {Platform.OS === 'android' && updateInfo ? (
-        <UpdateModal
-          visible={showUpdate}
-          versionInfo={updateInfo}
-          onClose={() => setShowUpdate(false)}
-        />
       ) : null}
     </View>
   );
