@@ -111,8 +111,8 @@ public class DataSyncService {
         System.out.println("[DataSyncService] 开始执行增量同步...");
 
         // 1. 获取源数据（基于 update_time 增量查询）
-        boolean reconcileRecentWindow = (lastSyncTime == null);
-        LocalDateTime startTime = reconcileRecentWindow ? LocalDateTime.now().minusDays(2) : lastSyncTime;
+        boolean reconcileRecentWindow = true;
+        LocalDateTime startTime = lastSyncTime == null ? LocalDateTime.now().minusDays(2) : lastSyncTime;
         return doSync(startTime, reconcileRecentWindow);
     }
 

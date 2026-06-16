@@ -151,6 +151,7 @@ private final BizOfferMapper offerMapper;
         List<Long> merchantIds = merchantAggs.stream()
                 .map(agg -> agg.merchantId)
                 .filter(Objects::nonNull)
+                .filter(merchantId -> merchantId > 0)
                 .distinct()
                 .collect(Collectors.toList());
 
@@ -180,11 +181,11 @@ private final BizOfferMapper offerMapper;
                     Collections.emptyList());
 
             MerchantOfferGroup group = new MerchantOfferGroup();
-            group.setMerchantId(agg.merchantId);
+            group.setMerchantId(agg.merchantId != null && agg.merchantId > 0 ? agg.merchantId : null);
             group.setMerchantPhone(agg.contactPhone);
             group.setOfferCount(agg.offerCount != null ? agg.offerCount : groupOffers.size());
 
-            if (agg.merchantId != null) {
+            if (agg.merchantId != null && agg.merchantId > 0) {
                 DictMerchant merchant = merchantMap.get(agg.merchantId);
                 if (merchant != null) {
                     group.setMerchantName(merchant.getMerchantName());
@@ -211,7 +212,7 @@ private final BizOfferMapper offerMapper;
     }
 
     private String merchantGroupKey(Long merchantId) {
-        return merchantId != null ? "merchant_" + merchantId : "NO_MERCHANT";
+        return merchantId != null && merchantId > 0 ? "merchant_" + merchantId : "NO_MERCHANT";
     }
 
     private String normalizeSortBy(String sortBy) {
