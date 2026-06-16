@@ -167,42 +167,10 @@ export function SubstituteProductScreen({navigation, route}: Props) {
     return next;
   }, [detail?.merchantOffers, famousOnly, feedingMethods, goodsTypes, regions, tagFilters]);
 
-  const allRegions = useMemo(
-    () =>
-      unique(
-        (detail?.merchantOffers ?? []).flatMap(g =>
-          (g.employeeOffers ?? []).map(emp => extractCity(emp.goodsLocation)),
-        ),
-      ),
-    [detail?.merchantOffers],
-  );
-  const allGoodsTypes = useMemo(
-    () =>
-      unique(
-        (detail?.merchantOffers ?? []).flatMap(g =>
-          (g.employeeOffers ?? []).map(emp => emp.goodsType ?? ''),
-        ),
-      ),
-    [detail?.merchantOffers],
-  );
-  const allFeedings = useMemo(
-    () =>
-      unique(
-        (detail?.merchantOffers ?? []).flatMap(g =>
-          (g.employeeOffers ?? []).map(emp => emp.feedingType ?? ''),
-        ),
-      ),
-    [detail?.merchantOffers],
-  );
-  const allTags = useMemo(
-    () =>
-      unique(
-        (detail?.merchantOffers ?? []).flatMap(g =>
-          (g.employeeOffers ?? []).flatMap(emp => splitTags(emp.tags, 8)),
-        ),
-      ),
-    [detail?.merchantOffers],
-  );
+  const allRegions = useMemo(() => detail?.filterOptions?.regions ?? [], [detail?.filterOptions?.regions]);
+  const allGoodsTypes = useMemo(() => detail?.filterOptions?.goodsTypes ?? [], [detail?.filterOptions?.goodsTypes]);
+  const allFeedings = useMemo(() => detail?.filterOptions?.feedingMethods ?? [], [detail?.filterOptions?.feedingMethods]);
+  const allTags = useMemo(() => detail?.filterOptions?.tags ?? [], [detail?.filterOptions?.tags]);
 
   const filters = [
     {key: 'region' as const, label: '地区', hasSelection: regions.size > 0},

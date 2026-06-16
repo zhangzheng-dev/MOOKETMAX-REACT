@@ -2,6 +2,7 @@ package com.mooket.social.service.impl;
 
 import com.mooket.social.dto.EmployeeOfferDTO;
 import com.mooket.social.dto.MerchantDetailDTO;
+import com.mooket.social.dto.MerchantFilterOptionsDTO;
 import com.mooket.social.dto.MerchantProductPageDTO;
 import com.mooket.social.dto.OfferSummaryDTO;
 import com.mooket.social.entity.BizOffer;
@@ -14,9 +15,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -65,7 +68,10 @@ public class MerchantServiceImpl implements MerchantService {
 
         dto.setOffers(buildOfferSummaries(merchantId, category, "报盘", offerAggs));
         dto.setInquiries(buildOfferSummaries(merchantId, category, "求购", inquiryAggs));
-
+        dto.setOfferFilterOptions(buildMerchantFilterOptions(
+                offerMapper.selectByMerchantIdAndType(merchantId, "报盘", category)));
+        dto.setInquiryFilterOptions(buildMerchantFilterOptions(
+                offerMapper.selectByMerchantIdAndType(merchantId, "求购", category)));
         dto.setTotalOffers(offerMapper.countMerchantOfferAgg(merchantId, category, "报盘"));
         dto.setTotalInquiries(offerMapper.countMerchantOfferAgg(merchantId, category, "求购"));
         return dto;
@@ -168,6 +174,65 @@ public class MerchantServiceImpl implements MerchantService {
             dto.setPublishTime(offer.getPublishTime().format(PUBLISH_TIME_FORMATTER));
         }
         return dto;
+    }
+
+    private MerchantFilterOptionsDTO buildMerchantFilterOptions(List<BizOffer> offers) {
+        MerchantFilterOptionsDTO dto = new MerchantFilterOptionsDTO();
+        dto.setCountries(uniqueStrings(offers.stream().map(BizOffer::getCountry).toList()));
+        dto.setCountryFactories(uniqueStrings(offers.stream()
+                .map(offer -> joinCountryFactory(offer.getCountry(), offer.getFactoryNo()))
+                .toList()));
+        dto.setRegions(uniqueStrings(offers.stream()
+                .map(BizOffer::getGoodsLocation)
+                .map(this::extractCity)
+                .toList()));
+        dto.setProducts(uniqueStrings(offers.stream().map(BizOffer::getProductName).toList()));
+        dto.setGoodsTypes(uniqueStrings(offers.stream().map(BizOffer::getGoodsType).toList()));
+        dto.setFeedingMethods(uniqueStrings(offers.stream().map(BizOffer::getFeedingType).toList()));
+        dto.setTags(uniqueStrings(offers.stream().flatMap(offer -> splitTags(offer.getTags()).stream()).toList()));
+        return dto;
+    }
+
+    private List<String> uniqueStrings(List<String> values) {
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String value : values) {
+            if (value == null) {
+                continue;
+            }
+            String trimmed = value.trim();
+            if (!trimmed.isEmpty()) {
+                set.add(trimmed);
+            }
+        }
+        return new ArrayList<>(set);
+    }
+
+    private List<String> splitTags(String tags) {
+        if (tags == null || tags.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(tags.split("[,，、/]"))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
+    }
+
+    private String extractCity(String goodsLocation) {
+        if (goodsLocation == null) {
+            return null;
+        }
+        String trimmed = goodsLocation.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        int dashIndex = trimmed.indexOf('-');
+        return dashIndex > 0 ? trimmed.substring(0, dashIndex).trim() : trimmed;
+    }
+
+    private String joinCountryFactory(String country, String factoryNo) {
+        String left = nullToEmpty(country).trim();
+        String right = nullToEmpty(factoryNo).trim();
+        return (left + right).trim();
     }
 
     private String groupKey(String productName, String country, String factoryNo) {

@@ -168,45 +168,13 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     tags,
   ]);
 
-  const allRegions = useMemo(
-    () =>
-      unique(
-        (data?.merchantOffers ?? []).flatMap(group =>
-          (group.employeeOffers ?? []).map(emp => extractCity(emp.goodsLocation)),
-        ),
-      ),
-    [data?.merchantOffers],
-  );
+  const allRegions = useMemo(() => data?.filterOptions?.regions ?? [], [data?.filterOptions?.regions]);
 
-  const allGoodsTypes = useMemo(
-    () =>
-      unique(
-        (data?.merchantOffers ?? []).flatMap(group =>
-          (group.employeeOffers ?? []).map(emp => emp.goodsType ?? ''),
-        ),
-      ),
-    [data?.merchantOffers],
-  );
+  const allGoodsTypes = useMemo(() => data?.filterOptions?.goodsTypes ?? [], [data?.filterOptions?.goodsTypes]);
 
-  const allFeedings = useMemo(
-    () =>
-      unique(
-        (data?.merchantOffers ?? []).flatMap(group =>
-          (group.employeeOffers ?? []).map(emp => emp.feedingType ?? ''),
-        ),
-      ),
-    [data?.merchantOffers],
-  );
+  const allFeedings = useMemo(() => data?.filterOptions?.feedingMethods ?? [], [data?.filterOptions?.feedingMethods]);
 
-  const allTags = useMemo(
-    () =>
-      unique(
-        (data?.merchantOffers ?? []).flatMap(group =>
-          (group.employeeOffers ?? []).flatMap(emp => splitTags(emp.tags, 8)),
-        ),
-      ),
-    [data?.merchantOffers],
-  );
+  const allTags = useMemo(() => data?.filterOptions?.tags ?? [], [data?.filterOptions?.tags]);
 
   const allMerchants = useMemo(
     () =>
@@ -217,11 +185,16 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     [data?.merchantOffers],
   );
 
+  const fullMerchantOptions = useMemo(
+    () => data?.filterOptions?.merchants ?? allMerchants,
+    [allMerchants, data?.filterOptions?.merchants],
+  );
+
   const visibleMerchants = useMemo(() => {
     const keyword = merchantKeyword.trim().toLowerCase();
-    if (!keyword) return allMerchants;
-    return allMerchants.filter(item => item.label.toLowerCase().includes(keyword));
-  }, [allMerchants, merchantKeyword]);
+    if (!keyword) return fullMerchantOptions;
+    return fullMerchantOptions.filter(item => item.label.toLowerCase().includes(keyword));
+  }, [fullMerchantOptions, merchantKeyword]);
 
   const filterDefs = [
     {key: 'famousMerchant' as const, label: '知名商家', hasSelection: famousMerchant, toggle: true},
@@ -429,7 +402,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
           options={visibleMerchants.map(m => m.label)}
           selected={new Set(visibleMerchants.filter(m => merchants.has(m.key)).map(m => m.label))}
           onToggle={label => {
-            const found = allMerchants.find(m => m.label === label);
+            const found = fullMerchantOptions.find(m => m.label === label);
             if (!found) return;
             setMerchants(prev => toggleSet(prev, found.key));
           }}

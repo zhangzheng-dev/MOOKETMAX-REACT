@@ -5,9 +5,6 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * 平替产品 DTO
- */
 @Data
 public class SubstituteProductDTO {
 
@@ -21,9 +18,6 @@ public class SubstituteProductDTO {
     private Integer merchantCount;
     private List<SubstituteFactory> factories;
 
-    /**
-     * 平替厂号
-     */
     @Data
     public static class SubstituteFactory {
         private String factoryNo;
@@ -34,9 +28,6 @@ public class SubstituteProductDTO {
         private boolean isSelected;
     }
 
-    /**
-     * 平替产品详情（带报盘数据）
-     */
     @Data
     public static class SubstituteProductDetailDTO {
         private String country;
@@ -54,6 +45,7 @@ public class SubstituteProductDTO {
         private List<DailyPrice> priceHistory7Days;
         private List<DailyPrice> priceHistory30Days;
         private List<MerchantOfferGroup> merchantOffers;
+        private GroupedOfferFilterOptionsDTO filterOptions;
         private Integer totalCount;
         private Integer page;
         private Integer pageSize;

@@ -154,28 +154,22 @@ export function MerchantScreen({navigation, route}: Props) {
     return list;
   }, [country, currentList, factories, feedingMethods, goodsTypes, products, regions, tagFilters]);
 
-  const allCountries = useMemo(() => unique(currentList.map(item => item.country ?? '')), [currentList]);
+  const currentFilterOptions = useMemo(
+    () => (tab === 'offer' ? detail?.offerFilterOptions : detail?.inquiryFilterOptions) ?? null,
+    [detail?.inquiryFilterOptions, detail?.offerFilterOptions, tab],
+  );
+
+  const allCountries = useMemo(() => currentFilterOptions?.countries ?? [], [currentFilterOptions?.countries]);
   const allFactoryKeys = useMemo(
     () =>
-      unique(
-        currentList
-          .filter(item => (country == null ? true : item.country === country))
-          .map(item => `${item.country ?? ''}${item.factoryNo ?? ''}`),
+      (currentFilterOptions?.countryFactories ?? []).filter(item =>
+        country == null ? true : item.startsWith(country),
       ),
-    [country, currentList],
+    [country, currentFilterOptions?.countryFactories],
   );
-  const allRegions = useMemo(
-    () => unique(currentList.flatMap(item => offerRegions(item))),
-    [currentList],
-  );
-  const allProductNames = useMemo(
-    () => unique(currentList.map(item => item.productName ?? '')),
-    [currentList],
-  );
-  const allTags = useMemo(
-    () => unique(currentList.flatMap(item => offerTags(item))),
-    [currentList],
-  );
+  const allRegions = useMemo(() => currentFilterOptions?.regions ?? [], [currentFilterOptions?.regions]);
+  const allProductNames = useMemo(() => currentFilterOptions?.products ?? [], [currentFilterOptions?.products]);
+  const allTags = useMemo(() => currentFilterOptions?.tags ?? [], [currentFilterOptions?.tags]);
 
   const filters = [
     {key: 'countryFactory' as const, label: '国家厂号', hasSelection: country != null || factories.size > 0},

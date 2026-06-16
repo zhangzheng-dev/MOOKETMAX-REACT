@@ -4,6 +4,7 @@ import com.mooket.social.dto.CountryFactoryProductDetailDTO;
 import com.mooket.social.dto.CountryFactoryProductDetailDTO.DailyPrice;
 import com.mooket.social.dto.CountryFactoryProductDetailDTO.EmployeeOfferDTO;
 import com.mooket.social.dto.CountryFactoryProductDetailDTO.MerchantOfferGroup;
+import com.mooket.social.dto.GroupedOfferFilterOptionsDTO;
 import com.mooket.social.entity.BizOffer;
 import com.mooket.social.entity.DictMerchant;
 import com.mooket.social.entity.DictProduct;
@@ -130,8 +131,11 @@ private final BizOfferMapper offerMapper;
         int totalPages = (int) Math.ceil((double) totalCount / pageSize);
         List<MerchantOfferGroup> pagedGroups = buildMerchantOfferGroupsPage(
                 country, factoryNo, productName, category, offerType, merchantAggs);
+        List<BizOffer> allOffers = offerMapper.selectOfferListByCountryFactoryProductAll(
+                country, factoryNo, productName, category, offerType);
 
         dto.setMerchantOffers(pagedGroups);
+        dto.setFilterOptions(buildFilterOptions(allOffers, merchantMapByOffers(allOffers)));
         dto.setTotalCount(totalCount);
         dto.setPage(page);
         dto.setPageSize(pageSize);
@@ -220,6 +224,93 @@ private final BizOfferMapper offerMapper;
             return "comprehensive";
         }
         return sortBy;
+    }
+
+    private GroupedOfferFilterOptionsDTO buildFilterOptions(List<BizOffer> offers, Map<Long, DictMerchant> merchantMap) {
+        GroupedOfferFilterOptionsDTO dto = new GroupedOfferFilterOptionsDTO();
+        dto.setMerchants(uniqueMerchantOptions(offers, merchantMap));
+        dto.setRegions(uniqueStrings(offers.stream()
+                .map(BizOffer::getGoodsLocation)
+                .map(this::extractCity)
+                .toList()));
+        dto.setGoodsTypes(uniqueStrings(offers.stream().map(BizOffer::getGoodsType).toList()));
+        dto.setFeedingMethods(uniqueStrings(offers.stream().map(BizOffer::getFeedingType).toList()));
+        dto.setTags(uniqueStrings(offers.stream().flatMap(offer -> splitTags(offer.getTags()).stream()).toList()));
+        return dto;
+    }
+
+    private Map<Long, DictMerchant> merchantMapByOffers(List<BizOffer> offers) {
+        List<Long> merchantIds = offers.stream()
+                .map(BizOffer::getMerchantId)
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .distinct()
+                .toList();
+        if (merchantIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return merchantMapper.selectBatchIds(merchantIds).stream()
+                .collect(Collectors.toMap(DictMerchant::getMerchantId, merchant -> merchant, (left, right) -> left));
+    }
+
+    private List<GroupedOfferFilterOptionsDTO.OptionItem> uniqueMerchantOptions(List<BizOffer> offers, Map<Long, DictMerchant> merchantMap) {
+        LinkedHashMap<String, GroupedOfferFilterOptionsDTO.OptionItem> map = new LinkedHashMap<>();
+        for (BizOffer offer : offers) {
+            String key = offer.getMerchantId() != null && offer.getMerchantId() > 0
+                    ? String.valueOf(offer.getMerchantId())
+                    : Objects.toString(offer.getContactPhone(), "NO_MERCHANT");
+            String label = "暂未关联行业商家";
+            if (offer.getMerchantId() != null && offer.getMerchantId() > 0) {
+                DictMerchant merchant = merchantMap.get(offer.getMerchantId());
+                label = merchant != null && merchant.getMerchantName() != null && !merchant.getMerchantName().isBlank()
+                        ? merchant.getMerchantName()
+                        : Objects.toString(offer.getContactPhone(), "暂未关联行业商家");
+            }
+            final String labelValue = label;
+            map.computeIfAbsent(key, ignored -> {
+                GroupedOfferFilterOptionsDTO.OptionItem item = new GroupedOfferFilterOptionsDTO.OptionItem();
+                item.setKey(key);
+                item.setLabel(labelValue);
+                return item;
+            });
+        }
+        return new ArrayList<>(map.values());
+    }
+
+    private List<String> uniqueStrings(List<String> values) {
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String value : values) {
+            if (value == null) {
+                continue;
+            }
+            String trimmed = value.trim();
+            if (!trimmed.isEmpty()) {
+                set.add(trimmed);
+            }
+        }
+        return new ArrayList<>(set);
+    }
+
+    private String extractCity(String goodsLocation) {
+        if (goodsLocation == null) {
+            return null;
+        }
+        String trimmed = goodsLocation.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        int dashIndex = trimmed.indexOf('-');
+        return dashIndex > 0 ? trimmed.substring(0, dashIndex).trim() : trimmed;
+    }
+
+    private List<String> splitTags(String tags) {
+        if (tags == null || tags.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(tags.split("[,，、/]"))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
     }
 
     /**
