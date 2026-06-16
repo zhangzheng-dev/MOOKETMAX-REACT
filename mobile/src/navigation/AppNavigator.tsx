@@ -1,13 +1,16 @@
-import React, {useEffect} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {ActivityIndicator, AppState, StyleSheet, View} from 'react-native';
+import {ActivityIndicator, AppState, Platform, StyleSheet, View} from 'react-native';
 import {apiClient} from '../api/client';
-import {DEFAULT_CATEGORY} from '../config/env';
+import {mooketApi} from '../api/mooketApi';
+import {UpdateModal} from '../components/common/UpdateModal';
+import {CURRENT_APP_VERSION_CODE, DEFAULT_CATEGORY} from '../config/env';
 import {HomeScreen} from '../screens/HomeScreen';
 import {LoginScreen} from '../screens/LoginScreen';
 import {sessionStore} from '../store/sessionStore';
 import {colors} from '../theme/colors';
+import type {AppVersionInfo} from '../types/api';
 import {navigationRef} from './navigationService';
 import type {RootStackParamList} from './routes';
 
@@ -31,10 +34,28 @@ const getInventoryScreen = () => require('../screens/InventoryScreen').default;
 
 export function AppNavigator() {
   const {hydrate, isHydrated, token} = sessionStore();
+  const [updateInfo, setUpdateInfo] = useState<AppVersionInfo | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  const checkAppUpdate = useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    try {
+      const info = await mooketApi.getAppVersion();
+      if (info && info.hasUpdate && (info.versionCode ?? 0) > CURRENT_APP_VERSION_CODE) {
+        setUpdateInfo(info);
+        setShowUpdateModal(true);
+      }
+    } catch {
+      // Ignore version check failures; the app should still be usable.
+    }
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -63,6 +84,24 @@ export function AppNavigator() {
     };
   }, [token]);
 
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    checkAppUpdate().catch(() => undefined);
+
+    const appStateSubscription = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        checkAppUpdate().catch(() => undefined);
+      }
+    });
+
+    return () => {
+      appStateSubscription.remove();
+    };
+  }, [checkAppUpdate, isHydrated]);
+
   if (!isHydrated) {
     return (
       <View style={styles.bootContainer}>
@@ -72,68 +111,78 @@ export function AppNavigator() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: {backgroundColor: colors.surface},
-          headerTintColor: colors.text,
-          headerTitleStyle: {fontWeight: '700', fontSize: 17},
-          headerShadowVisible: false,
-          contentStyle: {backgroundColor: colors.background},
-        }}>
-        {token ? (
-          <>
-            <Stack.Screen name="Home" component={HomeScreen} options={{headerShown: false}} />
-            <Stack.Screen
-              name="Search"
-              getComponent={getSearchScreen}
-              initialParams={{category: DEFAULT_CATEGORY}}
-              options={{headerShown: false}}
-            />
-            <Stack.Screen name="HomeCards" getComponent={getHomeCardsScreen} options={{headerShown: false}} />
-            <Stack.Screen name="Merchant" getComponent={getMerchantScreen} options={{headerShown: false}} />
-            <Stack.Screen name="Product" getComponent={getProductScreen} options={{headerShown: false}} />
-            <Stack.Screen name="Country" getComponent={getCountryScreen} options={{headerShown: false}} />
-            <Stack.Screen name="Factory" getComponent={getFactoryScreen} options={{headerShown: false}} />
-            <Stack.Screen
-              name="CountryProduct"
-              getComponent={getCountryProductScreen}
-              options={{headerShown: false}}
-            />
-            <Stack.Screen
-              name="CountryFactoryProduct"
-              getComponent={getCountryFactoryProductScreen}
-              options={{headerShown: false}}
-            />
-            <Stack.Screen
-              name="SubstituteProduct"
-              getComponent={getSubstituteProductScreen}
-              options={{headerShown: false}}
-            />
-            <Stack.Screen
-              name="DataComparison"
-              getComponent={getDataComparisonScreen}
-              options={{headerShown: false}}
-            />
-            <Stack.Screen name="Brand" getComponent={getBrandScreen} options={{headerShown: false}} />
-            <Stack.Screen
-              name="BrandProduct"
-              getComponent={getBrandProductScreen}
-              options={{headerShown: false}}
-            />
-            <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{headerShown: false}} />
-            <Stack.Screen
-              name="EditProfile"
-              getComponent={getEditProfileScreen}
-              options={{headerShown: false}}
-            />
-            <Stack.Screen name="Inventory" getComponent={getInventoryScreen} options={{headerShown: false}} />
-          </>
-        ) : (
-          <Stack.Screen name="Login" component={LoginScreen} options={{headerShown: false}} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <>
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator
+          screenOptions={{
+            headerStyle: {backgroundColor: colors.surface},
+            headerTintColor: colors.text,
+            headerTitleStyle: {fontWeight: '700', fontSize: 17},
+            headerShadowVisible: false,
+            contentStyle: {backgroundColor: colors.background},
+          }}>
+          {token ? (
+            <>
+              <Stack.Screen name="Home" component={HomeScreen} options={{headerShown: false}} />
+              <Stack.Screen
+                name="Search"
+                getComponent={getSearchScreen}
+                initialParams={{category: DEFAULT_CATEGORY}}
+                options={{headerShown: false}}
+              />
+              <Stack.Screen name="HomeCards" getComponent={getHomeCardsScreen} options={{headerShown: false}} />
+              <Stack.Screen name="Merchant" getComponent={getMerchantScreen} options={{headerShown: false}} />
+              <Stack.Screen name="Product" getComponent={getProductScreen} options={{headerShown: false}} />
+              <Stack.Screen name="Country" getComponent={getCountryScreen} options={{headerShown: false}} />
+              <Stack.Screen name="Factory" getComponent={getFactoryScreen} options={{headerShown: false}} />
+              <Stack.Screen
+                name="CountryProduct"
+                getComponent={getCountryProductScreen}
+                options={{headerShown: false}}
+              />
+              <Stack.Screen
+                name="CountryFactoryProduct"
+                getComponent={getCountryFactoryProductScreen}
+                options={{headerShown: false}}
+              />
+              <Stack.Screen
+                name="SubstituteProduct"
+                getComponent={getSubstituteProductScreen}
+                options={{headerShown: false}}
+              />
+              <Stack.Screen
+                name="DataComparison"
+                getComponent={getDataComparisonScreen}
+                options={{headerShown: false}}
+              />
+              <Stack.Screen name="Brand" getComponent={getBrandScreen} options={{headerShown: false}} />
+              <Stack.Screen
+                name="BrandProduct"
+                getComponent={getBrandProductScreen}
+                options={{headerShown: false}}
+              />
+              <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{headerShown: false}} />
+              <Stack.Screen
+                name="EditProfile"
+                getComponent={getEditProfileScreen}
+                options={{headerShown: false}}
+              />
+              <Stack.Screen name="Inventory" getComponent={getInventoryScreen} options={{headerShown: false}} />
+            </>
+          ) : (
+            <Stack.Screen name="Login" component={LoginScreen} options={{headerShown: false}} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+
+      {Platform.OS === 'android' && updateInfo ? (
+        <UpdateModal
+          visible={showUpdateModal}
+          versionInfo={updateInfo}
+          onClose={() => setShowUpdateModal(false)}
+        />
+      ) : null}
+    </>
   );
 }
 
