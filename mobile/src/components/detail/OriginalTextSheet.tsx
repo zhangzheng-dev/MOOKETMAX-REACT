@@ -1,17 +1,42 @@
-import React from 'react';
-import {Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {LayoutChangeEvent, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors} from '../../theme/colors';
+import {analyzeOriginalText} from '../../utils/originalText';
 
 type Props = {
   visible: boolean;
   text: string;
+  keywords?: string[];
   onClose: () => void;
   title?: string;
 };
 
-export function OriginalTextSheet({visible, text, onClose, title = '原文内容'}: Props) {
+export function OriginalTextSheet({
+  visible,
+  text,
+  keywords = [],
+  onClose,
+  title = '查看原文',
+}: Props) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView | null>(null);
+  const [segmentLayouts, setSegmentLayouts] = useState<Record<number, number>>({});
+  const analysis = useMemo(() => analyzeOriginalText(text, keywords), [keywords, text]);
+
+  useEffect(() => {
+    if (!visible) {
+      setSegmentLayouts({});
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible || analysis.bestSegmentIndex < 0) return;
+    const y = segmentLayouts[analysis.bestSegmentIndex];
+    if (typeof y === 'number') {
+      scrollRef.current?.scrollTo({y: Math.max(0, y - 12), animated: true});
+    }
+  }, [analysis.bestSegmentIndex, segmentLayouts, visible]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -26,15 +51,30 @@ export function OriginalTextSheet({visible, text, onClose, title = '原文内容
             </Pressable>
           </View>
           <ScrollView
+            ref={scrollRef}
             style={styles.scroll}
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled">
             {text ? (
-              <Text style={styles.text}>{renderTextWithPhones(text)}</Text>
+              analysis.segments.length > 0 ? (
+                analysis.segments.map((segment, index) => (
+                  <Text
+                    key={`${index}-${segment.slice(0, 12)}`}
+                    style={styles.text}
+                    onLayout={(event: LayoutChangeEvent) => {
+                      const y = event.nativeEvent.layout.y;
+                      setSegmentLayouts(prev => (prev[index] === y ? prev : {...prev, [index]: y}));
+                    }}>
+                    {renderTextWithPhones(segment)}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.text}>{renderTextWithPhones(text)}</Text>
+              )
             ) : (
-              <Text style={[styles.text, styles.textMuted]}>抱歉，暂无原文！</Text>
+              <Text style={[styles.text, styles.textMuted]}>抱歉，暂时无原文。</Text>
             )}
           </ScrollView>
         </View>
@@ -44,8 +84,7 @@ export function OriginalTextSheet({visible, text, onClose, title = '原文内容
 }
 
 function renderTextWithPhones(text: string) {
-  const parts = text.split(/(1\d{10})/g);
-  return parts.map((part, index) => {
+  return text.split(/(1\d{10})/g).map((part, index) => {
     if (/^1\d{10}$/.test(part)) {
       return (
         <Text key={`${part}-${index}`} style={styles.phoneText} onPress={() => void dialPhone(part)}>
@@ -117,6 +156,7 @@ const styles = StyleSheet.create({
     color: '#3C4947',
     fontSize: 14,
     lineHeight: 22,
+    marginBottom: 6,
   },
   phoneText: {
     color: colors.primary,

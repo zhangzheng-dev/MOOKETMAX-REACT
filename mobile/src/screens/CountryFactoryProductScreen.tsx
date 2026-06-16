@@ -24,6 +24,7 @@ import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {CountryFactoryProductDetail, MerchantOfferGroup} from '../types/api';
 import {extractCity, splitTags} from '../utils/offer';
+import type {OriginalTextPayload} from '../utils/originalText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CountryFactoryProduct'>;
 
@@ -31,7 +32,8 @@ const pageSize = 20;
 type LocalFilterKey = Exclude<FilterKey, 'countryFactory' | 'product' | 'famousMerchant'>;
 
 export function CountryFactoryProductScreen({navigation, route}: Props) {
-  const {country, factoryNo, productName, category} = route.params;
+  const {country, factoryNo, productName, category, searchKeyword: routeSearchKeyword} = route.params;
+  const searchKeyword = routeSearchKeyword ?? `${country}${factoryNo}${productName}`;
   const [data, setData] = useState<CountryFactoryProductDetail | null>(null);
   const [tab, setTab] = useState<OfferTab>('offer');
   const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
@@ -39,8 +41,8 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [originalText, setOriginalText] = useState<string | null>(null);
-  const handleViewOriginalText = useCallback((value: string) => setOriginalText(value), []);
+  const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
+  const handleViewOriginalText = useCallback((value: OriginalTextPayload) => setOriginalText(value), []);
   const [activeFilter, setActiveFilter] = useState<LocalFilterKey | null>(null);
 
   const [famousMerchant, setFamousMerchant] = useState(false);
@@ -224,7 +226,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         onBack={() => navigation.goBack()}
         onSearchPress={() => {
           navigation.popToTop();
-          navigation.navigate('Search', {category});
+          navigation.navigate('Search', {category, keyword: searchKeyword});
         }}
         tags={[
           {
@@ -518,7 +520,8 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
 
       <OriginalTextSheet
         visible={originalText !== null}
-        text={originalText ?? ''}
+        text={originalText?.text ?? ''}
+        keywords={originalText?.keywords ?? []}
         onClose={() => setOriginalText(null)}
       />
     </View>

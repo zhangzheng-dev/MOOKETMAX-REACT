@@ -4,6 +4,7 @@ import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import type {EmployeeOffer, OfferSummary} from '../../types/api';
+import {buildOriginalTextPayload, type OriginalTextPayload} from '../../utils/originalText';
 import {
   colorForOfferField,
   colorForTag,
@@ -22,7 +23,7 @@ type Props = {
   merchantPhone?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
-  onViewOriginalText?: (text: string) => void;
+  onViewOriginalText?: (payload: OriginalTextPayload) => void;
 };
 
 /**
@@ -150,7 +151,7 @@ function EmployeeOfferCard({
   fallbackFeedingType?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
-  onViewOriginalText?: (text: string) => void;
+  onViewOriginalText?: (payload: OriginalTextPayload) => void;
 }) {
   const [weightValue, weightUnit] = parseWeight(offer.weight);
   const hasWeight = weightValue.length > 0;
@@ -222,7 +223,24 @@ function EmployeeOfferCard({
         <View style={styles.actionRow}>
           <ActionButton
             text="查看原文"
-            onPress={() => onViewOriginalText?.(offer.offerOriginalText ?? '')}
+            onPress={() =>
+              onViewOriginalText?.(
+                buildOriginalTextPayload({
+                  text: offer.offerOriginalText,
+                  price: offer.price,
+                  priceMax: offer.priceMax,
+                  goodsLocation: offer.goodsLocation,
+                  goodsType,
+                  feedingType: feeding,
+                  fatRatio,
+                  cattleBreed,
+                  tags: offer.tags,
+                  remark,
+                  publishTime: offer.publishTime,
+                  userNickname: offer.userNickname,
+                }),
+              )
+            }
           />
           <View style={styles.actionVDivider} />
           <ActionButton text="添加微信" onPress={onCopyPhone} />

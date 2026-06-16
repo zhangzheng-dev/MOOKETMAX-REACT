@@ -27,6 +27,7 @@ import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
 import type {MerchantOfferGroup, SubstituteFactory, SubstituteProduct as SubstituteOverview, SubstituteProductDetail} from '../types/api';
 import {extractCity, splitTags} from '../utils/offer';
+import type {OriginalTextPayload} from '../utils/originalText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SubstituteProduct'>;
 type LocalFilterKey = Exclude<FilterKey, 'product'>;
@@ -45,7 +46,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [originalText, setOriginalText] = useState<string | null>(null);
+  const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
   const [activeFilter, setActiveFilter] = useState<LocalFilterKey | null>(null);
   const [famousOnly, setFamousOnly] = useState(false);
   const [regions, setRegions] = useState<Set<string>>(new Set());
@@ -346,7 +347,8 @@ export function SubstituteProductScreen({navigation, route}: Props) {
 
       <OriginalTextSheet
         visible={originalText !== null}
-        text={originalText ?? ''}
+        text={originalText?.text ?? ''}
+        keywords={originalText?.keywords ?? []}
         onClose={() => setOriginalText(null)}
       />
     </View>

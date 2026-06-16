@@ -16,7 +16,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Brand'>;
 const pageSize = 20;
 
 export function BrandScreen({navigation, route}: Props) {
-  const {brandName, category} = route.params;
+  const {brandName, category, searchKeyword: routeSearchKeyword} = route.params;
+  const searchKeyword = routeSearchKeyword ?? brandName;
   const [data, setData] = useState<BrandDetail | null>(null);
   const [tab, setTab] = useState<OfferTab>('offer');
   const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
@@ -86,14 +87,14 @@ export function BrandScreen({navigation, route}: Props) {
         onBack={() => navigation.goBack()}
         onSearchPress={() => {
           navigation.popToTop();
-          navigation.navigate('Search', {category});
+          navigation.navigate('Search', {category, keyword: searchKeyword});
         }}
         tags={[
           {
             text: brandName,
             onClose: () => {
               navigation.popToTop();
-              navigation.navigate('Search', {category});
+              navigation.navigate('Search', {category, keyword: searchKeyword});
             },
           },
         ]}

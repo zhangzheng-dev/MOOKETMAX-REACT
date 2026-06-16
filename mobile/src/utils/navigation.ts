@@ -59,19 +59,24 @@ export function openHomeCard(navigation: Navigation, category: string, card: Hom
     case 'product':
       if (card.productId) {
         prefetchProduct(category, card.productId);
-        navigation.navigate('Product', {productId: card.productId, category, productName: card.productName ?? ''});
+        navigation.navigate('Product', {
+          productId: card.productId,
+          category,
+          productName: card.productName ?? '',
+          searchKeyword: card.productName ?? '',
+        });
       }
       break;
     case 'country':
       if (card.country) {
         prefetchCountry(category, card.country);
-        navigation.navigate('Country', {country: card.country, category});
+        navigation.navigate('Country', {country: card.country, category, searchKeyword: card.country});
       }
       break;
     case 'brand':
       if (card.brandName) {
         prefetchBrand(category, card.brandName);
-        navigation.navigate('Brand', {brandName: card.brandName, category});
+        navigation.navigate('Brand', {brandName: card.brandName, category, searchKeyword: card.brandName});
       }
       break;
     case 'merchant':
@@ -83,13 +88,23 @@ export function openHomeCard(navigation: Navigation, category: string, card: Hom
     case 'factory':
       if (card.country && card.factoryNo) {
         prefetchFactory(category, card.country, card.factoryNo);
-        navigation.navigate('Factory', {country: card.country, factoryNo: card.factoryNo, category});
+        navigation.navigate('Factory', {
+          country: card.country,
+          factoryNo: card.factoryNo,
+          category,
+          searchKeyword: `${card.country}${card.factoryNo}`,
+        });
       }
       break;
     case 'countryProduct':
       if (card.country && card.productName) {
         prefetchCountryProduct(category, card.country, card.productName);
-        navigation.navigate('CountryProduct', {country: card.country, productName: card.productName, category});
+        navigation.navigate('CountryProduct', {
+          country: card.country,
+          productName: card.productName,
+          category,
+          searchKeyword: `${card.country}${card.productName}`,
+        });
       }
       break;
     case 'factoryProduct':
@@ -100,13 +115,19 @@ export function openHomeCard(navigation: Navigation, category: string, card: Hom
           factoryNo: card.factoryNo,
           productName: card.productName,
           category,
+          searchKeyword: `${card.country}${card.factoryNo}${card.productName}`,
         });
       }
       break;
     case 'brandProduct':
       if (card.brandName && card.productName) {
         prefetchBrandProduct(category, card.brandName, card.productName);
-        navigation.navigate('BrandProduct', {brandName: card.brandName, productName: card.productName, category});
+        navigation.navigate('BrandProduct', {
+          brandName: card.brandName,
+          productName: card.productName,
+          category,
+          searchKeyword: `${card.brandName} ${card.productName}`,
+        });
       }
       break;
     default:
@@ -133,7 +154,7 @@ export function openHotSearch(navigation: Navigation, category: string, item: Ho
       productName = productName.trim() || keyword;
 
       prefetchCountryFactoryProduct(category, country, factoryNo, productName);
-      navigation.navigate('CountryFactoryProduct', {country, factoryNo, productName, category});
+      navigation.navigate('CountryFactoryProduct', {country, factoryNo, productName, category, searchKeyword: keyword});
       break;
     }
     case '国家产品': {
@@ -147,24 +168,24 @@ export function openHotSearch(navigation: Navigation, category: string, item: Ho
       productName = productName || keyword;
 
       prefetchCountryProduct(category, country, productName);
-      navigation.navigate('CountryProduct', {country, productName, category});
+      navigation.navigate('CountryProduct', {country, productName, category, searchKeyword: keyword});
       break;
     }
     case '国家':
       if (item.country) {
         prefetchCountry(category, item.country);
-        navigation.navigate('Country', {country: item.country, category});
+        navigation.navigate('Country', {country: item.country, category, searchKeyword: keyword});
       }
       break;
     case '产品':
       if (item.productId) {
         prefetchProduct(category, item.productId);
-        navigation.navigate('Product', {productId: item.productId, category, productName: keyword});
+        navigation.navigate('Product', {productId: item.productId, category, productName: keyword, searchKeyword: keyword});
       }
       break;
     case '品牌':
       prefetchBrand(category, keyword);
-      navigation.navigate('Brand', {brandName: keyword, category});
+      navigation.navigate('Brand', {brandName: keyword, category, searchKeyword: keyword});
       break;
     case '商家':
       if (item.merchantId) {
@@ -175,7 +196,7 @@ export function openHotSearch(navigation: Navigation, category: string, item: Ho
     case '国家厂号':
       if (item.country && item.factoryNo) {
         prefetchFactory(category, item.country, item.factoryNo);
-        navigation.navigate('Factory', {country: item.country, factoryNo: item.factoryNo, category});
+        navigation.navigate('Factory', {country: item.country, factoryNo: item.factoryNo, category, searchKeyword: keyword});
       }
       break;
     case '品牌产品': {
@@ -184,10 +205,10 @@ export function openHotSearch(navigation: Navigation, category: string, item: Ho
         const productName = parts[parts.length - 1];
         const brandName = parts.slice(0, -1).join(' ');
         prefetchBrandProduct(category, brandName, productName);
-        navigation.navigate('BrandProduct', {brandName, productName, category});
+        navigation.navigate('BrandProduct', {brandName, productName, category, searchKeyword: keyword});
       } else {
         prefetchBrand(category, keyword);
-        navigation.navigate('Brand', {brandName: keyword, category});
+        navigation.navigate('Brand', {brandName: keyword, category, searchKeyword: keyword});
       }
       break;
     }
@@ -197,15 +218,15 @@ export function openHotSearch(navigation: Navigation, category: string, item: Ho
         navigation.navigate('Merchant', {merchantId: item.merchantId, category});
       } else if (item.productId) {
         prefetchProduct(category, item.productId);
-        navigation.navigate('Product', {productId: item.productId, category, productName: keyword});
+        navigation.navigate('Product', {productId: item.productId, category, productName: keyword, searchKeyword: keyword});
       } else if (item.country && item.factoryNo) {
         prefetchFactory(category, item.country, item.factoryNo);
-        navigation.navigate('Factory', {country: item.country, factoryNo: item.factoryNo, category});
+        navigation.navigate('Factory', {country: item.country, factoryNo: item.factoryNo, category, searchKeyword: keyword});
       } else if (item.country) {
         prefetchCountry(category, item.country);
-        navigation.navigate('Country', {country: item.country, category});
+        navigation.navigate('Country', {country: item.country, category, searchKeyword: keyword});
       } else {
-        navigation.navigate('Search', {category});
+        navigation.navigate('Search', {category, keyword});
       }
       break;
   }

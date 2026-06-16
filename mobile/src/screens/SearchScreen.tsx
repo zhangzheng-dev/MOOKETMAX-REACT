@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Alert, FlatList, Keyboard, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -73,7 +73,7 @@ function prefetchBrandProduct(category: string, brandName?: string | null, produ
 }
 
 export function SearchScreen({route, navigation}: Props) {
-  const {category} = route.params;
+  const {category, keyword: routeKeyword} = route.params;
   const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState<(typeof categoryOptions)[number]>(
     categoryOptions.includes(category as (typeof categoryOptions)[number])
@@ -81,7 +81,7 @@ export function SearchScreen({route, navigation}: Props) {
       : '牛',
   );
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(routeKeyword ?? '');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<SearchSuggest[]>([]);
   const [histories, setHistories] = useState<SearchHistory[]>([]);
@@ -101,6 +101,16 @@ export function SearchScreen({route, navigation}: Props) {
       loadHistories().catch(() => undefined);
     }, [loadHistories]),
   );
+
+  useEffect(() => {
+    setKeyword(routeKeyword ?? '');
+  }, [routeKeyword]);
+
+  useEffect(() => {
+    if (categoryOptions.includes(category as (typeof categoryOptions)[number])) {
+      setSelectedCategory(category as (typeof categoryOptions)[number]);
+    }
+  }, [category]);
 
   useFocusEffect(
     useCallback(() => {
@@ -178,6 +188,7 @@ export function SearchScreen({route, navigation}: Props) {
         factoryNo: history.factoryNo,
         productName: history.productName,
         category: selectedCategory,
+        searchKeyword: searchWord,
       });
       return;
     }
@@ -189,6 +200,7 @@ export function SearchScreen({route, navigation}: Props) {
         country: history.country,
         productName: history.productName,
         category: selectedCategory,
+        searchKeyword: searchWord,
       });
       return;
     }
@@ -196,7 +208,12 @@ export function SearchScreen({route, navigation}: Props) {
     if (history.country && history.factoryNo) {
       prefetchFactory(selectedCategory, history.country, history.factoryNo);
       prefetchFactory(selectedCategory, history.country, history.factoryNo);
-      navigation.navigate('Factory', {country: history.country, factoryNo: history.factoryNo, category: selectedCategory});
+      navigation.navigate('Factory', {
+        country: history.country,
+        factoryNo: history.factoryNo,
+        category: selectedCategory,
+        searchKeyword: searchWord,
+      });
       return;
     }
 
@@ -207,6 +224,7 @@ export function SearchScreen({route, navigation}: Props) {
         productId: history.productId,
         category: selectedCategory,
         productName: history.productName ?? searchWord,
+        searchKeyword: searchWord,
       });
       return;
     }
@@ -214,14 +232,14 @@ export function SearchScreen({route, navigation}: Props) {
     if (history.brandId) {
       prefetchBrand(selectedCategory, searchWord);
       prefetchBrand(selectedCategory, searchWord);
-      navigation.navigate('Brand', {brandName: searchWord, category: selectedCategory});
+      navigation.navigate('Brand', {brandName: searchWord, category: selectedCategory, searchKeyword: searchWord});
       return;
     }
 
     if (history.country) {
       prefetchCountry(selectedCategory, history.country);
       prefetchCountry(selectedCategory, history.country);
-      navigation.navigate('Country', {country: history.country, category: selectedCategory});
+      navigation.navigate('Country', {country: history.country, category: selectedCategory, searchKeyword: searchWord});
       return;
     }
 
@@ -245,11 +263,20 @@ export function SearchScreen({route, navigation}: Props) {
         return;
       case 'product':
         prefetchProduct(selectedCategory, item.targetId);
-        navigation.navigate('Product', {productId: item.targetId, category: selectedCategory, productName: standard.productName ?? item.text});
+        navigation.navigate('Product', {
+          productId: item.targetId,
+          category: selectedCategory,
+          productName: standard.productName ?? item.text,
+          searchKeyword: item.text,
+        });
         return;
       case 'country':
         prefetchCountry(selectedCategory, standard.country ?? getStandardSearchWord(item.text));
-        navigation.navigate('Country', {country: standard.country ?? getStandardSearchWord(item.text), category: selectedCategory});
+        navigation.navigate('Country', {
+          country: standard.country ?? getStandardSearchWord(item.text),
+          category: selectedCategory,
+          searchKeyword: item.text,
+        });
         return;
       case 'brand':
         if (item.type === '品牌+产品' && (standard.brandName || parts.length >= 2)) {
@@ -258,19 +285,34 @@ export function SearchScreen({route, navigation}: Props) {
             brandName: standard.brandName ?? parts[0],
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
+            searchKeyword: item.text,
           });
         } else {
           prefetchBrand(selectedCategory, standard.brandName ?? getStandardSearchWord(item.text));
-          navigation.navigate('Brand', {brandName: standard.brandName ?? getStandardSearchWord(item.text), category: selectedCategory});
+          navigation.navigate('Brand', {
+            brandName: standard.brandName ?? getStandardSearchWord(item.text),
+            category: selectedCategory,
+            searchKeyword: item.text,
+          });
         }
         return;
       case 'factory':
         if (standard.country && standard.factoryNo) {
           prefetchFactory(selectedCategory, standard.country, standard.factoryNo);
-          navigation.navigate('Factory', {country: standard.country, factoryNo: standard.factoryNo, category: selectedCategory});
+          navigation.navigate('Factory', {
+            country: standard.country,
+            factoryNo: standard.factoryNo,
+            category: selectedCategory,
+            searchKeyword: item.text,
+          });
         } else if (parts.length >= 2) {
           prefetchFactory(selectedCategory, getCountryFromText(parts[0]), parts[1]);
-          navigation.navigate('Factory', {country: getCountryFromText(parts[0]), factoryNo: parts[1], category: selectedCategory});
+          navigation.navigate('Factory', {
+            country: getCountryFromText(parts[0]),
+            factoryNo: parts[1],
+            category: selectedCategory,
+            searchKeyword: item.text,
+          });
         }
         return;
       case 'combined':
@@ -280,6 +322,7 @@ export function SearchScreen({route, navigation}: Props) {
             country: standard.country ?? getCountryFromText(parts[0]),
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
+            searchKeyword: item.text,
           });
         } else if (standard.country && standard.factoryNo && standard.productName) {
           prefetchCountryFactoryProduct(selectedCategory, standard.country, standard.factoryNo, standard.productName);
@@ -288,6 +331,7 @@ export function SearchScreen({route, navigation}: Props) {
             factoryNo: standard.factoryNo,
             productName: standard.productName,
             category: selectedCategory,
+            searchKeyword: item.text,
           });
         } else if (parts.length >= 3) {
           prefetchCountryFactoryProduct(selectedCategory, getCountryFromText(parts[0]), parts[1], parts.slice(2).join(' '));
@@ -296,6 +340,7 @@ export function SearchScreen({route, navigation}: Props) {
             factoryNo: parts[1],
             productName: parts.slice(2).join(' '),
             category: selectedCategory,
+            searchKeyword: item.text,
           });
         }
         return;
@@ -306,6 +351,7 @@ export function SearchScreen({route, navigation}: Props) {
             country: standard.country ?? getCountryFromText(parts[0]),
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
+            searchKeyword: item.text,
           });
         }
     }

@@ -15,6 +15,7 @@ import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {MerchantDetail, OfferSummary} from '../types/api';
 import {copyToClipboard, dialPhone} from '../utils/contact';
+import type {OriginalTextPayload} from '../utils/originalText';
 import {extractCity, splitTags} from '../utils/offer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Merchant'>;
@@ -41,7 +42,7 @@ export function MerchantScreen({navigation, route}: Props) {
   }, [sort]);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [originalText, setOriginalText] = useState<string | null>(null);
+  const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [country, setCountry] = useState<string | null>(null);
   const [factories, setFactories] = useState<Set<string>>(new Set());
@@ -364,7 +365,8 @@ export function MerchantScreen({navigation, route}: Props) {
 
       <OriginalTextSheet
         visible={originalText !== null}
-        text={originalText ?? ''}
+        text={originalText?.text ?? ''}
+        keywords={originalText?.keywords ?? []}
         onClose={() => setOriginalText(null)}
       />
     </View>
