@@ -191,6 +191,8 @@ export type MerchantDetail = {
   todayFactoryCount: number;
   offers: OfferSummary[];
   inquiries: OfferSummary[];
+  offerFilterOptions?: MerchantFilterOptions | null;
+  inquiryFilterOptions?: MerchantFilterOptions | null;
   totalOffers?: number | null;
   totalInquiries?: number | null;
 };
@@ -360,6 +362,29 @@ export type MerchantOfferGroup = {
   employeeOffers: EmployeeOfferItem[];
 };
 
+export type FilterOptionItem = {
+  key: string;
+  label: string;
+};
+
+export type GroupedOfferFilterOptions = {
+  merchants?: FilterOptionItem[] | null;
+  regions?: string[] | null;
+  goodsTypes?: string[] | null;
+  feedingMethods?: string[] | null;
+  tags?: string[] | null;
+};
+
+export type MerchantFilterOptions = {
+  countries?: string[] | null;
+  countryFactories?: string[] | null;
+  regions?: string[] | null;
+  products?: string[] | null;
+  goodsTypes?: string[] | null;
+  feedingMethods?: string[] | null;
+  tags?: string[] | null;
+};
+
 export type CountryFactoryProductDetail = {
   country: string;
   factoryNo: string;
@@ -375,6 +400,7 @@ export type CountryFactoryProductDetail = {
   priceHistory7Days: DailyPrice[];
   priceHistory30Days: DailyPrice[];
   merchantOffers: MerchantOfferGroup[];
+  filterOptions?: GroupedOfferFilterOptions | null;
   totalCount: number;
   page?: number | null;
   pageSize?: number | null;
@@ -419,6 +445,7 @@ export type SubstituteProductDetail = {
   priceHistory7Days: DailyPrice[];
   priceHistory30Days: DailyPrice[];
   merchantOffers: MerchantOfferGroup[];
+  filterOptions?: GroupedOfferFilterOptions | null;
   totalCount: number;
   page: number;
   pageSize: number;

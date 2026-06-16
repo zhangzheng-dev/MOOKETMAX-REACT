@@ -5,6 +5,7 @@ import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import type {EmployeeOffer, OfferSummary} from '../../types/api';
+import {buildOriginalTextPayload, type OriginalTextPayload} from '../../utils/originalText';
 import {colorForOfferField, colorForTag, computePriceRange, extractCity, formatPublishTime, parseWeight, splitTags} from '../../utils/offer';
 import {OfferTagChip} from './OfferTagChip';
 
@@ -15,7 +16,7 @@ type Props = {
   merchantPhone?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
-  onViewOriginalText?: (text: string) => void;
+  onViewOriginalText?: (payload: OriginalTextPayload) => void;
 };
 
 /**
@@ -145,7 +146,7 @@ function EmployeeRow({
   merchantPhone?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
-  onViewOriginalText?: (text: string) => void;
+  onViewOriginalText?: (payload: OriginalTextPayload) => void;
 }) {
   const [weightValue, weightUnit] = parseWeight(offer.weight);
   const time = formatPublishTime(offer.publishTime);
@@ -204,7 +205,24 @@ function EmployeeRow({
         <View style={empStyles.actions}>
           <ActionButton
             text="查看原文"
-            onPress={() => onViewOriginalText?.(offer.offerOriginalText ?? '')}
+            onPress={() =>
+              onViewOriginalText?.(
+                buildOriginalTextPayload({
+                  text: offer.offerOriginalText,
+                  price: offer.price,
+                  priceMax: offer.priceMax,
+                  goodsLocation: offer.goodsLocation,
+                  goodsType: offer.goodsType,
+                  feedingType,
+                  fatRatio,
+                  cattleBreed,
+                  tags: offer.tags,
+                  remark,
+                  publishTime: offer.publishTime,
+                  userNickname: offer.userNickname,
+                }),
+              )
+            }
           />
           <View style={empStyles.actionVDivider} />
           <ActionButton text="添加微信" onPress={onCopyPhone} />

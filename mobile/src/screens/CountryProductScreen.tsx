@@ -16,7 +16,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CountryProduct'>;
 const pageSize = 20;
 
 export function CountryProductScreen({navigation, route}: Props) {
-  const {country, productName, category} = route.params;
+  const {country, productName, category, searchKeyword: routeSearchKeyword} = route.params;
+  const searchKeyword = routeSearchKeyword ?? `${country}${productName}`;
   const [data, setData] = useState<CountryProductDetail | null>(null);
   const [tab, setTab] = useState<OfferTab>('offer');
   const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
@@ -88,7 +89,7 @@ export function CountryProductScreen({navigation, route}: Props) {
         onBack={() => navigation.goBack()}
         onSearchPress={() => {
           navigation.popToTop();
-          navigation.navigate('Search', {category});
+          navigation.navigate('Search', {category, keyword: searchKeyword});
         }}
         tags={[
           {

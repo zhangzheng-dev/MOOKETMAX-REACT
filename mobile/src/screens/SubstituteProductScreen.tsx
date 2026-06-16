@@ -27,6 +27,7 @@ import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
 import type {MerchantOfferGroup, SubstituteFactory, SubstituteProduct as SubstituteOverview, SubstituteProductDetail} from '../types/api';
 import {extractCity, splitTags} from '../utils/offer';
+import type {OriginalTextPayload} from '../utils/originalText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SubstituteProduct'>;
 type LocalFilterKey = Exclude<FilterKey, 'product'>;
@@ -45,7 +46,7 @@ export function SubstituteProductScreen({navigation, route}: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [originalText, setOriginalText] = useState<string | null>(null);
+  const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
   const [activeFilter, setActiveFilter] = useState<LocalFilterKey | null>(null);
   const [famousOnly, setFamousOnly] = useState(false);
   const [regions, setRegions] = useState<Set<string>>(new Set());
@@ -167,42 +168,10 @@ export function SubstituteProductScreen({navigation, route}: Props) {
     return next;
   }, [detail?.merchantOffers, famousOnly, feedingMethods, goodsTypes, regions, tagFilters]);
 
-  const allRegions = useMemo(
-    () =>
-      unique(
-        (detail?.merchantOffers ?? []).flatMap(g =>
-          (g.employeeOffers ?? []).map(emp => extractCity(emp.goodsLocation)),
-        ),
-      ),
-    [detail?.merchantOffers],
-  );
-  const allGoodsTypes = useMemo(
-    () =>
-      unique(
-        (detail?.merchantOffers ?? []).flatMap(g =>
-          (g.employeeOffers ?? []).map(emp => emp.goodsType ?? ''),
-        ),
-      ),
-    [detail?.merchantOffers],
-  );
-  const allFeedings = useMemo(
-    () =>
-      unique(
-        (detail?.merchantOffers ?? []).flatMap(g =>
-          (g.employeeOffers ?? []).map(emp => emp.feedingType ?? ''),
-        ),
-      ),
-    [detail?.merchantOffers],
-  );
-  const allTags = useMemo(
-    () =>
-      unique(
-        (detail?.merchantOffers ?? []).flatMap(g =>
-          (g.employeeOffers ?? []).flatMap(emp => splitTags(emp.tags, 8)),
-        ),
-      ),
-    [detail?.merchantOffers],
-  );
+  const allRegions = useMemo(() => detail?.filterOptions?.regions ?? [], [detail?.filterOptions?.regions]);
+  const allGoodsTypes = useMemo(() => detail?.filterOptions?.goodsTypes ?? [], [detail?.filterOptions?.goodsTypes]);
+  const allFeedings = useMemo(() => detail?.filterOptions?.feedingMethods ?? [], [detail?.filterOptions?.feedingMethods]);
+  const allTags = useMemo(() => detail?.filterOptions?.tags ?? [], [detail?.filterOptions?.tags]);
 
   const filters = [
     {key: 'region' as const, label: '地区', hasSelection: regions.size > 0},
@@ -378,7 +347,8 @@ export function SubstituteProductScreen({navigation, route}: Props) {
 
       <OriginalTextSheet
         visible={originalText !== null}
-        text={originalText ?? ''}
+        text={originalText?.text ?? ''}
+        keywords={originalText?.keywords ?? []}
         onClose={() => setOriginalText(null)}
       />
     </View>

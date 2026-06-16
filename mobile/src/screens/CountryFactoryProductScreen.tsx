@@ -24,6 +24,7 @@ import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {CountryFactoryProductDetail, MerchantOfferGroup} from '../types/api';
 import {extractCity, splitTags} from '../utils/offer';
+import type {OriginalTextPayload} from '../utils/originalText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CountryFactoryProduct'>;
 
@@ -31,7 +32,8 @@ const pageSize = 20;
 type LocalFilterKey = Exclude<FilterKey, 'countryFactory' | 'product' | 'famousMerchant'>;
 
 export function CountryFactoryProductScreen({navigation, route}: Props) {
-  const {country, factoryNo, productName, category} = route.params;
+  const {country, factoryNo, productName, category, searchKeyword: routeSearchKeyword} = route.params;
+  const searchKeyword = routeSearchKeyword ?? `${country}${factoryNo}${productName}`;
   const [data, setData] = useState<CountryFactoryProductDetail | null>(null);
   const [tab, setTab] = useState<OfferTab>('offer');
   const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
@@ -39,8 +41,8 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [originalText, setOriginalText] = useState<string | null>(null);
-  const handleViewOriginalText = useCallback((value: string) => setOriginalText(value), []);
+  const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
+  const handleViewOriginalText = useCallback((value: OriginalTextPayload) => setOriginalText(value), []);
   const [activeFilter, setActiveFilter] = useState<LocalFilterKey | null>(null);
 
   const [famousMerchant, setFamousMerchant] = useState(false);
@@ -168,45 +170,13 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     tags,
   ]);
 
-  const allRegions = useMemo(
-    () =>
-      unique(
-        (data?.merchantOffers ?? []).flatMap(group =>
-          (group.employeeOffers ?? []).map(emp => extractCity(emp.goodsLocation)),
-        ),
-      ),
-    [data?.merchantOffers],
-  );
+  const allRegions = useMemo(() => data?.filterOptions?.regions ?? [], [data?.filterOptions?.regions]);
 
-  const allGoodsTypes = useMemo(
-    () =>
-      unique(
-        (data?.merchantOffers ?? []).flatMap(group =>
-          (group.employeeOffers ?? []).map(emp => emp.goodsType ?? ''),
-        ),
-      ),
-    [data?.merchantOffers],
-  );
+  const allGoodsTypes = useMemo(() => data?.filterOptions?.goodsTypes ?? [], [data?.filterOptions?.goodsTypes]);
 
-  const allFeedings = useMemo(
-    () =>
-      unique(
-        (data?.merchantOffers ?? []).flatMap(group =>
-          (group.employeeOffers ?? []).map(emp => emp.feedingType ?? ''),
-        ),
-      ),
-    [data?.merchantOffers],
-  );
+  const allFeedings = useMemo(() => data?.filterOptions?.feedingMethods ?? [], [data?.filterOptions?.feedingMethods]);
 
-  const allTags = useMemo(
-    () =>
-      unique(
-        (data?.merchantOffers ?? []).flatMap(group =>
-          (group.employeeOffers ?? []).flatMap(emp => splitTags(emp.tags, 8)),
-        ),
-      ),
-    [data?.merchantOffers],
-  );
+  const allTags = useMemo(() => data?.filterOptions?.tags ?? [], [data?.filterOptions?.tags]);
 
   const allMerchants = useMemo(
     () =>
@@ -217,11 +187,16 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     [data?.merchantOffers],
   );
 
+  const fullMerchantOptions = useMemo(
+    () => data?.filterOptions?.merchants ?? allMerchants,
+    [allMerchants, data?.filterOptions?.merchants],
+  );
+
   const visibleMerchants = useMemo(() => {
     const keyword = merchantKeyword.trim().toLowerCase();
-    if (!keyword) return allMerchants;
-    return allMerchants.filter(item => item.label.toLowerCase().includes(keyword));
-  }, [allMerchants, merchantKeyword]);
+    if (!keyword) return fullMerchantOptions;
+    return fullMerchantOptions.filter(item => item.label.toLowerCase().includes(keyword));
+  }, [fullMerchantOptions, merchantKeyword]);
 
   const filterDefs = [
     {key: 'famousMerchant' as const, label: '知名商家', hasSelection: famousMerchant, toggle: true},
@@ -251,7 +226,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         onBack={() => navigation.goBack()}
         onSearchPress={() => {
           navigation.popToTop();
-          navigation.navigate('Search', {category});
+          navigation.navigate('Search', {category, keyword: searchKeyword});
         }}
         tags={[
           {
@@ -429,7 +404,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
           options={visibleMerchants.map(m => m.label)}
           selected={new Set(visibleMerchants.filter(m => merchants.has(m.key)).map(m => m.label))}
           onToggle={label => {
-            const found = allMerchants.find(m => m.label === label);
+            const found = fullMerchantOptions.find(m => m.label === label);
             if (!found) return;
             setMerchants(prev => toggleSet(prev, found.key));
           }}
@@ -545,7 +520,8 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
 
       <OriginalTextSheet
         visible={originalText !== null}
-        text={originalText ?? ''}
+        text={originalText?.text ?? ''}
+        keywords={originalText?.keywords ?? []}
         onClose={() => setOriginalText(null)}
       />
     </View>

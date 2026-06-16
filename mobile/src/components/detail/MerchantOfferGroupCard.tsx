@@ -5,6 +5,7 @@ import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import type {EmployeeOfferItem, MerchantOfferGroup} from '../../types/api';
 import {copyToClipboard, dialPhone} from '../../utils/contact';
+import {buildOriginalTextPayload, type OriginalTextPayload} from '../../utils/originalText';
 import {
   colorForOfferField,
   colorForTag,
@@ -20,7 +21,7 @@ type Props = {
   isInquiry?: boolean;
   onCopyPhone?: string;
   onDial?: string;
-  onViewOriginalText?: (text: string) => void;
+  onViewOriginalText?: (payload: OriginalTextPayload) => void;
   defaultExpanded?: boolean;
 };
 
@@ -145,7 +146,7 @@ function EmployeeOfferRow({
   merchantPhone?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
-  onViewOriginalText?: (text: string) => void;
+  onViewOriginalText?: (payload: OriginalTextPayload) => void;
 }) {
   const [weightValue, weightUnit] = parseWeight(offer.weight);
   const time = formatPublishTime(offer.publishTime);
@@ -202,7 +203,25 @@ function EmployeeOfferRow({
       <View style={styles.actionDivider} />
 
       <View style={styles.actionRow}>
-        <Pressable style={styles.actionButton} onPress={() => onViewOriginalText?.(offer.offerOriginalText ?? '')}>
+        <Pressable
+          style={styles.actionButton}
+          onPress={() =>
+            onViewOriginalText?.(
+              buildOriginalTextPayload({
+                text: offer.offerOriginalText,
+                price: offer.price,
+                goodsLocation: offer.goodsLocation,
+                goodsType: offer.goodsType,
+                feedingType,
+                fatRatio,
+                cattleBreed,
+                tags: offer.tags,
+                remark,
+                publishTime: offer.publishTime,
+                userNickname: offer.userNickname,
+              }),
+            )
+          }>
           <BookIcon />
           <Text style={styles.actionText}>查看原文</Text>
         </Pressable>

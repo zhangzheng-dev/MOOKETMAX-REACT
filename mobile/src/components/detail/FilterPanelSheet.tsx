@@ -1,5 +1,15 @@
 import React from 'react';
-import {Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {colors} from '../../theme/colors';
 
 type Props = {
@@ -8,42 +18,43 @@ type Props = {
   onClose: () => void;
   onReset?: () => void;
   onConfirm?: () => void;
-  /** 自定义内容（最多占 60% 屏高） */
   children: React.ReactNode;
 };
 
-/**
- * 通用底部筛选抽屉（5 类筛选共用）
- */
 export function FilterPanelSheet({visible, title, onClose, onReset, onConfirm, children}: Props) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>{title}</Text>
-          </View>
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="always">
-            {children}
-          </ScrollView>
-          <View style={styles.actions}>
-            <Pressable style={[styles.button, styles.resetButton]} onPress={onReset}>
-              <Text style={styles.resetText}>重置</Text>
-            </Pressable>
-            <Pressable style={[styles.button, styles.confirmButton]} onPress={onConfirm ?? onClose}>
-              <Text style={styles.confirmText}>确定</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <KeyboardAvoidingView
+          style={styles.keyboardArea}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>{title}</Text>
+            </View>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="handled">
+              {children}
+            </ScrollView>
+            <View style={styles.actions}>
+              <Pressable style={[styles.button, styles.resetButton]} onPress={onReset}>
+                <Text style={styles.resetText}>重置</Text>
+              </Pressable>
+              <Pressable style={[styles.button, styles.confirmButton]} onPress={onConfirm ?? onClose}>
+                <Text style={styles.confirmText}>确定</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
-/** 多选 chip 列表 */
 export function MultiSelectChips({
   options,
   selected,
@@ -84,8 +95,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
+  keyboardArea: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   sheet: {
-    maxHeight: '70%',
+    minHeight: 240,
+    maxHeight: '78%',
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     backgroundColor: '#FFFFFF',
@@ -102,7 +118,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   scroll: {
-    flexGrow: 0,
+    flexGrow: 1,
   },
   content: {
     paddingHorizontal: 20,
