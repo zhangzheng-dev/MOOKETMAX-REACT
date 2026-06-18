@@ -1,9 +1,9 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {SvgXml} from 'react-native-svg';
-import {colors} from '../../theme/colors';
-import {backArrowXml, searchIconXml, tagCloseXml} from './productIcons';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SvgXml } from 'react-native-svg';
+import { colors } from '../../theme/colors';
+import { backArrowXml, searchIconXml, tagCloseXml } from './productIcons';
 
 type Tag = {
   text: string;
@@ -15,6 +15,7 @@ type Props = {
   onBack: () => void;
   tags: Tag[];
   onSearchPress?: () => void;
+  rightAction?: React.ReactNode;
 };
 
 /**
@@ -22,36 +23,54 @@ type Props = {
  * - 高 48dp（py:12 + 24px back icon）
  * - 4dp gap，含返回 + 类搜索框（绿底 chip + 搜索图标）
  */
-export function DetailTopBar({onBack, tags, onSearchPress}: Props) {
+export function DetailTopBar({
+  onBack,
+  tags,
+  onSearchPress,
+  rightAction,
+}: Props) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.bar, {paddingTop: insets.top + 12, minHeight: insets.top + 48}]}>
+    <View
+      style={[
+        styles.bar,
+        { paddingTop: insets.top + 12, minHeight: insets.top + 48 },
+      ]}
+    >
       <Pressable onPress={onBack} hitSlop={8} style={styles.backButton}>
         <SvgXml xml={backArrowXml} width={24} height={24} />
       </Pressable>
       <Pressable onPress={onSearchPress} style={styles.searchBox}>
         <View style={styles.tagsRow}>
           {tags.map((tag, index) => (
-            <SearchTag key={`${tag.text}-${index}`} text={tag.text} onPress={tag.onClose} />
+            <SearchTag
+              key={`${tag.text}-${index}`}
+              text={tag.text}
+              onPress={tag.onClose}
+            />
           ))}
         </View>
         <View style={styles.searchIcon}>
           <SvgXml xml={searchIconXml} width={16} height={16} />
         </View>
       </Pressable>
+      {rightAction ? (
+        <View style={styles.rightAction}>{rightAction}</View>
+      ) : null}
     </View>
   );
 }
 
-function SearchTag({text, onPress}: {text: string; onPress: () => void}) {
+function SearchTag({ text, onPress }: { text: string; onPress: () => void }) {
   return (
     <Pressable
       onPress={event => {
         event.stopPropagation();
         onPress();
       }}
-      style={styles.tag}>
+      style={styles.tag}
+    >
       <Text style={styles.tagText} numberOfLines={1}>
         {text}
       </Text>
@@ -61,7 +80,8 @@ function SearchTag({text, onPress}: {text: string; onPress: () => void}) {
           event.stopPropagation();
           onPress();
         }}
-        style={styles.tagClose}>
+        style={styles.tagClose}
+      >
         <SvgXml xml={tagCloseXml} width={8} height={8} />
       </Pressable>
     </Pressable>
@@ -134,6 +154,12 @@ const styles = StyleSheet.create({
     height: 16,
     marginLeft: 8,
     flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rightAction: {
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },

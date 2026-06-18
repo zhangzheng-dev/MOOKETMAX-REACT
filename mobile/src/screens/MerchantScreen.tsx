@@ -6,6 +6,7 @@ import {DataDashboard} from '../components/detail/DataDashboard';
 import {FilterBar, type FilterKey} from '../components/detail/FilterBar';
 import {FilterPanelSheet, MultiSelectChips} from '../components/detail/FilterPanelSheet';
 import {MerchantHeader} from '../components/detail/MerchantHeader';
+import {SelfSelectButton, toHistoryMerchantId} from '../components/detail/SelfSelectButton';
 import {MerchantSortBar, type MerchantSortMode} from '../components/detail/MerchantSortBar';
 import {OfferCardCompact} from '../components/detail/OfferCardCompact';
 import {OriginalTextSheet} from '../components/detail/OriginalTextSheet';
@@ -190,9 +191,33 @@ export function MerchantScreen({navigation, route}: Props) {
     });
   }
 
+  const merchantDisplayName = detail?.merchantShortName || detail?.merchantName || null;
+  const merchantCardId = detail?.merchantId ?? merchantId;
+  const selfSelectCard = merchantCardId || merchantDisplayName
+    ? {
+        cardType: 'merchant',
+        merchantId: merchantCardId,
+        merchantName: detail?.merchantName ?? merchantDisplayName,
+        merchantShortName: detail?.merchantShortName ?? null,
+      }
+    : null;
+  const selfSelectPayload = merchantDisplayName
+    ? {
+        searchWord: merchantDisplayName,
+        searchType: '\u5546\u5bb6',
+        merchantId: toHistoryMerchantId(merchantCardId),
+      }
+    : null;
+
   return (
     <View style={styles.container}>
-      <MerchantHeader merchant={detail} onBack={() => navigation.goBack()} />
+      <MerchantHeader
+        merchant={detail}
+        onBack={() => navigation.goBack()}
+        rightAction={
+          <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
+        }
+      />
 
       {loading && !detail ? (
         <View style={styles.loading}>

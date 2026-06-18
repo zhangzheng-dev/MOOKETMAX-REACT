@@ -4,6 +4,7 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {BrandProductDashboard} from '../components/detail/BrandProductDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
 import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
@@ -30,6 +31,17 @@ export function BrandProductScreen({navigation, route}: Props) {
     [sort],
   );
   const summaries = data?.summaries ?? [];
+  const currentBrandName = stripProductName(data?.brandName || brandName, productName);
+  const selfSelectCard = currentBrandName && productName
+    ? {cardType: 'brandProduct', brandName: currentBrandName, productName}
+    : null;
+  const selfSelectPayload = currentBrandName && productName
+    ? {
+        searchWord: `${currentBrandName} ${productName}`,
+        searchType: '\u54c1\u724c\u4ea7\u54c1',
+        productName,
+      }
+    : null;
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -101,6 +113,9 @@ export function BrandProductScreen({navigation, route}: Props) {
             onClose: () => navigation.navigate('Brand', {brandName, category}),
           },
         ]}
+        rightAction={
+          <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
+        }
       />
 
       {loading && !data ? (

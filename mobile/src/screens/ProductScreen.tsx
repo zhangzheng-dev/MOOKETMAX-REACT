@@ -4,6 +4,7 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {DataDashboard} from '../components/detail/DataDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
 import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
@@ -30,6 +31,18 @@ export function ProductScreen({navigation, route}: Props) {
     [sort],
   );
   const summaries = data?.summaries ?? [];
+  const currentProductName = data?.productName || productName;
+  const selfSelectCard = currentProductName
+    ? {cardType: 'product', productId, productName: currentProductName}
+    : null;
+  const selfSelectPayload = currentProductName
+    ? {
+        searchWord: currentProductName,
+        searchType: '\u4ea7\u54c1',
+        productId,
+        productName: currentProductName,
+      }
+    : null;
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -96,6 +109,9 @@ export function ProductScreen({navigation, route}: Props) {
             },
           },
         ]}
+        rightAction={
+          <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
+        }
       />
 
       {loading && !data ? (

@@ -88,11 +88,15 @@ export const mooketApi = {
     return unwrap<HomeCardsResponse>(apiClient.get('api/v1/search-history/cards/self-select', {params: {category}}));
   },
 
+  getSelfSelectSearches(limit = 200) {
+    return unwrap<SearchHistory[]>(apiClient.get('api/v1/search-history/self-select', {params: {limit}}));
+  },
+
   getSearchSuggestions(category: string, keyword: string) {
     return unwrap<SearchSuggest[]>(apiClient.get('api/v1/search/suggest', {params: {category, keyword}}));
   },
 
-  saveSearchHistory(params: {
+  async saveSearchHistory(params: {
     searchWord: string;
     searchType: string;
     isSelfSelect?: number;
@@ -108,7 +112,21 @@ export const mooketApi = {
     Object.entries(params).forEach(([key, value]) => {
       if (value != null) cleanParams[key] = value;
     });
-    return unwrap<void>(apiClient.post('api/v1/search/history', null, {params: cleanParams}));
+    await unwrap<void>(apiClient.post('api/v1/search/history', null, {params: cleanParams}));
+
+    // The full-history endpoint does not evict the cached home-card response.
+    // Re-apply self-select through its dedicated endpoint so the home screen
+    // receives the newly added card as soon as it refreshes.
+    if (params.isSelfSelect === 1) {
+      await unwrap<void>(
+        apiClient.post('api/v1/search-history/self-select/add', null, {
+          params: {
+            searchWord: params.searchWord,
+            searchType: params.searchType,
+          },
+        }),
+      );
+    }
   },
 
   getRecentSearches(limit = 20) {
