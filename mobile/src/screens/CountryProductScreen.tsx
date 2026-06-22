@@ -4,6 +4,7 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {CountryProductDashboard} from '../components/detail/CountryProductDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
 import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
@@ -30,6 +31,19 @@ export function CountryProductScreen({navigation, route}: Props) {
     [sort],
   );
   const factories = data?.factories ?? [];
+  const currentCountry = data?.country || country;
+  const currentProductName = data?.productName || productName;
+  const selfSelectCard = currentCountry && currentProductName
+    ? {cardType: 'countryProduct', country: currentCountry, productName: currentProductName}
+    : null;
+  const selfSelectPayload = currentCountry && currentProductName
+    ? {
+        searchWord: `${currentCountry}${currentProductName}`,
+        searchType: '\u56fd\u5bb6\u4ea7\u54c1',
+        country: currentCountry,
+        productName: currentProductName,
+      }
+    : null;
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -109,6 +123,9 @@ export function CountryProductScreen({navigation, route}: Props) {
             onClose: () => navigation.navigate('Country', {country, category}),
           },
         ]}
+        rightAction={
+          <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
+        }
       />
 
       {loading && !data ? (

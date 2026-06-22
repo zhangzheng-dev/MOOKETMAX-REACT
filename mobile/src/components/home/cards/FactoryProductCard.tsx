@@ -8,9 +8,9 @@ import {getCountryFlag} from '../../../utils/country';
 import {MiniTrendChart} from '../MiniTrendChart';
 import {cardBaseStyle, formatPriceRange, priceChangePalette, sharedStyles} from './shared';
 
-type Props = {card: HomeCardItem; onPress?: () => void};
+type Props = {card: HomeCardItem; onPress?: () => void; onLongPress?: () => void};
 
-export function FactoryProductCard({card, onPress}: Props) {
+export function FactoryProductCard({card, onPress, onLongPress}: Props) {
   const flag = getCountryFlag(card.country);
   const merchants = (card.hotMerchants ?? []).slice(0, 3) as Array<Record<string, unknown>>;
   const trend = (card.trendPoints ?? [])
@@ -20,7 +20,9 @@ export function FactoryProductCard({card, onPress}: Props) {
 
   return (
     <Pressable
-      disabled={!onPress}
+      disabled={!onPress && !onLongPress}
+      delayLongPress={250}
+      onLongPress={onLongPress}
       onPress={onPress}
       style={({pressed}) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.titleBlock}>

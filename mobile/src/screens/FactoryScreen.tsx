@@ -3,6 +3,7 @@ import {ActivityIndicator, SectionList, RefreshControl, StyleSheet, Text, View} 
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {FactoryDashboard} from '../components/detail/FactoryDashboard';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
 import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
@@ -30,6 +31,19 @@ export function FactoryScreen({navigation, route}: Props) {
     [sort],
   );
   const products = data?.products ?? [];
+  const currentCountry = data?.country || country;
+  const currentFactoryNo = data?.factoryNo || factoryNo;
+  const selfSelectCard = currentCountry && currentFactoryNo
+    ? {cardType: 'factory', country: currentCountry, factoryNo: currentFactoryNo}
+    : null;
+  const selfSelectPayload = currentCountry && currentFactoryNo
+    ? {
+        searchWord: `${currentCountry}${currentFactoryNo}`,
+        searchType: '\u56fd\u5bb6\u5382\u53f7',
+        country: currentCountry,
+        factoryNo: currentFactoryNo,
+      }
+    : null;
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -102,6 +116,9 @@ export function FactoryScreen({navigation, route}: Props) {
             },
           },
         ]}
+        rightAction={
+          <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
+        }
       />
 
       {loading && !data ? (

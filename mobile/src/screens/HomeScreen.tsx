@@ -18,6 +18,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {mooketApi} from '../api/mooketApi';
+import {MasonryDraggableGrid} from '../components/home/MasonryDraggableGrid';
 import {HomeCardSwitcher} from '../components/home/cards';
 import {MooketMaxLogo} from '../components/login/LoginIcons';
 import {DEFAULT_CATEGORY} from '../config/env';
@@ -27,6 +28,12 @@ import {fonts} from '../theme/typography';
 import type {HomeCardItem, HomeStatData, HotSearchItem} from '../types/api';
 import {buildHomeCardSearchHistoryPayload, buildHomeFallbackExampleCards, getHomeCardEntityKey} from '../utils/homeFallbackCards';
 import {openHomeCard, openHotSearch} from '../utils/navigation';
+import {getAddSelfSelectMessage, getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
+import {
+  applySavedSelfSelectCardOrder,
+  getSelfSelectCardOrderKey,
+  saveSelfSelectCardOrder,
+} from '../utils/selfSelectCardOrder';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -90,6 +97,14 @@ export function HomeScreen({navigation}: Props) {
       return next;
     });
   }, []);
+
+  const handleCardsReorder = useCallback(
+    (data: HomeCardItem[]) => {
+      setCards(data);
+      saveSelfSelectCardOrder(category, data).catch(() => undefined);
+    },
+    [category],
+  );
 
   const performScrollToTop = useCallback((animated: boolean) => {
     const list = sectionListRef.current as
@@ -164,7 +179,7 @@ export function HomeScreen({navigation}: Props) {
       autoTabSwitchReadyRef.current = false;
 
       if (tab === 0) {
-        setCards(selfSelectCards);
+        setCards(await applySavedSelfSelectCardOrder(category, selfSelectCards));
       } else {
         if (recentCards.length > 0) {
           setCards(recentCards);
@@ -278,14 +293,14 @@ export function HomeScreen({navigation}: Props) {
 
   function onArchiveAdd(card: HomeCardItem) {
     if (card.isExample) {
-      Alert.alert('加入自选', '确定加入自选吗？', [
+      Alert.alert('加入自选', getAddSelfSelectMessage(card), [
         {text: '取消', style: 'cancel'},
         {text: '确定', onPress: () => addExampleCardToSelfSelect(card).catch(() => undefined)},
       ]);
       return;
     }
     if (!card.historyId) return;
-    Alert.alert('加入自选', '确定加入自选吗？', [
+    Alert.alert('加入自选', getAddSelfSelectMessage(card), [
       {text: '取消', style: 'cancel'},
       {text: '确定', onPress: () => moveToSelfSelect(card.historyId!).catch(() => undefined)},
     ]);
@@ -301,7 +316,7 @@ export function HomeScreen({navigation}: Props) {
     }
     if (!card.historyId) return;
     if (tab === 0) {
-      Alert.alert('移出自选', '确定移出自选吗？', [
+      Alert.alert('移出自选', getRemoveSelfSelectMessage(card), [
         {text: '取消', style: 'cancel'},
         {text: '移出', style: 'destructive', onPress: () => cancelSelfSelect(card.historyId!).catch(() => undefined)},
       ]);
@@ -471,6 +486,26 @@ export function HomeScreen({navigation}: Props) {
           if (cards.length === 0) {
             return <Text style={styles.empty}>{tab === 0 ? '暂无自选数据' : '暂无历史搜索数据'}</Text>;
           }
+          if (editMode && tab === 0) {
+            return (
+              <MasonryDraggableGrid
+                cards={cards}
+                estimateHeight={estimateCardHeight}
+                keyExtractor={(card, index) => getSelfSelectCardOrderKey(card) ?? `card-${index}`}
+                onReorder={handleCardsReorder}
+                renderCard={card => (
+                  <CardWithEdit
+                    card={card}
+                    editMode={editMode}
+                    tab={tab}
+                    onPress={() => undefined}
+                    onArchiveAdd={() => onArchiveAdd(card)}
+                    onArchiveDelete={() => onArchiveDelete(card)}
+                  />
+                )}
+              />
+            );
+          }
           return (
             <View style={styles.gridRow}>
               <View style={styles.gridCol}>
@@ -613,6 +648,7 @@ function CardWithEdit({
   editMode,
   tab,
   onPress,
+  onLongPress,
   onArchiveAdd,
   onArchiveDelete,
 }: {
@@ -620,12 +656,17 @@ function CardWithEdit({
   editMode: boolean;
   tab: 0 | 1;
   onPress: () => void;
+  onLongPress?: () => void;
   onArchiveAdd: () => void;
   onArchiveDelete: () => void;
 }) {
   return (
     <View style={styles.cardWrap}>
-      <HomeCardSwitcher card={card} onPress={editMode ? undefined : onPress} />
+      <HomeCardSwitcher
+        card={card}
+        onPress={editMode ? undefined : onPress}
+        onLongPress={editMode && tab === 0 ? onLongPress : undefined}
+      />
       {card.isExample && !editMode ? (
         <View style={styles.exampleBadge}>
           <Text style={styles.exampleBadgeText}>例</Text>
@@ -924,7 +965,6 @@ const styles = StyleSheet.create({
   empty: {marginTop: 48, textAlign: 'center', color: '#9DA4A3', fontSize: 14},
   gridRow: {flexDirection: 'row', paddingHorizontal: 16, paddingTop: 12, gap: 12},
   gridCol: {flex: 1, gap: 12},
-
   cardWrap: {position: 'relative'},
   exampleBadge: {
     position: 'absolute',

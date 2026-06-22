@@ -5,6 +5,7 @@ import {mooketApi} from '../api/mooketApi';
 import {BrandDashboard} from '../components/detail/BrandDashboard';
 import {CountrySummaryRowCard} from '../components/detail/CountrySummaryRowCard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
 import type {RootStackParamList} from '../navigation/routes';
@@ -30,6 +31,13 @@ export function BrandScreen({navigation, route}: Props) {
     [sort],
   );
   const summaries = data?.summaries ?? [];
+  const currentBrandName = data?.brandName || brandName;
+  const selfSelectCard = currentBrandName
+    ? {cardType: 'brand', brandName: currentBrandName}
+    : null;
+  const selfSelectPayload = currentBrandName
+    ? {searchWord: currentBrandName, searchType: '\u54c1\u724c'}
+    : null;
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -98,6 +106,9 @@ export function BrandScreen({navigation, route}: Props) {
             },
           },
         ]}
+        rightAction={
+          <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
+        }
       />
 
       {loading && !data ? (

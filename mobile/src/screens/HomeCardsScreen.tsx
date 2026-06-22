@@ -14,6 +14,7 @@ import {SvgXml} from 'react-native-svg';
 import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import DraggableFlatList, {ScaleDecorator} from 'react-native-draggable-flatlist';
 import {mooketApi} from '../api/mooketApi';
 import {ChevronDownIcon, ClockIcon, StarIcon} from '../components/common/AppIcons';
 import {HomeCardSwitcher} from '../components/home/cards';
@@ -23,6 +24,12 @@ import {colors} from '../theme/colors';
 import type {HomeCardItem, HomeCardsResponse} from '../types/api';
 import {buildHomeCardSearchHistoryPayload, buildHomeFallbackExampleCards, getHomeCardEntityKey} from '../utils/homeFallbackCards';
 import {openHomeCard} from '../utils/navigation';
+import {getAddSelfSelectMessage, getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
+import {
+  applySavedSelfSelectCardOrder,
+  getSelfSelectCardOrderKey,
+  saveSelfSelectCardOrder,
+} from '../utils/selfSelectCardOrder';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HomeCards'>;
 
@@ -84,11 +91,20 @@ export function HomeCardsScreen({navigation, route}: Props) {
     setLoading(true);
     try {
       const result = await loadFn(category, tab);
-      setCards(result.cards ?? []);
+      const nextCards = result.cards ?? [];
+      setCards(tab === 0 ? await applySavedSelfSelectCardOrder(category, nextCards) : nextCards);
     } finally {
       setLoading(false);
     }
   }, [category, loadFn, tab]);
+
+  const handleDragEnd = useCallback(
+    ({data}: {data: HomeCardItem[]}) => {
+      setCards(data);
+      saveSelfSelectCardOrder(category, data).catch(() => undefined);
+    },
+    [category],
+  );
 
   const handleEditToggle = useCallback(() => {
     setEditMode(prev => {
@@ -238,10 +254,39 @@ export function HomeCardsScreen({navigation, route}: Props) {
         />
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
+      {editMode && tab === 0 && cards.length > 0 ? (
+        <DraggableFlatList
+          data={cards}
+          numColumns={2}
+          keyExtractor={(item, index) => getSelfSelectCardOrderKey(item) ?? `card-${index}`}
+          contentContainerStyle={styles.content}
+          columnWrapperStyle={styles.draggableRow}
+          onDragEnd={handleDragEnd}
+          renderItem={({item, drag, isActive}) => (
+            <View style={styles.draggableCell}>
+              <ScaleDecorator activeScale={1.03}>
+                <View style={[styles.draggableCardWrap, isActive && styles.draggingCard]}>
+                  <CardWithActions
+                    card={item}
+                    category={category}
+                    tab={tab}
+                    editMode={editMode}
+                    onPress={() => undefined}
+                    onLongPress={drag}
+                    onDelete={() => confirmDelete(item.historyId, deleteHistory)}
+                    onMoveToSelfSelect={() => confirmMoveToSelfSelect(item, moveToSelfSelect)}
+                    onCancelSelfSelect={() => confirmCancelSelfSelect(item, cancelSelfSelect)}
+                  />
+                </View>
+              </ScaleDecorator>
+            </View>
+          )}
+        />
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
         {cards.length === 0 ? (
           loading ? (
             <ActivityIndicator color={colors.primary} style={styles.loading} />
@@ -260,8 +305,8 @@ export function HomeCardsScreen({navigation, route}: Props) {
                   editMode={editMode}
                   onPress={() => openHomeCard(navigation, category, card)}
                   onDelete={() => (card.isExample ? confirmDeleteExample(card, dismissExampleCard) : confirmDelete(card.historyId, deleteHistory))}
-                  onMoveToSelfSelect={() => (card.isExample ? confirmMoveExampleToSelfSelect(card, addExampleCardToSelfSelect) : confirmMoveToSelfSelect(card.historyId, moveToSelfSelect))}
-                  onCancelSelfSelect={() => confirmCancelSelfSelect(card.historyId, cancelSelfSelect)}
+                  onMoveToSelfSelect={() => (card.isExample ? confirmMoveExampleToSelfSelect(card, addExampleCardToSelfSelect) : confirmMoveToSelfSelect(card, moveToSelfSelect))}
+                  onCancelSelfSelect={() => confirmCancelSelfSelect(card, cancelSelfSelect)}
                 />
               ))}
             </View>
@@ -275,14 +320,15 @@ export function HomeCardsScreen({navigation, route}: Props) {
                   editMode={editMode}
                   onPress={() => openHomeCard(navigation, category, card)}
                   onDelete={() => (card.isExample ? confirmDeleteExample(card, dismissExampleCard) : confirmDelete(card.historyId, deleteHistory))}
-                  onMoveToSelfSelect={() => (card.isExample ? confirmMoveExampleToSelfSelect(card, addExampleCardToSelfSelect) : confirmMoveToSelfSelect(card.historyId, moveToSelfSelect))}
-                  onCancelSelfSelect={() => confirmCancelSelfSelect(card.historyId, cancelSelfSelect)}
+                  onMoveToSelfSelect={() => (card.isExample ? confirmMoveExampleToSelfSelect(card, addExampleCardToSelfSelect) : confirmMoveToSelfSelect(card, moveToSelfSelect))}
+                  onCancelSelfSelect={() => confirmCancelSelfSelect(card, cancelSelfSelect)}
                 />
               ))}
             </View>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -292,6 +338,7 @@ function CardWithActions({
   tab,
   editMode,
   onPress,
+  onLongPress,
   onDelete,
   onMoveToSelfSelect,
   onCancelSelfSelect,
@@ -301,13 +348,14 @@ function CardWithActions({
   tab: 0 | 1;
   editMode: boolean;
   onPress: () => void;
+  onLongPress?: () => void;
   onDelete: () => void;
   onMoveToSelfSelect: () => void;
   onCancelSelfSelect: () => void;
 }) {
   return (
     <View style={styles.cardWrap}>
-      <HomeCardSwitcher card={card} onPress={onPress} />
+      <HomeCardSwitcher card={card} onPress={onPress} onLongPress={onLongPress} />
       {card.isExample && !editMode ? (
         <View style={styles.exampleBadge}>
           <Text style={styles.exampleBadgeText}>例</Text>
@@ -386,9 +434,10 @@ function confirmDeleteExample(card: HomeCardItem, onConfirm: (card: HomeCardItem
   ]);
 }
 
-function confirmMoveToSelfSelect(historyId: number | null | undefined, onConfirm: (id: number) => void | Promise<void>) {
+function confirmMoveToSelfSelect(card: HomeCardItem, onConfirm: (id: number) => void | Promise<void>) {
+  const historyId = card.historyId;
   if (!historyId) return;
-  Alert.alert('添加自选', '确定把这张卡片加入自选吗？', [
+  Alert.alert('加入自选', getAddSelfSelectMessage(card), [
     {text: '取消', style: 'cancel'},
     {text: '确定', onPress: () => onConfirm(historyId)},
   ]);
@@ -398,15 +447,16 @@ function confirmMoveExampleToSelfSelect(
   card: HomeCardItem,
   onConfirm: (card: HomeCardItem) => void | Promise<void>,
 ) {
-  Alert.alert('添加自选', '确定把这张卡片加入自选吗？', [
+  Alert.alert('加入自选', getAddSelfSelectMessage(card), [
     {text: '取消', style: 'cancel'},
     {text: '确定', onPress: () => onConfirm(card)},
   ]);
 }
 
-function confirmCancelSelfSelect(historyId: number | null | undefined, onConfirm: (id: number) => void | Promise<void>) {
+function confirmCancelSelfSelect(card: HomeCardItem, onConfirm: (id: number) => void | Promise<void>) {
+  const historyId = card.historyId;
   if (!historyId) return;
-  Alert.alert('移出自选', '确定把这张卡片移出自选吗？', [
+  Alert.alert('移出自选', getRemoveSelfSelectMessage(card), [
     {text: '取消', style: 'cancel'},
     {text: '移出', style: 'destructive', onPress: () => onConfirm(historyId)},
   ]);
@@ -466,6 +516,10 @@ const styles = StyleSheet.create({
   tabIndicatorActive: {width: 18, backgroundColor: colors.primary},
   scroll: {flex: 1},
   content: {padding: 16, paddingBottom: 32},
+  draggableRow: {gap: 12},
+  draggableCell: {flex: 1, maxWidth: '48.5%'},
+  draggableCardWrap: {width: '100%', marginBottom: 12},
+  draggingCard: {opacity: 0.94, elevation: 8},
   gridRow: {flexDirection: 'row', gap: 12},
   gridColumn: {flex: 1, gap: 12},
   cardWrap: {gap: 6, position: 'relative'},

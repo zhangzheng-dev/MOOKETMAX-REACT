@@ -14,6 +14,7 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {CountryProductDashboard} from '../components/detail/CountryProductDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {FilterBar, type FilterKey} from '../components/detail/FilterBar';
 import {FilterPanelSheet, MultiSelectChips} from '../components/detail/FilterPanelSheet';
 import {MerchantOfferGroupCard} from '../components/detail/MerchantOfferGroupCard';
@@ -58,6 +59,26 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
     () => sortToParam(sort),
     [sort],
   );
+  const currentCountry = data?.country || country;
+  const currentFactoryNo = data?.factoryNo || factoryNo;
+  const currentProductName = data?.productName || productName;
+  const selfSelectCard = currentCountry && currentFactoryNo && currentProductName
+    ? {
+        cardType: 'factoryProduct',
+        country: currentCountry,
+        factoryNo: currentFactoryNo,
+        productName: currentProductName,
+      }
+    : null;
+  const selfSelectPayload = currentCountry && currentFactoryNo && currentProductName
+    ? {
+        searchWord: `${currentCountry}${currentFactoryNo}${currentProductName}`,
+        searchType: '\u56fd\u5bb6\u5382\u53f7\u4ea7\u54c1',
+        country: currentCountry,
+        factoryNo: currentFactoryNo,
+        productName: currentProductName,
+      }
+    : null;
 
   const loadFirst = useCallback(async () => {
     setLoading(true);
@@ -246,6 +267,9 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
             onClose: () => navigation.navigate('Factory', {country, factoryNo, category}),
           },
         ]}
+        rightAction={
+          <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
+        }
       />
 
       {loading && !data ? (
