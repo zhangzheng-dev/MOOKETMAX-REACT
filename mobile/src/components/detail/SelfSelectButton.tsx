@@ -5,6 +5,7 @@ import { SvgXml } from 'react-native-svg';
 import { mooketApi } from '../../api/mooketApi';
 import type { HomeCardItem, SearchHistory } from '../../types/api';
 import { getHomeCardEntityKey } from '../../utils/homeFallbackCards';
+import { getSelfSelectEntityName } from '../../utils/selfSelectEntity';
 
 type SelfSelectPayload = {
   searchWord: string;
@@ -43,7 +44,7 @@ export function SelfSelectButton({ category, card, payload }: Props) {
         : '',
     [payload?.searchType, payload?.searchWord],
   );
-  const entityName = payload?.searchWord.trim() || getCardEntityName(card);
+  const entityName = payload?.searchWord.trim() || getSelfSelectEntityName(card);
 
   useFocusEffect(
     useCallback(() => {
@@ -266,31 +267,6 @@ function getSelfSelectCandidateKeys(card: HomeCardItem) {
   }
 
   return Array.from(keys);
-}
-
-function getCardEntityName(card: HomeCardItem | null) {
-  if (!card) return '';
-
-  switch (card.cardType) {
-    case 'product':
-      return card.productName?.trim() || '';
-    case 'country':
-      return card.country?.trim() || '';
-    case 'brand':
-      return card.brandName?.trim() || '';
-    case 'merchant':
-      return card.merchantName?.trim() || card.merchantShortName?.trim() || '';
-    case 'factory':
-      return `${card.country ?? ''}${card.factoryNo ?? ''}`.trim();
-    case 'countryProduct':
-      return `${card.country ?? ''}${card.productName ?? ''}`.trim();
-    case 'factoryProduct':
-      return `${card.country ?? ''}${card.factoryNo ?? ''}${card.productName ?? ''}`.trim();
-    case 'brandProduct':
-      return `${card.brandName ?? ''}${card.productName ?? ''}`.trim();
-    default:
-      return '';
-  }
 }
 
 function getSelfSelectHistoryCandidateKeys(history: SearchHistory) {

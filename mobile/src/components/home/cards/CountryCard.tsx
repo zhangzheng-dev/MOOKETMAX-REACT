@@ -6,19 +6,21 @@ import {asText} from '../../../utils/format';
 import {getCountryFlag} from '../../../utils/country';
 import {cardBaseStyle, sharedStyles} from './shared';
 
-type Props = {card: HomeCardItem; onPress?: () => void};
+type Props = {card: HomeCardItem; onPress?: () => void; onLongPress?: () => void};
 
 /**
  * 国家卡（按 Figma 263:2481 对齐）：国旗 + 国家名 + 双列热门厂号/热门产品（不显示今日报盘数）
  */
-export function CountryCard({card, onPress}: Props) {
+export function CountryCard({card, onPress, onLongPress}: Props) {
   const flag = getCountryFlag(card.country);
   const factories = (card.hotFactories ?? []).slice(0, 3) as Array<Record<string, unknown>>;
   const products = (card.hotProducts ?? []).slice(0, 3) as Array<Record<string, unknown>>;
 
   return (
     <Pressable
-      disabled={!onPress}
+      disabled={!onPress && !onLongPress}
+      delayLongPress={250}
+      onLongPress={onLongPress}
       onPress={onPress}
       style={({pressed}) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.titleWrap}>

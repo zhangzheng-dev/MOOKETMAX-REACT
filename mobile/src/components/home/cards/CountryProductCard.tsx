@@ -7,15 +7,17 @@ import {asText} from '../../../utils/format';
 import {getCountryFlag} from '../../../utils/country';
 import {cardBaseStyle, formatPriceRange, sharedStyles} from './shared';
 
-type Props = {card: HomeCardItem; onPress?: () => void};
+type Props = {card: HomeCardItem; onPress?: () => void; onLongPress?: () => void};
 
-export function CountryProductCard({card, onPress}: Props) {
+export function CountryProductCard({card, onPress, onLongPress}: Props) {
   const flag = getCountryFlag(card.country);
   const factories = (card.topFactories ?? []).slice(0, 3) as Array<Record<string, unknown>>;
 
   return (
     <Pressable
-      disabled={!onPress}
+      disabled={!onPress && !onLongPress}
+      delayLongPress={250}
+      onLongPress={onLongPress}
       onPress={onPress}
       style={({pressed}) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.titleWrap}>

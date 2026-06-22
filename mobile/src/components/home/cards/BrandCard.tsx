@@ -5,12 +5,14 @@ import {colors} from '../../../theme/colors';
 import type {HomeCardItem} from '../../../types/api';
 import {cardBaseStyle, formatThousand, sharedStyles} from './shared';
 
-type Props = {card: HomeCardItem; onPress?: () => void};
+type Props = {card: HomeCardItem; onPress?: () => void; onLongPress?: () => void};
 
-export function BrandCard({card, onPress}: Props) {
+export function BrandCard({card, onPress, onLongPress}: Props) {
   return (
     <Pressable
-      disabled={!onPress}
+      disabled={!onPress && !onLongPress}
+      delayLongPress={250}
+      onLongPress={onLongPress}
       onPress={onPress}
       style={({pressed}) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.titleWrap}>
