@@ -746,7 +746,15 @@ public class SearchServiceImpl implements SearchService {
         List<DictProduct> exactProducts = products.stream()
                 .filter(product -> productName.equals(product.getProductName()))
                 .collect(Collectors.toList());
-        return exactProducts.isEmpty() ? products : exactProducts;
+        if (exactProducts.isEmpty()) {
+            return products;
+        }
+
+        List<DictProduct> sortedProducts = new ArrayList<>(exactProducts);
+        products.stream()
+                .filter(product -> !productName.equals(product.getProductName()))
+                .forEach(sortedProducts::add);
+        return sortedProducts;
     }
 
     private int getMatchLength(String factoryNo, String keyword) {
