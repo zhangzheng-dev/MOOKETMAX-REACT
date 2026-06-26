@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 日志输出目录，由环境变量 LOG_PATH 控制，默认 /var/log/mooket -->
+    <property name="LOG_PATH" value="${LOG_PATH:-/var/log/mooket}"/>
+    <property name="LOG_FILE" value="${LOG_PATH}/social.log"/>
+    <property name="LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+
+    <!-- 控制台输出（仅保留 INFO+，启动诊断用） -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+    </appender>
+
+    <!-- 主日志文件：按大小+日期滚动 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- 按日期分目录，单个文件最大 100MB -->
+            <fileNamePattern>${LOG_PATH}/social.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <!-- 保留 7 天 -->
+            <maxHistory>7</maxHistory>
+            <!-- 全部日志总大小上限 2GB -->
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 异步包装，写日志不阻塞业务线程 -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>1024</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <appender-ref ref="FILE"/>
+    </appender>
+
+    <!-- 业务包默认 INFO -->
+    <logger name="com.mooket.social" level="INFO"/>
+    <!-- Mapper 默认 WARN，需要排查 SQL 时临时调成 DEBUG -->
+    <logger name="com.mooket.social.mapper" level="WARN"/>
+    <logger name="com.mooket.social.mysql.mapper" level="WARN"/>
+    <logger name="com.mooket.social.erp.mapper" level="WARN"/>
+    <logger name="com.mooket.social.uac.mapper" level="WARN"/>
+    <logger name="org.springframework.jdbc" level="WARN"/>
+    <logger name="org.mybatis" level="WARN"/>
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.apache" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </root>
+</configuration>
