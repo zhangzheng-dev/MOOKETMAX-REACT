@@ -7,6 +7,7 @@ import com.mooket.social.entity.DictMerchant;
 import com.mooket.social.entity.DictProduct;
 import com.mooket.social.entity.mysql.SocialOnlineBusiness;
 import com.mooket.social.entity.mysql.SocialOnlineBusinessContent;
+import com.mooket.social.entity.mysql.SocialOnlineBusinessTag;
 import com.mooket.social.entity.mysql.SocialStandardGoodsName;
 import com.mooket.social.entity.mysql.SysDict;
 import com.mooket.social.mapper.BizOfferMapper;
@@ -16,6 +17,7 @@ import com.mooket.social.mapper.DictMerchantMapper;
 import com.mooket.social.mapper.DictProductMapper;
 import com.mooket.social.mysql.mapper.SocialOnlineBusinessContentMapper;
 import com.mooket.social.mysql.mapper.SocialOnlineBusinessMapper;
+import com.mooket.social.mysql.mapper.SocialOnlineBusinessTagMapper;
 import com.mooket.social.mysql.mapper.SocialStandardGoodsNameMapper;
 import com.mooket.social.mysql.mapper.SysDictMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,6 +43,7 @@ public class DataSyncService {
     private final BizOfferMapper targetMapper;
     private final SysDictMapper sysDictMapper;
     private final SocialOnlineBusinessContentMapper contentMapper;
+    private final SocialOnlineBusinessTagMapper tagMapper;
     private final SocialStandardGoodsNameMapper goodsNameMapper;
     private final DictMerchantMapper merchantMapper;
     private final DictFactoryMapper factoryMapper;
@@ -78,6 +81,7 @@ public class DataSyncService {
                            BizOfferMapper targetMapper,
                            SysDictMapper sysDictMapper,
                            SocialOnlineBusinessContentMapper contentMapper,
+                           SocialOnlineBusinessTagMapper tagMapper,
                            SocialStandardGoodsNameMapper goodsNameMapper,
                            DictMerchantMapper merchantMapper,
                            DictFactoryMapper factoryMapper,
@@ -88,6 +92,7 @@ public class DataSyncService {
         this.targetMapper = targetMapper;
         this.sysDictMapper = sysDictMapper;
         this.contentMapper = contentMapper;
+        this.tagMapper = tagMapper;
         this.goodsNameMapper = goodsNameMapper;
         this.merchantMapper = merchantMapper;
         this.factoryMapper = factoryMapper;
@@ -141,6 +146,7 @@ public class DataSyncService {
         // 2. 批量查询关联数据（减少数据库查询次数）
         Map<Long, String> contentMap = batchGetContent(sourceData);
         Map<Long, String> goodsNameMap = batchGetGoodsName(sourceData);
+        Map<Long, String> tagMap = batchGetTags(sourceData);
         Map<String, String> dictValueMap = batchGetDictValues(sourceData);
         Map<String, Long> merchantMap = batchGetMerchants(sourceData);
         Map<String, Long> factoryIdMap = batchGetFactoryIds(sourceData);
@@ -155,7 +161,7 @@ public class DataSyncService {
         for (int i = 0; i < sourceData.size(); i++) {
             SocialOnlineBusiness src = sourceData.get(i);
             try {
-                BizOffer target = convertToBizOffer(src, contentMap, goodsNameMap, dictValueMap, merchantMap, factoryIdMap, productIdMap, brandIdMap);
+                BizOffer target = convertToBizOffer(src, contentMap, goodsNameMap, dictValueMap, merchantMap, factoryIdMap, productIdMap, brandIdMap, tagMap);
                 targetMapper.upsert(target);
                 successCount++;
                 if ((i + 1) % 5000 == 0) {
@@ -212,6 +218,50 @@ public class DataSyncService {
 
         return goodsNameMapper.selectByIds(goodsIds).stream()
                 .collect(Collectors.toMap(SocialStandardGoodsName::getId, SocialStandardGoodsName::getStandardGoodsName));
+    }
+
+    /**
+     * 批量获取标签（仅当前同步窗口的报盘 id，不触碰历史数据）。
+     * 按 online_business_id 聚合去重，逗号拼接；超 200 字符截断以适配 tags 列长度。
+     */
+    private Map<Long, String> batchGetTags(List<SocialOnlineBusiness> sourceData) {
+        List<Long> ids = sourceData.stream()
+                .map(SocialOnlineBusiness::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Long, LinkedHashSet<String>> grouped = new HashMap<>();
+        int batchSize = 1000;
+        for (int i = 0; i < ids.size(); i += batchSize) {
+            List<Long> batch = ids.subList(i, Math.min(i + batchSize, ids.size()));
+            try {
+                for (SocialOnlineBusinessTag t : tagMapper.selectByBusinessIds(batch)) {
+                    if (t.getOnlineBusinessId() == null || t.getBusinessTag() == null) continue;
+                    String tag = t.getBusinessTag().trim();
+                    if (tag.isEmpty()) continue;
+                    grouped.computeIfAbsent(t.getOnlineBusinessId(), k -> new LinkedHashSet<>()).add(tag);
+                }
+            } catch (Exception e) {
+                // 标签为辅助字段，单批失败不应阻断主同步流程
+                System.err.println("[DataSyncService] 标签查询失败(跳过该批): " + e.getMessage());
+            }
+        }
+
+        Map<Long, String> result = new HashMap<>();
+        for (Map.Entry<Long, LinkedHashSet<String>> e : grouped.entrySet()) {
+            String joined = String.join(",", e.getValue());
+            if (joined.length() > 200) {
+                joined = joined.substring(0, 200);
+            }
+            result.put(e.getKey(), joined);
+        }
+        System.out.println("[DataSyncService] 标签获取完成: " + result.size() + " 个报盘含标签");
+        return result;
     }
 
     /**
@@ -530,7 +580,8 @@ public class DataSyncService {
                                         Map<String, Long> merchantMap,
                                         Map<String, Long> factoryIdMap,
                                         Map<String, Integer> productIdMap,
-                                        Map<Long, Integer> brandIdMap) {
+                                        Map<Long, Integer> brandIdMap,
+                                        Map<Long, String> tagMap) {
         BizOffer target = new BizOffer();
 
         // source_business_id: 保留源表主键，保证 social_online_business 一条记录对应 biz_offer 一条记录
@@ -625,6 +676,9 @@ public class DataSyncService {
 
         // remark
         target.setRemark(src.getMemo());
+
+        // tags: 通过 social_online_business_tag 按 online_business_id 聚合（仅当前窗口）
+        target.setTags(tagMap.get(src.getId()));
 
         // publish_time
         target.setPublishTime(src.getOfferDate());

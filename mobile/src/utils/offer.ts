@@ -69,17 +69,10 @@ export function computePriceRange(
   return ['协商报价', null];
 }
 
-export function colorForTag(tag: string): {bg: string; fg: string} {
-  if (tag.includes('大日期') || tag.includes('日期')) {
-    return {bg: '#F2F3FF', fg: '#3163DC'};
-  }
-  if (tag.includes('可开证') || tag.includes('证')) {
-    return {bg: '#FFF5E4', fg: '#A07D17'};
-  }
-  if (tag.includes('整柜') || tag.includes('柜')) {
-    return {bg: '#FFF0ED', fg: '#D54941'};
-  }
-  return {bg: '#F3F6F5', fg: '#3C4947'};
+export function colorForTag(_tag: string): {bg: string; fg: string} {
+  // 标签统一使用一种与其他字段（货物类型/饲养方式/肥瘦比/品种/备注）区分度高的青色，
+  // 便于在卡片中一眼区分「标签」和「属性字段」。
+  return {bg: '#E3F6F8', fg: '#0E8F9C'};
 }
 
 export type OfferFieldKind =
