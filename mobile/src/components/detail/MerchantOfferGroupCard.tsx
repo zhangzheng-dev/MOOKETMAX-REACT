@@ -49,7 +49,6 @@ function MerchantOfferGroupCardInner({
   const feedings = uniqueNonEmpty((group.employeeOffers ?? []).map(item => item.feedingType));
   const fatRatios = uniqueNonEmpty((group.employeeOffers ?? []).map(item => item.fatRatio));
   const breeds = uniqueNonEmpty((group.employeeOffers ?? []).map(item => item.cattleBreed));
-  const remarks = uniqueNonEmpty((group.employeeOffers ?? []).map(item => item.remark));
   const tags = uniqueNonEmpty(
     (group.employeeOffers ?? []).flatMap(item => splitTags(item.tags, 4)),
   );
@@ -106,7 +105,6 @@ function MerchantOfferGroupCardInner({
             const {bg, fg} = colorForTag(tag);
             return <OfferTagChip key={`tag-${tag}`} text={tag} variant="colored" bg={bg} fg={fg} />;
           })}
-          {remarks.slice(0, 2).map(text => renderFieldChip('remark', text, 220))}
         </View>
       </Pressable>
 

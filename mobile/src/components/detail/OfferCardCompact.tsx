@@ -53,7 +53,6 @@ function OfferCardCompactInner({
   ]);
   const allFatRatios = unique((offer.employeeOffers ?? []).map(item => item.fatRatio ?? ''));
   const allBreeds = unique((offer.employeeOffers ?? []).map(item => item.cattleBreed ?? ''));
-  const allRemarks = unique((offer.employeeOffers ?? []).map(item => item.remark ?? ''));
   const allTags = unique([
     ...splitTags(offer.tags, 4),
     ...(offer.employeeOffers ?? []).flatMap(item => splitTags(item.tags, 4)),
@@ -65,7 +64,6 @@ function OfferCardCompactInner({
     allFeedings.length > 0 ||
     allFatRatios.length > 0 ||
     allBreeds.length > 0 ||
-    allRemarks.length > 0 ||
     allTags.length > 0;
 
   return (
@@ -108,9 +106,6 @@ function OfferCardCompactInner({
                 const {bg, fg} = colorForTag(tag);
                 return <OfferTagChip key={`t-${tag}`} text={tag} variant="colored" bg={bg} fg={fg} />;
               })}
-              {allRemarks.slice(0, 2).map(t => (
-                <OfferTagChip key={`remark-${t}`} text={t} variant="colored" maxWidth={180} {...colorForOfferField('remark')} />
-              ))}
             </ScrollView>
           ) : null}
         </View>

@@ -40,7 +40,8 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 生产环境关闭 SQL 日志输出（避免 54GB 日志）。需要排查 SQL 时临时改回 StdOutImpl
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
   global-config:
     db-config:
       id-type: auto
@@ -50,8 +51,14 @@ mybatis-plus:
 
 logging:
   level:
-    com.mooket.social: DEBUG
-    org.springframework.jdbc: DEBUG
+    root: INFO
+    com.mooket.social: INFO
+    com.mooket.social.mapper: WARN
+    com.mooket.social.mysql.mapper: WARN
+    com.mooket.social.erp.mapper: WARN
+    com.mooket.social.uac.mapper: WARN
+    org.springframework.jdbc: WARN
+    org.mybatis: WARN
 
 mooket:
   internal:
