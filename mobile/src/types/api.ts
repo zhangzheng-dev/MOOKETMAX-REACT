@@ -146,6 +146,54 @@ export type AppVersionInfo = {
   updateContent?: string | null;
 };
 
+export type OfferFeedItem = {
+  offerId?: number | null;
+  merchantId?: number | string | null;
+  merchantName?: string | null;
+  merchantShortName?: string | null;
+  merchantTags?: string | null;
+  contactPhone?: string | null;
+  userNickname?: string | null;
+  category?: string | null;
+  productId?: number | null;
+  productName?: string | null;
+  country?: string | null;
+  factoryNo?: string | null;
+  price?: number | null;
+  priceMax?: number | null;
+  weight?: string | null;
+  offerType?: string | null;
+  goodsType?: string | null;
+  goodsLocation?: string | null;
+  region?: string | null;
+  tags?: string | null;
+  fatRatio?: string | null;
+  feedingType?: string | null;
+  cattleBreed?: string | null;
+  remark?: string | null;
+  offerOriginalText?: string | null;
+  publishTime?: string | null;
+};
+
+export type OfferFeedFilterOptions = {
+  countries?: string[] | null;
+  factoryNos?: string[] | null;
+  regions?: string[] | null;
+  goodsTypes?: string[] | null;
+  feedingTypes?: string[] | null;
+  tags?: string[] | null;
+};
+
+export type OfferFeedPage = {
+  items: OfferFeedItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  offerType: 'offer' | 'inquiry';
+  filterOptions?: OfferFeedFilterOptions | null;
+};
+
 export type EmployeeOffer = {
   offerId?: number | null;
   userNickname?: string | null;

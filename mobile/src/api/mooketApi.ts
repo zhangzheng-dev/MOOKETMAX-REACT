@@ -14,6 +14,7 @@ import type {
   HomeStatData,
   HotSearchItem,
   MerchantDetail,
+  OfferFeedPage,
   ProductDetail,
   RegisterRequest,
   SearchHistory,
@@ -90,6 +91,26 @@ export const mooketApi = {
 
   getSelfSelectSearches(limit = 200) {
     return unwrap<SearchHistory[]>(apiClient.get('api/v1/search-history/self-select', {params: {limit}}));
+  },
+
+  getOfferFeed(params: {
+    category: string;
+    type: 'offer' | 'inquiry';
+    keyword?: string;
+    country?: string | null;
+    factoryNo?: string | null;
+    goodsType?: string | null;
+    region?: string | null;
+    feedingType?: string | null;
+    tag?: string | null;
+    quotedOnly?: boolean;
+    realNameOnly?: boolean;
+    verifiedOnly?: boolean;
+    sortBy?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    return unwrap<OfferFeedPage>(apiClient.get('api/v1/offers/feed', {params}));
   },
 
   getSearchSuggestions(category: string, keyword: string) {
