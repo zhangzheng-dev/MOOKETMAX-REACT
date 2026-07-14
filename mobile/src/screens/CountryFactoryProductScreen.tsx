@@ -32,6 +32,21 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CountryFactoryProduct'>
 const pageSize = 20;
 type LocalFilterKey = Exclude<FilterKey, 'countryFactory' | 'product' | 'famousMerchant'>;
 
+function buildCFLabel(country?: string | null, factoryNo?: string | null): string {
+  const c = country?.trim();
+  const f = factoryNo?.trim();
+  if (c && f) {
+    return `${c}${f}`;
+  }
+  if (c && !f) {
+    return `${c}厂号不限`;
+  }
+  if (!c && f) {
+    return `国家不限${f}`;
+  }
+  return '国家厂号不限';
+}
+
 export function CountryFactoryProductScreen({navigation, route}: Props) {
   const {country, factoryNo, productName, category, searchKeyword: routeSearchKeyword} = route.params;
   const searchKeyword = routeSearchKeyword ?? `${country}${factoryNo}${productName}`;
@@ -251,7 +266,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         }}
         tags={[
           {
-            text: `${country}${factoryNo}`,
+            text: buildCFLabel(currentCountry, currentFactoryNo),
             onClose: () => {
               if (data?.productId) {
                 navigation.navigate('Product', {
@@ -291,7 +306,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
             ListHeaderComponent={
               <View>
                 <CountryProductDashboard
-                  country={`${data.country || country}${data.factoryNo || factoryNo}`}
+                  country={buildCFLabel(currentCountry, currentFactoryNo)}
                   productName={data.productName || productName}
                   isInquiry={tab === 'inquiry'}
                   priceMin={data.priceMin}
