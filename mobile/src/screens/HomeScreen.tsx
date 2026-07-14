@@ -227,6 +227,10 @@ export function HomeScreen({navigation}: Props) {
     autoTabSwitchReadyRef.current = false;
   }
 
+  function openOfferFeed(initialTab: 'offer' | 'inquiry') {
+    navigation.navigate('OfferFeed', {category, initialTab});
+  }
+
   async function deleteHistory(historyId: number) {
     const previous = cards;
     setCards(prev => prev.filter(item => item.historyId !== historyId));
@@ -444,8 +448,8 @@ export function HomeScreen({navigation}: Props) {
                 <View style={styles.statBadge}>
                   <Text style={styles.statBadgeText}>近两日数据</Text>
                 </View>
-                <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} />
-                <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} />
+                <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} onPress={() => openOfferFeed('offer')} />
+                <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} onPress={() => openOfferFeed('inquiry')} />
                 <StatItem label="商家" value={stat?.merchantCount ?? '--'} />
               </View>
               <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
@@ -550,8 +554,8 @@ export function HomeScreen({navigation}: Props) {
               <View style={styles.statBadge}>
                 <Text style={styles.statBadgeText}>近两日数据</Text>
               </View>
-              <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} />
-              <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} />
+              <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} onPress={() => openOfferFeed('offer')} />
+              <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} onPress={() => openOfferFeed('inquiry')} />
               <StatItem label="商家" value={stat?.merchantCount ?? '--'} />
             </View>
             <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
@@ -634,11 +638,23 @@ function Tab({
   );
 }
 
-function StatItem({label, value}: {label: string; value: string | number}) {
-  return (
-    <View style={styles.statItem}>
+function StatItem({label, value, onPress}: {label: string; value: string | number; onPress?: () => void}) {
+  const content = (
+    <>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
+    </>
+  );
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} hitSlop={6} style={styles.statItem}>
+        {content}
+      </Pressable>
+    );
+  }
+  return (
+    <View style={styles.statItem}>
+      {content}
     </View>
   );
 }

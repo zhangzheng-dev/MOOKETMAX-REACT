@@ -226,6 +226,186 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
         public Integer totalMerchantCount;
     }
 
+    public static class OfferFeedRow {
+        public Long offerId;
+        public Long merchantId;
+        public String merchantName;
+        public String merchantShortName;
+        public String merchantTags;
+        public String contactPhone;
+        public String userNickname;
+        public String category;
+        public Integer productId;
+        public String productName;
+        public String country;
+        public String factoryNo;
+        public BigDecimal price;
+        public BigDecimal priceMax;
+        public String weight;
+        public String offerType;
+        public String goodsType;
+        public String goodsLocation;
+        public String tags;
+        public String fatRatio;
+        public String feedingType;
+        public String cattleBreed;
+        public String remark;
+        public String offerOriginalText;
+        public LocalDateTime publishTime;
+    }
+
+    public static class OfferFeedFilterRow {
+        public String country;
+        public String factoryNo;
+        public String goodsType;
+        public String goodsLocation;
+        public String feedingType;
+        public String tags;
+    }
+
+    @Select({"<script>",
+            "SELECT",
+            "  o.offer_id AS \"offerId\",",
+            "  o.merchant_id AS \"merchantId\",",
+            "  m.merchant_name AS \"merchantName\",",
+            "  m.merchant_short_name AS \"merchantShortName\",",
+            "  m.merchant_tags AS \"merchantTags\",",
+            "  COALESCE(o.contact_phone, m.contact_phone) AS \"contactPhone\",",
+            "  o.user_nickname AS \"userNickname\",",
+            "  o.category AS \"category\",",
+            "  o.product_id AS \"productId\",",
+            "  o.product_name AS \"productName\",",
+            "  o.country AS \"country\",",
+            "  o.factory_no AS \"factoryNo\",",
+            "  o.price AS \"price\",",
+            "  o.price_max AS \"priceMax\",",
+            "  o.weight AS \"weight\",",
+            "  o.offer_type AS \"offerType\",",
+            "  o.goods_type AS \"goodsType\",",
+            "  o.goods_location AS \"goodsLocation\",",
+            "  o.tags AS \"tags\",",
+            "  o.fat_ratio AS \"fatRatio\",",
+            "  o.feeding_type AS \"feedingType\",",
+            "  o.cattle_breed AS \"cattleBreed\",",
+            "  o.remark AS \"remark\",",
+            "  o.offer_original_text AS \"offerOriginalText\",",
+            "  o.publish_time AS \"publishTime\"",
+            "FROM biz_offer o",
+            "LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id",
+            "WHERE o.status = 'ACTIVE'",
+            "  AND o.data_date &gt;= CURRENT_DATE - INTERVAL '1 day'",
+            "  AND (#{category} IS NULL OR #{category} = '' OR o.category = #{category})",
+            "  AND (#{offerType} IS NULL OR #{offerType} = '' OR o.offer_type = #{offerType})",
+            "  AND (#{keyword} IS NULL OR #{keyword} = ''",
+            "    OR o.product_name ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.country ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.factory_no ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.user_nickname ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.offer_original_text ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR m.merchant_name ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR m.merchant_short_name ILIKE CONCAT('%', #{keyword}, '%'))",
+            "  <if test='country != null and country != \"\"'>AND o.country = #{country}</if>",
+            "  <if test='factoryNo != null and factoryNo != \"\"'>AND o.factory_no = #{factoryNo}</if>",
+            "  <if test='goodsType != null and goodsType != \"\"'>AND o.goods_type = #{goodsType}</if>",
+            "  <if test='region != null and region != \"\"'>AND o.goods_location ILIKE CONCAT('%', #{region}, '%')</if>",
+            "  <if test='feedingType != null and feedingType != \"\"'>AND o.feeding_type = #{feedingType}</if>",
+            "  <if test='tag != null and tag != \"\"'>AND o.tags ILIKE CONCAT('%', #{tag}, '%')</if>",
+            "  <if test='quotedOnly != null and quotedOnly'>AND o.price IS NOT NULL AND o.price &gt; 0</if>",
+            "  <if test='realNameOnly != null and realNameOnly'>AND m.merchant_tags ILIKE '%实名%'</if>",
+            "  <if test='verifiedOnly != null and verifiedOnly'>AND (m.merchant_tags ILIKE '%认证%' OR m.merchant_tags ILIKE '%实名%')</if>",
+            "<choose>",
+            "  <when test='sortBy == \"price_asc\"'>ORDER BY CASE WHEN o.price IS NULL OR o.price &lt;= 0 THEN 1 ELSE 0 END, o.price ASC, o.publish_time DESC, o.offer_id DESC</when>",
+            "  <when test='sortBy == \"price_desc\"'>ORDER BY CASE WHEN o.price IS NULL OR o.price &lt;= 0 THEN 1 ELSE 0 END, o.price DESC, o.publish_time DESC, o.offer_id DESC</when>",
+            "  <otherwise>ORDER BY o.publish_time DESC, o.offer_id DESC</otherwise>",
+            "</choose>",
+            "LIMIT #{limit} OFFSET #{offset}",
+            "</script>"})
+    List<OfferFeedRow> selectOfferFeed(
+            @Param("category") String category,
+            @Param("offerType") String offerType,
+            @Param("keyword") String keyword,
+            @Param("country") String country,
+            @Param("factoryNo") String factoryNo,
+            @Param("goodsType") String goodsType,
+            @Param("region") String region,
+            @Param("feedingType") String feedingType,
+            @Param("tag") String tag,
+            @Param("quotedOnly") Boolean quotedOnly,
+            @Param("realNameOnly") Boolean realNameOnly,
+            @Param("verifiedOnly") Boolean verifiedOnly,
+            @Param("sortBy") String sortBy,
+            @Param("limit") int limit,
+            @Param("offset") int offset);
+
+    @Select({"<script>",
+            "SELECT COUNT(*)",
+            "FROM biz_offer o",
+            "LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id",
+            "WHERE o.status = 'ACTIVE'",
+            "  AND o.data_date &gt;= CURRENT_DATE - INTERVAL '1 day'",
+            "  AND (#{category} IS NULL OR #{category} = '' OR o.category = #{category})",
+            "  AND (#{offerType} IS NULL OR #{offerType} = '' OR o.offer_type = #{offerType})",
+            "  AND (#{keyword} IS NULL OR #{keyword} = ''",
+            "    OR o.product_name ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.country ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.factory_no ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.user_nickname ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.offer_original_text ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR m.merchant_name ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR m.merchant_short_name ILIKE CONCAT('%', #{keyword}, '%'))",
+            "  <if test='country != null and country != \"\"'>AND o.country = #{country}</if>",
+            "  <if test='factoryNo != null and factoryNo != \"\"'>AND o.factory_no = #{factoryNo}</if>",
+            "  <if test='goodsType != null and goodsType != \"\"'>AND o.goods_type = #{goodsType}</if>",
+            "  <if test='region != null and region != \"\"'>AND o.goods_location ILIKE CONCAT('%', #{region}, '%')</if>",
+            "  <if test='feedingType != null and feedingType != \"\"'>AND o.feeding_type = #{feedingType}</if>",
+            "  <if test='tag != null and tag != \"\"'>AND o.tags ILIKE CONCAT('%', #{tag}, '%')</if>",
+            "  <if test='quotedOnly != null and quotedOnly'>AND o.price IS NOT NULL AND o.price &gt; 0</if>",
+            "  <if test='realNameOnly != null and realNameOnly'>AND m.merchant_tags ILIKE '%实名%'</if>",
+            "  <if test='verifiedOnly != null and verifiedOnly'>AND (m.merchant_tags ILIKE '%认证%' OR m.merchant_tags ILIKE '%实名%')</if>",
+            "</script>"})
+    int countOfferFeed(
+            @Param("category") String category,
+            @Param("offerType") String offerType,
+            @Param("keyword") String keyword,
+            @Param("country") String country,
+            @Param("factoryNo") String factoryNo,
+            @Param("goodsType") String goodsType,
+            @Param("region") String region,
+            @Param("feedingType") String feedingType,
+            @Param("tag") String tag,
+            @Param("quotedOnly") Boolean quotedOnly,
+            @Param("realNameOnly") Boolean realNameOnly,
+            @Param("verifiedOnly") Boolean verifiedOnly);
+
+    @Select({"<script>",
+            "SELECT o.country AS \"country\",",
+            "       o.factory_no AS \"factoryNo\",",
+            "       o.goods_type AS \"goodsType\",",
+            "       o.goods_location AS \"goodsLocation\",",
+            "       o.feeding_type AS \"feedingType\",",
+            "       o.tags AS \"tags\"",
+            "FROM biz_offer o",
+            "LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id",
+            "WHERE o.status = 'ACTIVE'",
+            "  AND o.data_date &gt;= CURRENT_DATE - INTERVAL '1 day'",
+            "  AND (#{category} IS NULL OR #{category} = '' OR o.category = #{category})",
+            "  AND (#{offerType} IS NULL OR #{offerType} = '' OR o.offer_type = #{offerType})",
+            "  AND (#{keyword} IS NULL OR #{keyword} = ''",
+            "    OR o.product_name ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.country ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.factory_no ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.user_nickname ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR o.offer_original_text ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR m.merchant_name ILIKE CONCAT('%', #{keyword}, '%')",
+            "    OR m.merchant_short_name ILIKE CONCAT('%', #{keyword}, '%'))",
+            "ORDER BY o.publish_time DESC",
+            "LIMIT 3000",
+            "</script>"})
+    List<OfferFeedFilterRow> selectOfferFeedFilterRows(
+            @Param("category") String category,
+            @Param("offerType") String offerType,
+            @Param("keyword") String keyword);
+
     @Select({"SELECT * FROM biz_offer WHERE merchant_id = #{merchantId} AND status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' ORDER BY publish_time DESC"})
     List<BizOffer> selectByMerchantId(@Param("merchantId") Long merchantId);
 
