@@ -153,27 +153,20 @@ export function ProductScreen({navigation, route}: Props) {
           )}
           renderItem={({item}) => (
             <SummaryRowCard
-              title={
-                item.countryFactory ||
-                [item.country, item.factoryNo].filter(Boolean).join(' ') ||
-                '--'
-              }
+              title={buildCountryFactoryTitle(item.country, item.factoryNo, item.countryFactory)}
               merchantNames={item.merchantNames}
               merchantCount={item.merchantCount}
               count={item.offerCount}
               countLabel={tab === 'offer' ? '报盘' : '求购'}
               priceMin={item.priceMin}
               priceMax={item.priceMax}
-              onPress={
-                item.country && item.factoryNo
-                  ? () =>
-                      navigation.navigate('CountryFactoryProduct', {
-                        country: item.country!,
-                        factoryNo: item.factoryNo!,
-                        productName: data.productName,
-                        category,
-                      })
-                  : undefined
+              onPress={() =>
+                navigation.navigate('CountryFactoryProduct', {
+                  country: item.country ?? '',
+                  factoryNo: item.factoryNo ?? '',
+                  productName: data.productName,
+                  category,
+                })
               }
             />
           )}
@@ -202,6 +195,25 @@ function sortToParam(sort: SortMode): string {
   if (sort.kind === 'comprehensive') return 'comprehensive';
   if (sort.kind === 'publishTime') return 'publish_time';
   return sort.order === 'asc' ? 'price_asc' : sort.order === 'desc' ? 'price_desc' : 'comprehensive';
+}
+
+function buildCountryFactoryTitle(
+  country?: string | null,
+  factoryNo?: string | null,
+  countryFactory?: string | null,
+): string {
+  const c = country?.trim();
+  const f = factoryNo?.trim();
+  if (c && f) {
+    return countryFactory?.trim() || `${c} ${f}`;
+  }
+  if (c && !f) {
+    return `${c} 厂号不限`;
+  }
+  if (!c && f) {
+    return `国家不限 ${f}`;
+  }
+  return '国家厂号不限';
 }
 
 function mergeSummaries(prev: ProductSummary[], incoming: ProductSummary[]): ProductSummary[] {
