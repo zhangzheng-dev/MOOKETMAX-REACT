@@ -4,6 +4,7 @@ import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import {getCountryFlag} from '../../utils/country';
 import {formatCount} from '../../utils/format';
+import {FeedStatLink} from './FeedStatLink';
 
 type Props = {
   country: string;
@@ -12,6 +13,7 @@ type Props = {
   productCount?: number | null;
   inquiryCount?: number | null;
   recentOfferCount?: number | null;
+  onFeedPress?: () => void;
 };
 
 /**
@@ -26,6 +28,7 @@ export function FactoryDashboard({
   productCount,
   inquiryCount,
   recentOfferCount,
+  onFeedPress,
 }: Props) {
   const flag = getCountryFlag(country);
   const bigValue = isInquiry ? inquiryCount ?? 0 : recentOfferCount ?? 0;
@@ -46,10 +49,14 @@ export function FactoryDashboard({
           </View>
         </View>
 
-        <View style={styles.right}>
-          <Text style={styles.smallLabel}>{isInquiry ? '近2日求购' : '近2日报盘'}</Text>
-          <Text style={styles.bigValue}>{formatCount(bigValue)}</Text>
-        </View>
+        <FeedStatLink
+          label={isInquiry ? '近2日求购' : '近2日报盘'}
+          value={formatCount(bigValue)}
+          layout="large"
+          align="end"
+          onPress={onFeedPress}
+          style={styles.right}
+        />
       </View>
     </View>
   );

@@ -5,6 +5,7 @@ import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import {buildTrendChartPoints, MiniTrendChart} from '../home/MiniTrendChart';
 import type {DailyPrice} from '../../types/api';
+import {FeedStatLink} from './FeedStatLink';
 
 type Props = {
   country: string;
@@ -20,6 +21,8 @@ type Props = {
   history7Days?: DailyPrice[] | null;
   history30Days?: DailyPrice[] | null;
   hideProductTitle?: boolean;
+  onOfferPress?: () => void;
+  onInquiryPress?: () => void;
 };
 
 export function CountryProductDashboard({
@@ -36,6 +39,8 @@ export function CountryProductDashboard({
   history7Days,
   history30Days,
   hideProductTitle = false,
+  onOfferPress,
+  onInquiryPress,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -92,8 +97,8 @@ export function CountryProductDashboard({
 
       <View style={styles.statsFooter}>
         <View style={styles.statsRow}>
-          <Stat label="报盘数" value={offerCount ?? '--'} />
-          <Stat label="求购数" value={inquiryCount ?? '--'} />
+          <FeedStatLink label="报盘数" value={offerCount ?? '--'} onPress={onOfferPress} />
+          <FeedStatLink label="求购数" value={inquiryCount ?? '--'} onPress={onInquiryPress} />
           <Stat label="商家数" value={merchantCount ?? '--'} />
         </View>
         <Pressable onPress={() => setExpanded(prev => !prev)} style={styles.expandButton}>

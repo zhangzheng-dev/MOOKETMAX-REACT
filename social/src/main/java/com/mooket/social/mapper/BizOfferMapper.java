@@ -231,6 +231,7 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
         public Long merchantId;
         public String merchantName;
         public String merchantShortName;
+        public String brandName;
         public String merchantTags;
         public String contactPhone;
         public String userNickname;
@@ -269,6 +270,7 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
             "  o.merchant_id AS \"merchantId\",",
             "  m.merchant_name AS \"merchantName\",",
             "  m.merchant_short_name AS \"merchantShortName\",",
+            "  b.brand_name AS \"brandName\",",
             "  m.merchant_tags AS \"merchantTags\",",
             "  COALESCE(o.contact_phone, m.contact_phone) AS \"contactPhone\",",
             "  o.user_nickname AS \"userNickname\",",
@@ -292,10 +294,14 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
             "  o.publish_time AS \"publishTime\"",
             "FROM biz_offer o",
             "LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id",
+            "LEFT JOIN dict_brand b ON o.brand_id = b.brand_id",
             "WHERE o.status = 'ACTIVE'",
             "  AND o.data_date &gt;= CURRENT_DATE - INTERVAL '1 day'",
             "  AND (CAST(#{category} AS varchar) IS NULL OR CAST(#{category} AS varchar) = '' OR o.category = #{category})",
             "  AND (CAST(#{offerType} AS varchar) IS NULL OR CAST(#{offerType} AS varchar) = '' OR o.offer_type = #{offerType})",
+            "  <if test='merchantId != null'>AND o.merchant_id = #{merchantId}</if>",
+            "  <if test='brandName != null and brandName != \"\"'>AND b.brand_name = #{brandName}</if>",
+            "  <if test='productName != null and productName != \"\"'>AND o.product_name = #{productName}</if>",
             "  <if test='keyword != null and keyword != \"\"'>AND (o.product_name ILIKE CONCAT('%', #{keyword}, '%')",
             "    OR o.country ILIKE CONCAT('%', #{keyword}, '%')",
             "    OR o.factory_no ILIKE CONCAT('%', #{keyword}, '%')",
@@ -323,6 +329,9 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
             @Param("category") String category,
             @Param("offerType") String offerType,
             @Param("keyword") String keyword,
+            @Param("merchantId") Long merchantId,
+            @Param("brandName") String brandName,
+            @Param("productName") String productName,
             @Param("country") String country,
             @Param("factoryNo") String factoryNo,
             @Param("goodsType") String goodsType,
@@ -340,10 +349,14 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
             "SELECT COUNT(*)",
             "FROM biz_offer o",
             "LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id",
+            "LEFT JOIN dict_brand b ON o.brand_id = b.brand_id",
             "WHERE o.status = 'ACTIVE'",
             "  AND o.data_date &gt;= CURRENT_DATE - INTERVAL '1 day'",
             "  AND (CAST(#{category} AS varchar) IS NULL OR CAST(#{category} AS varchar) = '' OR o.category = #{category})",
             "  AND (CAST(#{offerType} AS varchar) IS NULL OR CAST(#{offerType} AS varchar) = '' OR o.offer_type = #{offerType})",
+            "  <if test='merchantId != null'>AND o.merchant_id = #{merchantId}</if>",
+            "  <if test='brandName != null and brandName != \"\"'>AND b.brand_name = #{brandName}</if>",
+            "  <if test='productName != null and productName != \"\"'>AND o.product_name = #{productName}</if>",
             "  <if test='keyword != null and keyword != \"\"'>AND (o.product_name ILIKE CONCAT('%', #{keyword}, '%')",
             "    OR o.country ILIKE CONCAT('%', #{keyword}, '%')",
             "    OR o.factory_no ILIKE CONCAT('%', #{keyword}, '%')",
@@ -365,6 +378,9 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
             @Param("category") String category,
             @Param("offerType") String offerType,
             @Param("keyword") String keyword,
+            @Param("merchantId") Long merchantId,
+            @Param("brandName") String brandName,
+            @Param("productName") String productName,
             @Param("country") String country,
             @Param("factoryNo") String factoryNo,
             @Param("goodsType") String goodsType,
@@ -384,10 +400,14 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
             "       o.tags AS \"tags\"",
             "FROM biz_offer o",
             "LEFT JOIN dict_merchant m ON o.merchant_id = m.merchant_id",
+            "LEFT JOIN dict_brand b ON o.brand_id = b.brand_id",
             "WHERE o.status = 'ACTIVE'",
             "  AND o.data_date &gt;= CURRENT_DATE - INTERVAL '1 day'",
             "  AND (CAST(#{category} AS varchar) IS NULL OR CAST(#{category} AS varchar) = '' OR o.category = #{category})",
             "  AND (CAST(#{offerType} AS varchar) IS NULL OR CAST(#{offerType} AS varchar) = '' OR o.offer_type = #{offerType})",
+            "  <if test='merchantId != null'>AND o.merchant_id = #{merchantId}</if>",
+            "  <if test='brandName != null and brandName != \"\"'>AND b.brand_name = #{brandName}</if>",
+            "  <if test='productName != null and productName != \"\"'>AND o.product_name = #{productName}</if>",
             "  <if test='keyword != null and keyword != \"\"'>AND (o.product_name ILIKE CONCAT('%', #{keyword}, '%')",
             "    OR o.country ILIKE CONCAT('%', #{keyword}, '%')",
             "    OR o.factory_no ILIKE CONCAT('%', #{keyword}, '%')",
@@ -401,7 +421,10 @@ public interface BizOfferMapper extends BaseMapper<BizOffer> {
     List<OfferFeedFilterRow> selectOfferFeedFilterRows(
             @Param("category") String category,
             @Param("offerType") String offerType,
-            @Param("keyword") String keyword);
+            @Param("keyword") String keyword,
+            @Param("merchantId") Long merchantId,
+            @Param("brandName") String brandName,
+            @Param("productName") String productName);
 
     @Select({"SELECT * FROM biz_offer WHERE merchant_id = #{merchantId} AND status = 'ACTIVE' AND data_date >= CURRENT_DATE - INTERVAL '1 day' ORDER BY publish_time DESC"})
     List<BizOffer> selectByMerchantId(@Param("merchantId") Long merchantId);

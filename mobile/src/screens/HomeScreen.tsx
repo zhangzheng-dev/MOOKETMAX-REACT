@@ -450,9 +450,11 @@ export function HomeScreen({navigation}: Props) {
                 </View>
                 <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} onPress={() => openOfferFeed('offer')} />
                 <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} onPress={() => openOfferFeed('inquiry')} />
-                <StatItem label="商家" value={stat?.merchantCount ?? '--'} />
+                <StatViewButton onPress={() => openOfferFeed('offer')} />
               </View>
-              <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
+              <View style={styles.statBarRight}>
+                <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
+              </View>
             </View>
 
             {/* Tabs + 编辑 按钮 */}
@@ -556,9 +558,11 @@ export function HomeScreen({navigation}: Props) {
               </View>
               <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} onPress={() => openOfferFeed('offer')} />
               <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} onPress={() => openOfferFeed('inquiry')} />
-              <StatItem label="商家" value={stat?.merchantCount ?? '--'} />
+              <StatViewButton onPress={() => openOfferFeed('offer')} />
             </View>
-            <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
+            <View style={styles.statBarRight}>
+              <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
+            </View>
           </View>
           <View style={styles.tabsBar}>
             <Tab
@@ -656,6 +660,17 @@ function StatItem({label, value, onPress}: {label: string; value: string | numbe
     <View style={styles.statItem}>
       {content}
     </View>
+  );
+}
+
+function StatViewButton({onPress}: {onPress: () => void}) {
+  return (
+    <Pressable onPress={onPress} hitSlop={6} style={styles.statViewButton}>
+      <Text style={styles.statViewText}>查看</Text>
+      <Svg width={10} height={10} viewBox="0 0 10 10" fill="none">
+        <Path d="M3.75 2.25L6.25 5L3.75 7.75" stroke="#FFFFFF" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    </Pressable>
   );
 }
 
@@ -934,15 +949,17 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   statBar: {
-    height: 34,
+    height: 38,
     backgroundColor: '#3B5C59',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingLeft: 16,
+    paddingRight: 12,
+    paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  statBarLeft: {flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1},
+  statBarLeft: {flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0},
+  statBarRight: {flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0},
   statBadge: {
     paddingHorizontal: 4,
     borderRadius: 2,
@@ -955,6 +972,19 @@ const styles = StyleSheet.create({
   statLabel: {color: '#FFFFFF', fontSize: 11, lineHeight: 18},
   statValue: {fontFamily: fonts.manropeBold, color: '#FFFFFF', fontSize: 12, lineHeight: 16},
   statTime: {color: 'rgba(255,255,255,0.6)', fontSize: 11, lineHeight: 18},
+  statViewButton: {
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  statViewText: {color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '600'},
 
   tabsBar: {
     height: 42,

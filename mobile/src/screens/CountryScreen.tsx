@@ -145,6 +145,15 @@ export function CountryScreen({navigation, route}: Props) {
                     category,
                   })
                 }
+                onFeedPress={() =>
+                  navigation.navigate('OfferFeed', {
+                    category,
+                    initialTab: tab,
+                    keyword: data.country || country,
+                    queryKeyword: '',
+                    initialFilters: {country: data.country || country},
+                  })
+                }
               />
               <View style={styles.gap} />
             </View>

@@ -135,6 +135,15 @@ export function BrandScreen({navigation, route}: Props) {
                 productCount={data.productCount}
                 todayOfferCount={data.todayOfferCount}
                 todayInquiryCount={data.todayInquiryCount}
+                onFeedPress={() =>
+                  navigation.navigate('OfferFeed', {
+                    category,
+                    initialTab: tab,
+                    keyword: data.brandName || brandName,
+                    queryKeyword: '',
+                    brandName: data.brandName || brandName,
+                  })
+                }
               />
               <View style={styles.gap} />
             </View>

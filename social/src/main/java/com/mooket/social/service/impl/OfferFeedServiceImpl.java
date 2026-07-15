@@ -28,6 +28,9 @@ public class OfferFeedServiceImpl implements OfferFeedService {
             String category,
             String type,
             String keyword,
+            Long merchantId,
+            String brandName,
+            String productName,
             String country,
             String factoryNo,
             String goodsType,
@@ -50,6 +53,9 @@ public class OfferFeedServiceImpl implements OfferFeedService {
                 trimToNull(category),
                 dbOfferType,
                 trimToNull(keyword),
+                merchantId,
+                trimToNull(brandName),
+                trimToNull(productName),
                 trimToNull(country),
                 trimToNull(factoryNo),
                 trimToNull(goodsType),
@@ -64,6 +70,9 @@ public class OfferFeedServiceImpl implements OfferFeedService {
                         trimToNull(category),
                         dbOfferType,
                         trimToNull(keyword),
+                        merchantId,
+                        trimToNull(brandName),
+                        trimToNull(productName),
                         trimToNull(country),
                         trimToNull(factoryNo),
                         trimToNull(goodsType),
@@ -88,7 +97,13 @@ public class OfferFeedServiceImpl implements OfferFeedService {
         result.setTotalPages((int) Math.ceil((double) totalCount / safePageSize));
         result.setOfferType("求购".equals(dbOfferType) ? "inquiry" : "offer");
         result.setFilterOptions(buildFilterOptions(
-                offerMapper.selectOfferFeedFilterRows(trimToNull(category), dbOfferType, trimToNull(keyword))));
+                offerMapper.selectOfferFeedFilterRows(
+                        trimToNull(category),
+                        dbOfferType,
+                        trimToNull(keyword),
+                        merchantId,
+                        trimToNull(brandName),
+                        trimToNull(productName))));
         return result;
     }
 
@@ -98,6 +113,7 @@ public class OfferFeedServiceImpl implements OfferFeedService {
         dto.setMerchantId(row.merchantId);
         dto.setMerchantName(row.merchantName);
         dto.setMerchantShortName(row.merchantShortName);
+        dto.setBrandName(row.brandName);
         dto.setMerchantTags(row.merchantTags);
         dto.setContactPhone(row.contactPhone);
         dto.setUserNickname(row.userNickname);

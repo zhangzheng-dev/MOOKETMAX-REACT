@@ -75,6 +75,7 @@ export type HomeCardItem = {
   merchantId?: number | string | null;
   merchantName?: string | null;
   merchantShortName?: string | null;
+  brandName?: string | null;
   merchantTags?: string | null;
   latestOffers?: Record<string, unknown>[] | null;
   factoryNo?: string | null;
@@ -172,6 +173,10 @@ export type OfferFeedItem = {
   cattleBreed?: string | null;
   remark?: string | null;
   offerOriginalText?: string | null;
+  originalText?: string | null;
+  originalContent?: string | null;
+  sourceText?: string | null;
+  rawText?: string | null;
   publishTime?: string | null;
 };
 

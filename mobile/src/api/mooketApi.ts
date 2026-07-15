@@ -97,6 +97,9 @@ export const mooketApi = {
     category: string;
     type: 'offer' | 'inquiry';
     keyword?: string;
+    merchantId?: number | string;
+    brandName?: string;
+    productName?: string;
     country?: string | null;
     factoryNo?: string | null;
     goodsType?: string | null;

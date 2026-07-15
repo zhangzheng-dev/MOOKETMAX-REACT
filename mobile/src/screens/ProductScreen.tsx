@@ -136,6 +136,13 @@ export function ProductScreen({navigation, route}: Props) {
                 mainStat={{
                   label: tab === 'offer' ? '近2日报盘' : '近2日求购',
                   value: data.offerCount,
+                  onPress: () =>
+                    navigation.navigate('OfferFeed', {
+                      category,
+                      initialTab: tab,
+                      keyword: data.productName || currentProductName,
+                      keywordScope: 'product',
+                    }),
                 }}
                 priceRange={{min: data.priceMin, max: data.priceMax}}
                 stats={[

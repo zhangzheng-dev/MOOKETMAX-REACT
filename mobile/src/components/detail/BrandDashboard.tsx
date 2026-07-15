@@ -3,6 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import {formatCount} from '../../utils/format';
+import {FeedStatLink} from './FeedStatLink';
 
 type Props = {
   brandName: string;
@@ -11,6 +12,7 @@ type Props = {
   productCount?: number | null;
   todayOfferCount?: number | null;
   todayInquiryCount?: number | null;
+  onFeedPress?: () => void;
 };
 
 /**
@@ -25,6 +27,7 @@ export function BrandDashboard({
   productCount,
   todayOfferCount,
   todayInquiryCount,
+  onFeedPress,
 }: Props) {
   const bigValue = isInquiry ? todayInquiryCount ?? 0 : todayOfferCount ?? 0;
 
@@ -40,10 +43,14 @@ export function BrandDashboard({
             <Stat label="产品数" value={productCount} />
           </View>
         </View>
-        <View style={styles.right}>
-          <Text style={styles.smallLabel}>{isInquiry ? '近2日求购' : '近2日报盘'}</Text>
-          <Text style={styles.bigValue}>{formatCount(bigValue)}</Text>
-        </View>
+        <FeedStatLink
+          label={isInquiry ? '近2日求购' : '近2日报盘'}
+          value={formatCount(bigValue)}
+          layout="large"
+          align="end"
+          onPress={onFeedPress}
+          style={styles.right}
+        />
       </View>
     </View>
   );
