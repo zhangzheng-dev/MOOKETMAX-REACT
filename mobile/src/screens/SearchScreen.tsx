@@ -11,7 +11,6 @@ import {colors} from '../theme/colors';
 import type {SearchHistory, SearchSuggest} from '../types/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Search'>;
-
 const categoryOptions = ['牛', '猪'] as const;
 
 const examples: Array<[string, string]> = [
@@ -436,21 +435,23 @@ export function SearchScreen({route, navigation}: Props) {
       ) : null}
 
       {keyword.trim() ? (
-        <FlatList
-          data={suggestions}
-          keyExtractor={(item, index) => `${item.type}-${item.targetId}-${index}`}
-          keyboardShouldPersistTaps="handled"
-          renderItem={({item}) => (
-            <SuggestionItem item={item} keyword={keyword} onPress={() => handleSelect(item)} />
-          )}
-          ListEmptyComponent={
-            loading ? (
-              <Text style={styles.loadingText}>搜索中...</Text>
-            ) : (
-              <Text style={styles.empty}>当前'{selectedCategory}'大类下暂未找到相关内容</Text>
-            )
-          }
-        />
+        <View style={styles.resultContent}>
+          <FlatList
+            data={suggestions}
+            keyExtractor={(item, index) => `${item.type}-${item.targetId}-${index}`}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({item}) => (
+              <SuggestionItem item={item} keyword={keyword} onPress={() => handleSelect(item)} />
+            )}
+            ListEmptyComponent={
+              loading ? (
+                <Text style={styles.loadingText}>搜索中...</Text>
+              ) : (
+                <Text style={styles.empty}>当前'{selectedCategory}'大类下暂未找到相关内容</Text>
+              )
+            }
+          />
+        </View>
       ) : (
         <FlatList
           data={historyEntries}
@@ -709,6 +710,10 @@ const styles = StyleSheet.create({
     marginLeft: 0,
   },
   inputClear: {width: 18, height: 18, alignItems: 'center', justifyContent: 'center'},
+  resultContent: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   resultRow: {
     minHeight: 52,
     paddingHorizontal: 16,

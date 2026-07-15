@@ -203,7 +203,7 @@ function EmployeeRow({
             onPress={() =>
               onViewOriginalText?.(
                 buildOriginalTextPayload({
-                  text: offer.offerOriginalText,
+                  text: resolveOriginalText(offer),
                   price: offer.price,
                   priceMax: offer.priceMax,
                   goodsLocation: offer.goodsLocation,
@@ -227,6 +227,18 @@ function EmployeeRow({
       </View>
     </View>
   );
+}
+
+function resolveOriginalText(offer: EmployeeOffer): string {
+  const candidates = [
+    offer.offerOriginalText,
+    offer.originalText,
+    offer.originalContent,
+    offer.sourceText,
+    offer.rawText,
+  ];
+
+  return candidates.find(value => typeof value === 'string' && value.trim().length > 0)?.trim() ?? '';
 }
 
 function ActionButton({text, primary, onPress}: {text: string; primary?: boolean; onPress?: () => void}) {

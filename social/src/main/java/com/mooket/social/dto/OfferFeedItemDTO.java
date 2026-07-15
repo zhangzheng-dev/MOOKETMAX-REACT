@@ -11,6 +11,7 @@ public class OfferFeedItemDTO {
     private Long merchantId;
     private String merchantName;
     private String merchantShortName;
+    private String brandName;
     private String merchantTags;
     private String contactPhone;
     private String userNickname;

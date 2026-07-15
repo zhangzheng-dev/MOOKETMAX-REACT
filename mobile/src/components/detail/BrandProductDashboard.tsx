@@ -3,6 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import {formatCount} from '../../utils/format';
+import {FeedStatLink} from './FeedStatLink';
 
 type Props = {
   brandName: string;
@@ -14,6 +15,7 @@ type Props = {
   priceMax?: number | null;
   merchantCount?: number | null;
   factoryCount?: number | null;
+  onFeedPress?: () => void;
 };
 
 /**
@@ -35,6 +37,7 @@ export function BrandProductDashboard({
   priceMax,
   merchantCount,
   factoryCount,
+  onFeedPress,
 }: Props) {
   const bigValue = isInquiry ? todayInquiryCount ?? 0 : todayOfferCount ?? 0;
   const priceText = formatPrice(priceMin, priceMax);
@@ -51,15 +54,12 @@ export function BrandProductDashboard({
             <Text style={styles.titlePart} numberOfLines={1}>{productName}</Text>
           </View>
           {/* 第2段：近2日报盘 - 对齐右侧分隔线 */}
-          <Text style={styles.smallLabel}>{isInquiry ? '近2日求购' : '近2日报盘'}</Text>
-          {/* 第3段：大数字 - 对齐右侧商家数/工厂数顶部 */}
-          <Text
-            style={styles.bigValue}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            allowFontScaling={false}>
-            {formatCount(bigValue)}
-          </Text>
+          <FeedStatLink
+            label={isInquiry ? '近2日求购' : '近2日报盘'}
+            value={formatCount(bigValue)}
+            layout="large"
+            onPress={onFeedPress}
+          />
         </View>
 
         {/* 右侧 */}

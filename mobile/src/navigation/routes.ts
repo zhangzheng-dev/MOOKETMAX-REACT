@@ -2,7 +2,20 @@ export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
   Search: {category: string; keyword?: string};
-  OfferFeed: {category: string; initialTab?: 'offer' | 'inquiry'};
+  OfferFeed: {
+    category: string;
+    initialTab?: 'offer' | 'inquiry';
+    keyword?: string;
+    queryKeyword?: string;
+    merchantId?: number | string;
+    brandName?: string;
+    productName?: string;
+    keywordScope?: 'all' | 'product';
+    initialFilters?: {
+      country?: string | null;
+      factoryNo?: string | null;
+    };
+  };
   HomeCards: {category?: string; tab?: 0 | 1} | undefined;
   Merchant: {merchantId: number | string; category: string};
   Product: {productId: number; category: string; productName: string; searchKeyword?: string};

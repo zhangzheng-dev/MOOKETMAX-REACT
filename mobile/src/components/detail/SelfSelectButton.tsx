@@ -198,6 +198,12 @@ async function findSelfSelectRecord(
   );
   if (payloadSignature) targetKeys.add(payloadSignature);
 
+  const response = await mooketApi.getSelfSelectCards(category);
+  const card = (response.cards ?? []).find(item =>
+    getSelfSelectCandidateKeys(item).some(key => targetKeys.has(key)),
+  );
+  if (card?.historyId != null) return { historyId: card.historyId };
+
   try {
     const histories = await mooketApi.getSelfSelectSearches();
     const history = histories.find(item =>
@@ -205,13 +211,9 @@ async function findSelfSelectRecord(
     );
     if (history) return { historyId: history.historyId };
   } catch {
-    // Fall back to cards for older servers that do not expose raw self-select history.
+    // Older servers may not expose raw self-select history. Keep the card match if it exists.
   }
 
-  const response = await mooketApi.getSelfSelectCards(category);
-  const card = (response.cards ?? []).find(item =>
-    getSelfSelectCandidateKeys(item).some(key => targetKeys.has(key)),
-  );
   return card ? { historyId: card.historyId ?? null } : null;
 }
 

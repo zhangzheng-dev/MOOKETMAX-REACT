@@ -145,6 +145,18 @@ export function FactoryScreen({navigation, route}: Props) {
                 productCount={data.productCount}
                 inquiryCount={data.inquiryCount}
                 recentOfferCount={data.recentOfferCount}
+                onFeedPress={() =>
+                  navigation.navigate('OfferFeed', {
+                    category,
+                    initialTab: tab,
+                    keyword: `${data.country || country}${data.factoryNo || factoryNo}`,
+                    queryKeyword: '',
+                    initialFilters: {
+                      country: data.country || country,
+                      factoryNo: data.factoryNo || factoryNo,
+                    },
+                  })
+                }
               />
               <View style={styles.gap} />
             </View>

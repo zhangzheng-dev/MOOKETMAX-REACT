@@ -4,6 +4,8 @@ import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 
 export type FilterKey =
+  | 'sort'
+  | 'category'
   | 'famousMerchant'
   | 'merchant'
   | 'countryFactory'
@@ -90,8 +92,8 @@ function FilterChip({
       {!toggle ? (
         <Svg width={10} height={10} viewBox="0 0 10 10">
           <Path
-            d="M2.5 4L5 6.5L7.5 4"
-            stroke={selected ? colors.primary : '#3C4947'}
+            d={active ? 'M2.5 6L5 3.5L7.5 6' : 'M2.5 4L5 6.5L7.5 4'}
+            stroke={active || selected ? colors.primary : '#3C4947'}
             strokeWidth={1.2}
             strokeLinecap="round"
             strokeLinejoin="round"

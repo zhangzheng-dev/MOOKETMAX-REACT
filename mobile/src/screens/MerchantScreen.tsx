@@ -238,7 +238,17 @@ export function MerchantScreen({navigation, route}: Props) {
             <View>
               <DataDashboard
                 stats={[
-                  {label: '近2日报盘', value: detail.todayOfferCount},
+                  {
+                    label: tab === 'offer' ? '近2日报盘' : '近2日求购',
+                    value: tab === 'offer' ? detail.todayOfferCount : detail.todayInquiryCount,
+                    onPress: () =>
+                      navigation.navigate('OfferFeed', {
+                        category,
+                        initialTab: tab,
+                        keyword: detail.merchantShortName || detail.merchantName,
+                        merchantId,
+                      }),
+                  },
                   {label: '产品数', value: detail.todayProductCount},
                   {label: '工厂数', value: detail.todayFactoryCount},
                 ]}

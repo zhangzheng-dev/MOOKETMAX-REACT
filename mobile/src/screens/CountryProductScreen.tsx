@@ -158,6 +158,26 @@ export function CountryProductScreen({navigation, route}: Props) {
                 merchantCount={data.merchantCount}
                 history7Days={data.priceHistory7Days}
                 history30Days={data.priceHistory30Days}
+                onOfferPress={() =>
+                  navigation.navigate('OfferFeed', {
+                    category,
+                    initialTab: 'offer',
+                    keyword: `${data.country || country} ${data.productName || productName}`,
+                    queryKeyword: data.productName || productName,
+                    keywordScope: 'product',
+                    initialFilters: {country: data.country || country},
+                  })
+                }
+                onInquiryPress={() =>
+                  navigation.navigate('OfferFeed', {
+                    category,
+                    initialTab: 'inquiry',
+                    keyword: `${data.country || country} ${data.productName || productName}`,
+                    queryKeyword: data.productName || productName,
+                    keywordScope: 'product',
+                    initialFilters: {country: data.country || country},
+                  })
+                }
               />
               <View style={styles.gap} />
             </View>

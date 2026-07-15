@@ -145,6 +145,16 @@ export function BrandProductScreen({navigation, route}: Props) {
                 priceMax={data.priceMax}
                 merchantCount={data.merchantCount}
                 factoryCount={data.factoryCount}
+                onFeedPress={() =>
+                  navigation.navigate('OfferFeed', {
+                    category,
+                    initialTab: tab,
+                    keyword: `${stripProductName(data.brandName || brandName, productName)} ${productName}`,
+                    queryKeyword: '',
+                    brandName: stripProductName(data.brandName || brandName, productName),
+                    productName,
+                  })
+                }
               />
               <View style={styles.gap} />
             </View>
