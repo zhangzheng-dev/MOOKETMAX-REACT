@@ -35,6 +35,8 @@ type OfferInquiryTabsProps = {
   style?: ViewStyle;
   offerLabel?: string;
   inquiryLabel?: string;
+  showMerchant?: boolean;
+  onMerchantPress?: () => void;
 };
 
 export function OfferInquiryTabs({
@@ -43,6 +45,8 @@ export function OfferInquiryTabs({
   style,
   offerLabel = '报盘',
   inquiryLabel = '求购',
+  showMerchant = false,
+  onMerchantPress,
 }: OfferInquiryTabsProps) {
   const [visualTab, setVisualTab] = React.useState<OfferTab>(tab);
   const pendingFrame = React.useRef<number | null>(null);
@@ -83,6 +87,19 @@ export function OfferInquiryTabs({
         active={visualTab === 'inquiry'}
         onPress={() => handleTabPress('inquiry')}
       />
+      {showMerchant ? (
+        <TopTabItem
+          text="商家"
+          active={false}
+          onPress={() => {
+            if (pendingFrame.current != null) {
+              cancelAnimationFrame(pendingFrame.current);
+              pendingFrame.current = null;
+            }
+            onMerchantPress?.();
+          }}
+        />
+      ) : null}
     </View>
   );
 }

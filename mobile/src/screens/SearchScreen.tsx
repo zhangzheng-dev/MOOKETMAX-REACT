@@ -1,18 +1,76 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {Alert, FlatList, Keyboard, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {ActivityIndicator, Alert, FlatList, Keyboard, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
-import {ChevronDownIcon, DeleteIcon, HistoryIcon, SearchIcon} from '../components/common/AppIcons';
-import {OfferInquiryTabs, type OfferTab} from '../components/detail/TabAndSortBar';
+import {ChevronDownIcon, DeleteIcon, HistoryIcon, InventoryIcon, SearchIcon} from '../components/common/AppIcons';
+import type {OfferTab} from '../components/detail/TabAndSortBar';
+import {SelfSelectButton, toHistoryMerchantId} from '../components/detail/SelfSelectButton';
 import {ArrowLeftIcon, ClearInputIcon} from '../components/login/LoginIcons';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
-import type {SearchHistory, SearchSuggest} from '../types/api';
+import type {HomeCardItem, OfferFeedItem, SearchHistory, SearchSuggest} from '../types/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Search'>;
+type SearchTab = OfferTab | 'merchant';
 const categoryOptions = ['牛', '猪'] as const;
+const merchantSearchCategories = ['牛', '猪'] as const;
+const merchantSearchTypes = ['offer', 'inquiry'] as const;
+const merchantSearchPageSize = 80;
+const merchantSearchCountries = [
+  '巴西',
+  '乌拉圭',
+  '阿根廷',
+  '澳大利亚',
+  '新西兰',
+  '美国',
+  '加拿大',
+  '墨西哥',
+  '智利',
+  '玻利维亚',
+  '俄罗斯',
+  '西班牙',
+  '法国',
+  '英国',
+  '德国',
+  '爱尔兰',
+  '波兰',
+  '白俄罗斯',
+  '日本',
+  '韩国',
+  '中国',
+];
+
+type MerchantSearchSample = {
+  type: OfferTab;
+  category?: string | null;
+  productName?: string | null;
+  country?: string | null;
+  factoryNo?: string | null;
+};
+
+type MerchantSearchResult = {
+  merchantId?: number | string | null;
+  merchantName: string;
+  merchantShortName?: string | null;
+  offerCount: number;
+  inquiryCount: number;
+  samples: MerchantSearchSample[];
+  seenFeedKeys?: Set<string>;
+};
+
+type MerchantSearchCondition = {
+  raw: string;
+  country?: string | null;
+  factoryNo?: string | null;
+  productName?: string | null;
+};
+
+type MerchantBrandQuery = {
+  brandName: string;
+  productName?: string | null;
+};
 
 const examples: Array<[string, string]> = [
   ['巴西', '查找国家相关信息'],
@@ -82,11 +140,14 @@ export function SearchScreen({route, navigation}: Props) {
   );
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [keyword, setKeyword] = useState(routeKeyword ?? '');
-  const [selectedTab, setSelectedTab] = useState<OfferTab>(routeInitialTab ?? 'offer');
+  const [selectedTab, setSelectedTab] = useState<SearchTab>(routeInitialTab ?? 'offer');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<SearchSuggest[]>([]);
+  const [merchantResults, setMerchantResults] = useState<MerchantSearchResult[]>([]);
+  const [merchantLoading, setMerchantLoading] = useState(false);
   const [histories, setHistories] = useState<SearchHistory[]>([]);
   const [loading, setLoading] = useState(false);
+  const merchantSearchSeqRef = useRef(0);
 
   const loadHistories = useCallback(async () => {
     try {
@@ -122,7 +183,7 @@ export function SearchScreen({route, navigation}: Props) {
   useFocusEffect(
     useCallback(() => {
       const value = keyword.trim();
-      if (!value) {
+      if (!value || selectedTab === 'merchant') {
         setSuggestions([]);
         setLoading(false);
         return undefined;
@@ -143,8 +204,38 @@ export function SearchScreen({route, navigation}: Props) {
       }, 250);
 
       return () => clearTimeout(timer);
-    }, [selectedCategory, keyword]),
+    }, [selectedCategory, keyword, selectedTab]),
   );
+
+  useEffect(() => {
+    const value = keyword.trim();
+    if (selectedTab !== 'merchant' || !value) {
+      merchantSearchSeqRef.current += 1;
+      setMerchantResults([]);
+      setMerchantLoading(false);
+      return undefined;
+    }
+
+    const requestSeq = (merchantSearchSeqRef.current += 1);
+    setMerchantLoading(true);
+    const timer = setTimeout(() => {
+      loadMerchantSearchResults(value)
+        .then(result => {
+          if (requestSeq !== merchantSearchSeqRef.current) return;
+          setMerchantResults(result);
+          setMerchantLoading(false);
+        })
+        .catch(() => {
+          if (requestSeq !== merchantSearchSeqRef.current) return;
+          setMerchantResults([]);
+          setMerchantLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [keyword, selectedTab]);
 
   const historyEntries = useMemo(
     () => uniqueBySearchWord(histories.filter(item => item.searchWord)),
@@ -179,16 +270,25 @@ export function SearchScreen({route, navigation}: Props) {
   function handleHistorySelect(history: SearchHistory) {
     Keyboard.dismiss();
     const searchWord = getStandardSearchWord(history.searchWord);
+    const detailTab = selectedTab === 'merchant' ? 'offer' : selectedTab;
 
     if (history.merchantId) {
       prefetchMerchant(selectedCategory, history.merchantId);
-      prefetchMerchant(selectedCategory, history.merchantId);
-      navigation.navigate('Merchant', {merchantId: history.merchantId, category: selectedCategory, initialTab: selectedTab});
+      navigation.navigate('Merchant', {
+        merchantId: history.merchantId,
+        category: selectedCategory,
+        initialTab: detailTab,
+        initialCategory: 'all',
+      });
+      return;
+    }
+
+    if (selectedTab === 'merchant') {
+      setKeyword(searchWord);
       return;
     }
 
     if (history.country && history.factoryNo && history.productName) {
-      prefetchCountryFactoryProduct(selectedCategory, history.country, history.factoryNo, history.productName);
       prefetchCountryFactoryProduct(selectedCategory, history.country, history.factoryNo, history.productName);
       navigation.navigate('CountryFactoryProduct', {
         country: history.country,
@@ -196,70 +296,65 @@ export function SearchScreen({route, navigation}: Props) {
         productName: history.productName,
         category: selectedCategory,
         searchKeyword: searchWord,
-        initialTab: selectedTab,
+        initialTab: detailTab,
       });
       return;
     }
 
     if (history.country && history.productName) {
       prefetchCountryProduct(selectedCategory, history.country, history.productName);
-      prefetchCountryProduct(selectedCategory, history.country, history.productName);
       navigation.navigate('CountryProduct', {
         country: history.country,
         productName: history.productName,
         category: selectedCategory,
         searchKeyword: searchWord,
-        initialTab: selectedTab,
+        initialTab: detailTab,
       });
       return;
     }
 
     if (history.country && history.factoryNo) {
       prefetchFactory(selectedCategory, history.country, history.factoryNo);
-      prefetchFactory(selectedCategory, history.country, history.factoryNo);
       navigation.navigate('Factory', {
         country: history.country,
         factoryNo: history.factoryNo,
         category: selectedCategory,
         searchKeyword: searchWord,
-        initialTab: selectedTab,
+        initialTab: detailTab,
       });
       return;
     }
 
     if (history.productId) {
       prefetchProduct(selectedCategory, history.productId);
-      prefetchProduct(selectedCategory, history.productId);
       navigation.navigate('Product', {
         productId: history.productId,
         category: selectedCategory,
         productName: history.productName ?? searchWord,
         searchKeyword: searchWord,
-        initialTab: selectedTab,
+        initialTab: detailTab,
       });
       return;
     }
 
     if (history.brandId) {
       prefetchBrand(selectedCategory, searchWord);
-      prefetchBrand(selectedCategory, searchWord);
       navigation.navigate('Brand', {
         brandName: searchWord,
         category: selectedCategory,
         searchKeyword: searchWord,
-        initialTab: selectedTab,
+        initialTab: detailTab,
       });
       return;
     }
 
     if (history.country) {
       prefetchCountry(selectedCategory, history.country);
-      prefetchCountry(selectedCategory, history.country);
       navigation.navigate('Country', {
         country: history.country,
         category: selectedCategory,
         searchKeyword: searchWord,
-        initialTab: selectedTab,
+        initialTab: detailTab,
       });
       return;
     }
@@ -277,10 +372,17 @@ export function SearchScreen({route, navigation}: Props) {
       brandName?: string | null;
     },
   ) {
+    const detailTab = selectedTab === 'merchant' ? 'offer' : selectedTab;
+
     switch (item.matchType) {
       case 'merchant':
         prefetchMerchant(selectedCategory, item.targetId);
-        navigation.navigate('Merchant', {merchantId: item.targetId, category: selectedCategory, initialTab: selectedTab});
+        navigation.navigate('Merchant', {
+          merchantId: item.targetId,
+          category: selectedCategory,
+          initialTab: detailTab,
+          initialCategory: 'all',
+        });
         return;
       case 'product':
         prefetchProduct(selectedCategory, item.targetId);
@@ -289,7 +391,7 @@ export function SearchScreen({route, navigation}: Props) {
           category: selectedCategory,
           productName: standard.productName ?? item.text,
           searchKeyword: item.text,
-          initialTab: selectedTab,
+          initialTab: detailTab,
         });
         return;
       case 'country':
@@ -298,7 +400,7 @@ export function SearchScreen({route, navigation}: Props) {
           country: standard.country ?? getStandardSearchWord(item.text),
           category: selectedCategory,
           searchKeyword: item.text,
-          initialTab: selectedTab,
+          initialTab: detailTab,
         });
         return;
       case 'brand':
@@ -309,7 +411,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
             searchKeyword: item.text,
-            initialTab: selectedTab,
+            initialTab: detailTab,
           });
         } else {
           prefetchBrand(selectedCategory, standard.brandName ?? getStandardSearchWord(item.text));
@@ -317,7 +419,7 @@ export function SearchScreen({route, navigation}: Props) {
             brandName: standard.brandName ?? getStandardSearchWord(item.text),
             category: selectedCategory,
             searchKeyword: item.text,
-            initialTab: selectedTab,
+            initialTab: detailTab,
           });
         }
         return;
@@ -329,7 +431,7 @@ export function SearchScreen({route, navigation}: Props) {
             factoryNo: standard.factoryNo,
             category: selectedCategory,
             searchKeyword: item.text,
-            initialTab: selectedTab,
+            initialTab: detailTab,
           });
         } else if (parts.length >= 2) {
           prefetchFactory(selectedCategory, getCountryFromText(parts[0]), parts[1]);
@@ -338,7 +440,7 @@ export function SearchScreen({route, navigation}: Props) {
             factoryNo: parts[1],
             category: selectedCategory,
             searchKeyword: item.text,
-            initialTab: selectedTab,
+            initialTab: detailTab,
           });
         }
         return;
@@ -350,7 +452,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
             searchKeyword: item.text,
-            initialTab: selectedTab,
+            initialTab: detailTab,
           });
         } else if (standard.country && standard.factoryNo && standard.productName) {
           prefetchCountryFactoryProduct(selectedCategory, standard.country, standard.factoryNo, standard.productName);
@@ -360,7 +462,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: standard.productName,
             category: selectedCategory,
             searchKeyword: item.text,
-            initialTab: selectedTab,
+            initialTab: detailTab,
           });
         } else if (parts.length >= 3) {
           prefetchCountryFactoryProduct(selectedCategory, getCountryFromText(parts[0]), parts[1], parts.slice(2).join(' '));
@@ -370,7 +472,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: parts.slice(2).join(' '),
             category: selectedCategory,
             searchKeyword: item.text,
-            initialTab: selectedTab,
+            initialTab: detailTab,
           });
         }
         return;
@@ -382,7 +484,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
             searchKeyword: item.text,
-            initialTab: selectedTab,
+            initialTab: detailTab,
           });
         }
     }
@@ -417,15 +519,19 @@ export function SearchScreen({route, navigation}: Props) {
           <Pressable hitSlop={8} onPress={() => navigation.goBack()} style={styles.backButton}>
             <ArrowLeftIcon size={18} />
           </Pressable>
-          <OfferInquiryTabs tab={selectedTab} onTabChange={setSelectedTab} style={styles.searchTabs} />
+          <SearchModeTabs tab={selectedTab} onTabChange={setSelectedTab} />
           <View style={styles.topRightSpacer} />
         </View>
         <View style={styles.searchInputWrap}>
-          <Pressable onPress={() => setCategoryMenuOpen(prev => !prev)} style={styles.categoryButton}>
-            <Text style={styles.categoryText}>{selectedCategory}</Text>
-            <ChevronDownIcon size={14} color="#3C4947" />
-          </Pressable>
-          <View style={styles.searchDivider} />
+          {selectedTab !== 'merchant' ? (
+            <>
+              <Pressable onPress={() => setCategoryMenuOpen(prev => !prev)} style={styles.categoryButton}>
+                <Text style={styles.categoryText}>{selectedCategory}</Text>
+                <ChevronDownIcon size={14} color="#3C4947" />
+              </Pressable>
+              <View style={styles.searchDivider} />
+            </>
+          ) : null}
           {!isInputFocused ? <SearchIcon size={16} color="#ADB7B5" /> : null}
           <TextInput
             autoFocus
@@ -436,7 +542,7 @@ export function SearchScreen({route, navigation}: Props) {
               setKeyword(text);
               setCategoryMenuOpen(false);
             }}
-            placeholder="搜索国家、厂号、产品、商家、品牌"
+            placeholder={selectedTab === 'merchant' ? '搜索商家、产品、国家厂号' : '搜索国家、厂号、产品、商家、品牌'}
             placeholderTextColor="#ADB7B5"
             style={[styles.input, isInputFocused && styles.inputFocused]}
           />
@@ -448,7 +554,7 @@ export function SearchScreen({route, navigation}: Props) {
         </View>
       </View>
 
-      {categoryMenuOpen ? (
+      {categoryMenuOpen && selectedTab !== 'merchant' ? (
         <>
           <Pressable style={styles.categoryMenuBackdrop} onPress={() => setCategoryMenuOpen(false)} />
           <View style={[styles.categoryMenu, {top: insets.top + 92}]}>
@@ -472,21 +578,52 @@ export function SearchScreen({route, navigation}: Props) {
 
       {keyword.trim() ? (
         <View style={styles.resultContent}>
-          <FlatList
-            data={suggestions}
-            keyExtractor={(item, index) => `${item.type}-${item.targetId}-${index}`}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({item}) => (
-              <SuggestionItem item={item} keyword={keyword} onPress={() => handleSelect(item)} />
-            )}
-            ListEmptyComponent={
-              loading ? (
-                <Text style={styles.loadingText}>搜索中...</Text>
-              ) : (
-                <Text style={styles.empty}>当前'{selectedCategory}'大类下暂未找到相关内容</Text>
-              )
-            }
-          />
+          {selectedTab === 'merchant' ? (
+            <FlatList
+              data={merchantResults}
+              keyExtractor={(item, index) => `${item.merchantId ?? item.merchantName}-${index}`}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.merchantResultList}
+              renderItem={({item}) => (
+                <MerchantSearchResultItem
+                  item={item}
+                  category={selectedCategory}
+                  onPress={() => {
+                    if (item.merchantId == null) return;
+                    navigation.navigate('Merchant', {
+                      merchantId: item.merchantId,
+                      category: selectedCategory,
+                      initialTab: getMerchantDefaultTab(item),
+                      initialCategory: 'all',
+                    });
+                  }}
+                />
+              )}
+              ListEmptyComponent={
+                merchantLoading ? (
+                  <ActivityIndicator color={colors.primary} style={styles.loading} />
+                ) : (
+                  <Text style={styles.empty}>暂未找到包含“{keyword.trim()}”的商家</Text>
+                )
+              }
+            />
+          ) : (
+            <FlatList
+              data={suggestions}
+              keyExtractor={(item, index) => `${item.type}-${item.targetId}-${index}`}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({item}) => (
+                <SuggestionItem item={item} keyword={keyword} onPress={() => handleSelect(item)} />
+              )}
+              ListEmptyComponent={
+                loading ? (
+                  <Text style={styles.loadingText}>搜索中...</Text>
+                ) : (
+                  <Text style={styles.empty}>当前'{selectedCategory}'大类下暂未找到相关内容</Text>
+                )
+              }
+            />
+          )}
         </View>
       ) : (
         <FlatList
@@ -545,6 +682,437 @@ export function SearchScreen({route, navigation}: Props) {
       )}
     </View>
   );
+}
+
+function SearchModeTabs({
+  tab,
+  onTabChange,
+}: {
+  tab: SearchTab;
+  onTabChange: (next: SearchTab) => void;
+}) {
+  return (
+    <View style={styles.searchTabs}>
+      {(['offer', 'inquiry', 'merchant'] as const).map(item => (
+        <Pressable key={item} onPress={() => onTabChange(item)} style={styles.searchTabItem}>
+          <Text style={[styles.searchTabText, tab === item && styles.searchTabTextActive]}>
+            {item === 'offer' ? '报盘' : item === 'inquiry' ? '求购' : '商家'}
+          </Text>
+          <View style={[styles.searchTabLine, tab === item && styles.searchTabLineActive]} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function MerchantSearchResultItem({
+  item,
+  category,
+  onPress,
+}: {
+  item: MerchantSearchResult;
+  category: string;
+  onPress: () => void;
+}) {
+  const displayName = item.merchantShortName || item.merchantName || '未知商家';
+  const card: HomeCardItem = {
+    cardType: 'merchant',
+    merchantId: item.merchantId,
+    merchantName: item.merchantName,
+    merchantShortName: item.merchantShortName,
+  };
+  const payload = {
+    searchWord: displayName,
+    searchType: '商家',
+    merchantId: toHistoryMerchantId(item.merchantId),
+  };
+
+  return (
+    <Pressable onPress={onPress} style={({pressed}) => [styles.merchantResultCard, pressed && styles.merchantResultPressed]}>
+      <View style={styles.merchantResultHeader}>
+        <View style={styles.merchantResultTitleWrap}>
+          <View style={styles.merchantResultIcon}>
+            <InventoryIcon size={15} color={colors.primary} />
+          </View>
+          <Text style={styles.merchantResultName} numberOfLines={1}>{displayName}</Text>
+        </View>
+        <SelfSelectButton category={category} card={card} payload={payload} />
+      </View>
+
+      <Text style={styles.merchantResultMeta} numberOfLines={1}>
+        报盘 {item.offerCount}  求购 {item.inquiryCount}
+      </Text>
+
+      <View style={styles.merchantSampleList}>
+        {item.samples.slice(0, 3).map((sample, index) => (
+          <View key={`${sample.type}-${sample.category}-${sample.productName}-${sample.country}-${sample.factoryNo}-${index}`} style={styles.merchantSampleCard}>
+            <View style={styles.merchantSampleTopLine}>
+              <View style={[styles.merchantSampleBadge, sample.type === 'inquiry' && styles.merchantSampleBadgeInquiry]}>
+                <Text style={[styles.merchantSampleBadgeText, sample.type === 'inquiry' && styles.merchantSampleBadgeTextInquiry]}>
+                  {sample.type === 'offer' ? '报盘' : '求购'}
+                </Text>
+              </View>
+              <Text style={styles.merchantSampleProduct} numberOfLines={1}>
+                {sample.productName?.trim() || '未知产品'}
+              </Text>
+            </View>
+            <Text style={styles.merchantSampleFactory} numberOfLines={1}>
+              {buildMerchantSampleFactoryText(sample)}
+            </Text>
+          </View>
+        ))}
+        {item.samples.length === 0 ? (
+          <Text style={styles.merchantSampleEmpty}>点击查看该商家报盘和求购</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.merchantResultFooter}>
+        <Text style={styles.merchantResultMore}>查看更多</Text>
+        <Text style={styles.merchantResultArrow}>›</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+async function loadMerchantSearchResults(keyword: string): Promise<MerchantSearchResult[]> {
+  const normalized = keyword.trim();
+  if (!normalized) return [];
+
+  const condition = buildMerchantSearchCondition(normalized);
+  const map = new Map<string, MerchantSearchResult>();
+  const feedTasks = merchantSearchCategories.flatMap(category =>
+    merchantSearchTypes.map(type => ({category, type})),
+  );
+
+  const [feedResponses, suggestionResponses] = await Promise.all([
+    Promise.allSettled(
+      feedTasks.map(task =>
+        mooketApi
+          .getOfferFeed({
+            category: task.category,
+            type: task.type,
+            keyword: normalized,
+            page: 1,
+            pageSize: merchantSearchPageSize,
+            sortBy: 'publish_time',
+            skipCache: true,
+          })
+          .then(page => ({...task, items: page.items ?? []})),
+      ),
+    ),
+    Promise.allSettled(
+      merchantSearchCategories.map(category =>
+        mooketApi.getSearchSuggestions(category, normalized).then(items => ({category, items})),
+      ),
+    ),
+  ]);
+
+  const suggestionItems = suggestionResponses.flatMap(response =>
+    response.status === 'fulfilled' ? response.value.items : [],
+  );
+  const brandQueries = buildMerchantBrandQueries(normalized, suggestionItems, condition);
+  const brandResponses = await Promise.allSettled(
+    brandQueries.flatMap(query =>
+      feedTasks.map(task =>
+        mooketApi
+          .getOfferFeed({
+            category: task.category,
+            type: task.type,
+            brandName: query.brandName,
+            productName: query.productName || undefined,
+            page: 1,
+            pageSize: merchantSearchPageSize,
+            sortBy: 'publish_time',
+            skipCache: true,
+          })
+          .then(page => ({...task, items: page.items ?? []})),
+      ),
+    ),
+  );
+
+  feedResponses.forEach(response => {
+    if (response.status !== 'fulfilled') return;
+    response.value.items
+      .filter(item => merchantFeedItemMatchesCondition(item, condition))
+      .forEach(item => addMerchantFeedItem(map, item, response.value.type, response.value.category));
+  });
+
+  brandResponses.forEach(response => {
+    if (response.status !== 'fulfilled') return;
+    response.value.items.forEach(item => addMerchantFeedItem(map, item, response.value.type, response.value.category));
+  });
+
+  suggestionItems
+    .filter(item => item.matchType === 'merchant')
+    .forEach(item => addMerchantSuggestion(map, item));
+
+  return Array.from(map.values()).sort((left, right) => {
+    const rightScore = right.offerCount + right.inquiryCount;
+    const leftScore = left.offerCount + left.inquiryCount;
+    return rightScore - leftScore;
+  });
+}
+
+function addMerchantFeedItem(map: Map<string, MerchantSearchResult>, item: OfferFeedItem, type: OfferTab, category: string) {
+  const merchantName = item.merchantName || item.merchantShortName || '未知商家';
+  const key = buildMerchantResultKey(item.merchantId, merchantName);
+  const current = map.get(key) ?? {
+    merchantId: item.merchantId,
+    merchantName,
+    merchantShortName: item.merchantShortName,
+    offerCount: 0,
+    inquiryCount: 0,
+    samples: [],
+    seenFeedKeys: new Set<string>(),
+  };
+
+  const feedKey = buildMerchantFeedKey(item, type);
+  if (current.seenFeedKeys?.has(feedKey)) {
+    map.set(key, current);
+    return;
+  }
+  current.seenFeedKeys?.add(feedKey);
+
+  if (type === 'offer') current.offerCount += 1;
+  else current.inquiryCount += 1;
+
+  const sample: MerchantSearchSample = {
+    type,
+    category: item.category ?? category,
+    productName: item.productName,
+    country: item.country,
+    factoryNo: item.factoryNo,
+  };
+  const sampleKey = `${sample.type}-${sample.productName ?? ''}-${sample.country ?? ''}-${sample.factoryNo ?? ''}`;
+  const hasSample = current.samples.some(
+    existing => `${existing.type}-${existing.productName ?? ''}-${existing.country ?? ''}-${existing.factoryNo ?? ''}` === sampleKey,
+  );
+  if (!hasSample && current.samples.length < 5) {
+    current.samples.push(sample);
+  }
+  map.set(key, current);
+}
+
+function addMerchantSuggestion(map: Map<string, MerchantSearchResult>, item: SearchSuggest) {
+  const merchantName = item.merchantName || item.text || '未知商家';
+  const key = buildMerchantResultKey(item.targetId, merchantName);
+  if (map.has(key)) return;
+  map.set(key, {
+    merchantId: item.targetId,
+    merchantName,
+    merchantShortName: item.standardName ?? null,
+    offerCount: 0,
+    inquiryCount: 0,
+    samples: [],
+    seenFeedKeys: new Set<string>(),
+  });
+}
+
+function buildMerchantResultKey(merchantId?: number | string | null, merchantName?: string | null) {
+  if (merchantId != null && String(merchantId).trim()) return `id:${String(merchantId).trim()}`;
+  return `name:${normalizeText(merchantName)}`;
+}
+
+function normalizeText(value?: string | null) {
+  return value?.trim().toLowerCase() || '';
+}
+
+function buildMerchantFeedKey(item: OfferFeedItem, type: OfferTab) {
+  if (item.offerId != null) return `${type}:id:${item.offerId}`;
+  return [
+    type,
+    item.merchantId ?? '',
+    item.productName ?? '',
+    item.country ?? '',
+    item.factoryNo ?? '',
+    item.publishTime ?? '',
+    item.price ?? '',
+  ].join('|');
+}
+
+function getMerchantCategoryMark(item: MerchantSearchResult, fallback: string) {
+  const categories = Array.from(new Set(item.samples.map(sample => getSampleCategoryMark(sample, fallback)).filter(Boolean)));
+  if (categories.length === 1) return categories[0];
+  if (categories.includes('牛') && categories.includes('猪')) return '牛/猪';
+  return fallback === '猪' ? '猪' : '牛';
+}
+
+function getSampleCategoryMark(sample: MerchantSearchSample, fallback: string) {
+  return sample.category === '猪' || fallback === '猪' ? '猪' : '牛';
+}
+
+function getMerchantDefaultTab(item: MerchantSearchResult): OfferTab {
+  if (item.offerCount === 0 && item.inquiryCount > 0) return 'inquiry';
+  return 'offer';
+}
+
+function buildMerchantBrandQueries(
+  keyword: string,
+  suggestions: SearchSuggest[],
+  condition: MerchantSearchCondition,
+): MerchantBrandQuery[] {
+  const map = new Map<string, MerchantBrandQuery>();
+  const addQuery = (brandName?: string | null, productName?: string | null) => {
+    const brand = brandName?.trim();
+    if (!brand) return;
+    const product = productName?.trim() || null;
+    const key = `${normalizeSearchComparable(brand)}|${normalizeSearchComparable(product)}`;
+    if (!map.has(key)) {
+      map.set(key, {brandName: brand, productName: product});
+    }
+  };
+
+  suggestions
+    .filter(item => item.matchType === 'brand')
+    .forEach(item => {
+      const parts = getStandardSearchWord(item.text).split(/\s+/).filter(Boolean);
+      addQuery(getBrandFromSuggestion(item, parts), getProductFromSuggestion(item, parts));
+    });
+
+  const raw = getStandardSearchWord(keyword).trim();
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2 && looksLikeBrandKeyword(parts[0])) {
+    addQuery(parts[0], condition.productName || parts.slice(1).join(' '));
+  } else if (looksLikeBrandKeyword(raw)) {
+    addQuery(raw, null);
+  }
+
+  return Array.from(map.values());
+}
+
+function looksLikeBrandKeyword(value?: string | null) {
+  const text = value?.trim();
+  return Boolean(text && /^[a-zA-Z][a-zA-Z0-9-]{1,24}$/.test(text) && !looksLikeFactoryNo(text));
+}
+
+function buildMerchantSearchCondition(keyword: string): MerchantSearchCondition {
+  const raw = getStandardSearchWord(keyword).trim();
+  const compact = normalizeSearchComparable(raw);
+  const compactCondition = splitCompactCountryFactoryProduct(raw, compact);
+  if (compactCondition) return compactCondition;
+
+  const parts = raw.split(/\s+/).filter(Boolean);
+  const countryFactoryIndex = parts.findIndex(part => Boolean(splitCountryFactoryPart(part)));
+  if (countryFactoryIndex >= 0) {
+    const countryFactory = splitCountryFactoryPart(parts[countryFactoryIndex]);
+    if (countryFactory) {
+      const productName = [
+        ...parts.slice(0, countryFactoryIndex),
+        ...parts.slice(countryFactoryIndex + 1),
+      ].join(' ');
+      return {
+        raw,
+        country: countryFactory.country,
+        factoryNo: countryFactory.factoryNo,
+        productName: productName || null,
+      };
+    }
+  }
+
+  const factoryIndex = parts.findIndex(looksLikeFactoryNo);
+  if (factoryIndex >= 0) {
+    const beforeFactory = parts.slice(0, factoryIndex).join('');
+    const productName = parts.slice(factoryIndex + 1).join(' ');
+    return {
+      raw,
+      country: looksLikeCountryText(beforeFactory) ? beforeFactory : null,
+      factoryNo: parts[factoryIndex],
+      productName: productName || null,
+    };
+  }
+
+  if (parts.length >= 2 && looksLikeCountryText(parts[0])) {
+    return {
+      raw,
+      country: parts[0],
+      productName: parts.slice(1).join(' '),
+    };
+  }
+
+  if (parts.length >= 2) {
+    return {
+      raw,
+      productName: parts.slice(1).join(' '),
+    };
+  }
+
+  return {raw};
+}
+
+function splitCompactCountryFactoryProduct(raw: string, compact: string): MerchantSearchCondition | null {
+  const match = compact.match(/^([\u4e00-\u9fa5]+?)([a-zA-Z]{0,8}\d[\w-]*)([\u4e00-\u9fa5].*)?$/);
+  if (!match || !looksLikeCountryText(match[1])) return null;
+  return {
+    raw,
+    country: match[1],
+    factoryNo: match[2],
+    productName: match[3] || null,
+  };
+}
+
+function splitCountryFactoryPart(value: string) {
+  const compact = normalizeSearchComparable(value);
+  const match = compact.match(/^([\u4e00-\u9fa5]+?)([a-zA-Z]{0,8}\d[\w-]*)$/);
+  if (!match || !looksLikeCountryText(match[1])) return null;
+  return {
+    country: match[1],
+    factoryNo: match[2],
+  };
+}
+
+function looksLikeFactoryNo(value: string) {
+  return /^[a-zA-Z]{0,12}\d[\w-]*$/.test(normalizeSearchComparable(value));
+}
+
+function looksLikeCountryText(value?: string | null) {
+  const text = value?.trim();
+  return Boolean(text && merchantSearchCountries.includes(text));
+}
+
+function merchantFeedItemMatchesCondition(item: OfferFeedItem, condition: MerchantSearchCondition) {
+  const hasStructuredCondition = Boolean(condition.country || condition.factoryNo || condition.productName);
+  if (condition.country && !fieldIncludes(item.country, condition.country)) return false;
+  if (condition.factoryNo && !fieldIncludes(item.factoryNo, condition.factoryNo)) return false;
+  if (condition.productName && !fieldIncludes(item.productName, condition.productName)) return false;
+  if (hasStructuredCondition) return true;
+
+  const raw = condition.raw;
+  return (
+    fieldIncludes(item.productName, raw) ||
+    fieldIncludes(item.country, raw) ||
+    fieldIncludes(item.factoryNo, raw) ||
+    fieldIncludes(item.goodsType, raw) ||
+    fieldIncludes(item.region, raw) ||
+    fieldIncludes(item.tags, raw) ||
+    fieldIncludes(item.fatRatio, raw) ||
+    fieldIncludes(item.feedingType, raw) ||
+    fieldIncludes(item.cattleBreed, raw)
+  );
+}
+
+function fieldIncludes(value: string | null | undefined, keyword: string | null | undefined) {
+  const left = normalizeSearchComparable(value);
+  const right = normalizeSearchComparable(keyword);
+  return Boolean(left && right && left.includes(right));
+}
+
+function normalizeSearchComparable(value?: string | null) {
+  return value?.trim().toLowerCase().replace(/\s+/g, '') || '';
+}
+
+function buildMerchantSampleText(sample: MerchantSearchSample) {
+  const productName = sample.productName?.trim() || '未知产品';
+  const country = sample.country?.trim() ?? '';
+  const factoryNo = sample.factoryNo?.trim() ?? '';
+  const countryFactory = `${country}${factoryNo}`.trim();
+  return countryFactory ? `${productName} ${countryFactory}` : productName;
+}
+
+function buildMerchantSampleFactoryText(sample: MerchantSearchSample) {
+  const country = sample.country?.trim() ?? '';
+  const factoryNo = sample.factoryNo?.trim() ?? '';
+  const countryFactory = `${country}${factoryNo}`.trim();
+  return countryFactory || '国家厂号不限';
 }
 
 function SuggestionItem({
@@ -668,8 +1236,52 @@ const styles = StyleSheet.create({
   searchTabs: {
     flex: 1,
     minHeight: 36,
-    paddingTop: 0,
-    paddingBottom: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 24,
+  },
+  searchTabItem: {
+    minWidth: 42,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+  },
+  searchTabText: {
+    color: '#171D1C',
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+  searchTabTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  searchTabLine: {
+    width: 18,
+    height: 3,
+    backgroundColor: 'transparent',
+  },
+  searchTabLineActive: {
+    backgroundColor: colors.primary,
+  },
+  merchantSearchTitleWrap: {
+    flex: 1,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+  },
+  merchantSearchTitle: {
+    color: colors.primary,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '700',
+  },
+  merchantSearchTitleLine: {
+    width: 18,
+    height: 3,
+    backgroundColor: colors.primary,
   },
   topRightSpacer: {
     width: 24,
@@ -761,6 +1373,146 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  merchantResultList: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 28,
+    gap: 10,
+  },
+  merchantResultCard: {
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E0EAE7',
+  },
+  merchantResultPressed: {opacity: 0.82},
+  merchantResultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  merchantResultTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  merchantResultIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 3,
+    backgroundColor: '#EEF8F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#CFE9E4',
+  },
+  merchantResultName: {
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '500',
+  },
+  merchantResultMeta: {
+    marginTop: 2,
+    marginLeft: 24,
+    color: '#6C7A77',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  merchantSampleList: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  merchantSampleCard: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 58,
+    borderRadius: 3,
+    backgroundColor: '#FBFDFD',
+    borderWidth: 1,
+    borderColor: '#D8E5E2',
+    paddingHorizontal: 7,
+    paddingVertical: 7,
+    justifyContent: 'space-between',
+  },
+  merchantSampleTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  merchantSampleBadge: {
+    minWidth: 30,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#BDE9E4',
+    backgroundColor: '#EAF9F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  merchantSampleBadgeInquiry: {
+    borderColor: '#C8D8FF',
+    backgroundColor: '#EEF4FF',
+  },
+  merchantSampleBadgeText: {
+    color: colors.primary,
+    fontSize: 9,
+    lineHeight: 13,
+    fontWeight: '400',
+  },
+  merchantSampleBadgeTextInquiry: {
+    color: '#3767D6',
+  },
+  merchantSampleProduct: {
+    flex: 1,
+    minWidth: 0,
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  merchantSampleFactory: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  merchantSampleEmpty: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#D8E5E2',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    color: '#9DA4A3',
+    fontSize: 12,
+    lineHeight: 58,
+  },
+  merchantResultFooter: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 1,
+  },
+  merchantResultMore: {
+    color: colors.primary,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+  merchantResultArrow: {
+    color: colors.primary,
+    fontSize: 18,
+    lineHeight: 20,
+  },
   resultRow: {
     minHeight: 52,
     paddingHorizontal: 16,
@@ -778,6 +1530,7 @@ const styles = StyleSheet.create({
   resultAlias: {marginTop: 2, color: '#9DA4A3', fontSize: 12},
   resultType: {color: '#3C4947', fontSize: 12},
   highlight: {color: colors.primary, fontWeight: '600'},
+  loading: {marginTop: 32},
   loadingText: {marginTop: 32, textAlign: 'center', color: '#9DA4A3', fontSize: 12},
   empty: {marginTop: 32, color: colors.textMuted, textAlign: 'center', fontSize: 12},
   historyHeader: {

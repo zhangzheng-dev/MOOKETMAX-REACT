@@ -107,7 +107,17 @@ export function CountryScreen({navigation, route}: Props) {
             },
           },
         ]}
-        topSlot={<OfferInquiryTabs tab={tab} onTabChange={setTab} />}
+        topSlot={
+          <OfferInquiryTabs
+            tab={tab}
+            onTabChange={setTab}
+            showMerchant
+            onMerchantPress={() => {
+              navigation.popToTop();
+              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+            }}
+          />
+        }
         rightAction={
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }

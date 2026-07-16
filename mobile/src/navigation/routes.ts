@@ -1,10 +1,11 @@
 export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
-  Search: {category: string; keyword?: string; initialTab?: 'offer' | 'inquiry'};
+  Search: {category: string; keyword?: string; initialTab?: 'offer' | 'inquiry' | 'merchant'};
   OfferFeed: {
     category: string;
     initialTab?: 'offer' | 'inquiry';
+    inquiryOnly?: boolean;
     keyword?: string;
     queryKeyword?: string;
     merchantId?: number | string;
@@ -17,7 +18,7 @@ export type RootStackParamList = {
     };
   };
   HomeCards: {category?: string} | undefined;
-  Merchant: {merchantId: number | string; category: string; initialTab?: 'offer' | 'inquiry'};
+  Merchant: {merchantId: number | string; category: string; initialTab?: 'offer' | 'inquiry'; initialCategory?: 'all' | '牛' | '猪'};
   Product: {productId: number; category: string; productName: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
   Country: {country: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
   Factory: {country: string; factoryNo: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
