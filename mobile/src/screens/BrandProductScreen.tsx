@@ -4,23 +4,26 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {BrandProductDashboard} from '../components/detail/BrandProductDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {InquiryFeedSectionList} from '../components/detail/InquiryFeedSectionList';
 import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
-import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
+import {OfferInquiryTabs, TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
+import {useInquiryFeed} from '../hooks/useInquiryFeed';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {BrandProductDetailResult, BrandProductSummary} from '../types/api';
+import {getTabCount, getTabFactoryCount, getTabMerchantCount} from '../utils/tabStats';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BrandProduct'>;
 
 const pageSize = 20;
 
 export function BrandProductScreen({navigation, route}: Props) {
-  const {brandName, productName, category, searchKeyword: routeSearchKeyword} = route.params;
+  const {brandName, productName, category, searchKeyword: routeSearchKeyword, initialTab} = route.params;
   const searchKeyword = routeSearchKeyword ?? `${brandName} ${productName}`;
   const [data, setData] = useState<BrandProductDetailResult | null>(null);
-  const [tab, setTab] = useState<OfferTab>('offer');
+  const [tab, setTab] = useState<OfferTab>(initialTab ?? 'offer');
   const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -32,6 +35,20 @@ export function BrandProductScreen({navigation, route}: Props) {
   );
   const summaries = data?.summaries ?? [];
   const currentBrandName = stripProductName(data?.brandName || brandName, productName);
+  const inquiryFeed = useInquiryFeed({
+    enabled: Boolean(currentBrandName && productName),
+    category,
+    sortBy: requestSortParam,
+    brandName: currentBrandName,
+    productName,
+  });
+  const handleTabChange = useCallback(
+    (nextTab: OfferTab) => {
+      if (nextTab === tab) return;
+      setTab(nextTab);
+    },
+    [tab],
+  );
   const selfSelectCard = currentBrandName && productName
     ? {cardType: 'brandProduct', brandName: currentBrandName, productName}
     : null;
@@ -66,8 +83,14 @@ export function BrandProductScreen({navigation, route}: Props) {
   }, [brandName, category, productName, requestSortParam, tab]);
 
   useEffect(() => {
+    if (tab !== 'offer') return;
     loadFirst().catch(() => undefined);
-  }, [loadFirst]);
+  }, [loadFirst, tab]);
+
+  useEffect(() => {
+    if (tab !== 'inquiry' || data) return;
+    loadFirst().catch(() => undefined);
+  }, [data, loadFirst, tab]);
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !data) return;
@@ -101,18 +124,19 @@ export function BrandProductScreen({navigation, route}: Props) {
         onBack={() => navigation.goBack()}
         onSearchPress={() => {
           navigation.popToTop();
-          navigation.navigate('Search', {category, keyword: searchKeyword});
+          navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: tab});
         }}
         tags={[
           {
             text: brandName,
-            onClose: () => navigation.navigate('Brand', {brandName, category}),
+            onClose: () => navigation.navigate('Brand', {brandName, category, initialTab: tab}),
           },
           {
             text: productName,
-            onClose: () => navigation.navigate('Brand', {brandName, category}),
+            onClose: () => navigation.navigate('Brand', {brandName, category, initialTab: tab}),
           },
         ]}
+        topSlot={<OfferInquiryTabs tab={tab} onTabChange={handleTabChange} />}
         rightAction={
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }
@@ -124,6 +148,39 @@ export function BrandProductScreen({navigation, route}: Props) {
         </View>
       ) : error && !data ? (
         <ErrorState message={error} onRetry={loadFirst} />
+      ) : data && tab === 'inquiry' ? (
+        <InquiryFeedSectionList
+          items={inquiryFeed.items}
+          category={category}
+          navigation={navigation}
+          loading={inquiryFeed.loading}
+          refreshing={inquiryFeed.refreshing}
+          loadingMore={inquiryFeed.loadingMore}
+          error={inquiryFeed.error}
+          onRefresh={inquiryFeed.refresh}
+          onLoadMore={inquiryFeed.loadMore}
+          ListHeaderComponent={
+            <View>
+              <BrandProductDashboard
+                brandName={stripProductName(data.brandName || brandName, productName)}
+                productName={productName}
+                isInquiry
+                todayOfferCount={data.todayOfferCount}
+                todayInquiryCount={inquiryFeed.totalCount}
+                priceMin={data.priceMin}
+                priceMax={data.priceMax}
+                merchantCount={getTabMerchantCount(data, tab)}
+                factoryCount={getTabFactoryCount(data, tab)}
+              />
+              <View style={styles.gap} />
+            </View>
+          }
+          renderSectionHeader={() => (
+            <View style={styles.stickyHeader}>
+              <TabAndSortBar tab={tab} onTabChange={handleTabChange} sort={sort} onSortChange={setSort} showTabs={false} />
+            </View>
+          )}
+        />
       ) : data ? (
         <SectionList
           sections={[{key: 'items', data: summaries}]}
@@ -143,25 +200,15 @@ export function BrandProductScreen({navigation, route}: Props) {
                 todayInquiryCount={data.todayInquiryCount}
                 priceMin={data.priceMin}
                 priceMax={data.priceMax}
-                merchantCount={data.merchantCount}
-                factoryCount={data.factoryCount}
-                onFeedPress={() =>
-                  navigation.navigate('OfferFeed', {
-                    category,
-                    initialTab: tab,
-                    keyword: `${stripProductName(data.brandName || brandName, productName)} ${productName}`,
-                    queryKeyword: '',
-                    brandName: stripProductName(data.brandName || brandName, productName),
-                    productName,
-                  })
-                }
+                merchantCount={getTabMerchantCount(data, tab)}
+                factoryCount={getTabFactoryCount(data, tab)}
               />
               <View style={styles.gap} />
             </View>
           }
           renderSectionHeader={() => (
             <View style={styles.stickyHeader}>
-              <TabAndSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} />
+              <TabAndSortBar tab={tab} onTabChange={handleTabChange} sort={sort} onSortChange={setSort} showTabs={false} />
             </View>
           )}
           renderItem={({item}) => (
@@ -173,7 +220,7 @@ export function BrandProductScreen({navigation, route}: Props) {
               }
               merchantNames={item.merchantNames}
               merchantCount={item.merchantCount}
-              count={item.offerCount}
+              count={getTabCount(item, tab)}
               countLabel={tab === 'offer' ? '报盘' : '求购'}
               priceMin={item.priceMin}
               priceMax={item.priceMax}
@@ -185,6 +232,7 @@ export function BrandProductScreen({navigation, route}: Props) {
                         factoryNo: item.factoryNo!,
                         productName,
                         category,
+                        initialTab: tab,
                       })
                   : undefined
               }
@@ -247,6 +295,7 @@ function mergeSummaries(prev: BrandProductSummary[], incoming: BrandProductSumma
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   loading: {paddingVertical: 48, alignItems: 'center'},
+  topTabs: {borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#EFF5F3', borderBottomWidth: 1, borderBottomColor: colors.border},
   gap: {height: 12, backgroundColor: '#F4FBF8'},
   footer: {alignItems: 'center', paddingVertical: 16},
   footerText: {color: '#9DA4A3', fontSize: 12},

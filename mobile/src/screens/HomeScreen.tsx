@@ -18,7 +18,6 @@ import {useFocusEffect} from '@react-navigation/native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {mooketApi} from '../api/mooketApi';
-import {MasonryDraggableGrid} from '../components/home/MasonryDraggableGrid';
 import {HomeCardSwitcher} from '../components/home/cards';
 import {MooketMaxLogo} from '../components/login/LoginIcons';
 import {DEFAULT_CATEGORY} from '../config/env';
@@ -26,51 +25,20 @@ import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
 import type {HomeCardItem, HomeStatData, HotSearchItem} from '../types/api';
-import {buildHomeCardSearchHistoryPayload, buildHomeFallbackExampleCards, getHomeCardEntityKey} from '../utils/homeFallbackCards';
 import {openHomeCard, openHotSearch} from '../utils/navigation';
-import {getAddSelfSelectMessage, getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
-import {
-  applySavedSelfSelectCardOrder,
-  getSelfSelectCardOrderKey,
-  saveSelfSelectCardOrder,
-} from '../utils/selfSelectCardOrder';
+import {getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
+import {sortSelfSelectCardsByCreateTime} from '../utils/selfSelectCards';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 const categories = ['牛', '猪'];
 
-// 28x28 右上角「加入自选」角标icon (Figma 263:3139 即archive-add)
-const archiveAddIconXml = `<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.51562 6.98914H6.23438" stroke="#171D1C" stroke-width="1.125" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.875 5.38782V8.66907" stroke="#171D1C" stroke-width="1.125" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.0382 1.3125H4.71196C3.31415 1.3125 2.17883 2.45438 2.17883 3.84563V13.0922C2.17883 14.2734 3.0254 14.7722 4.06227 14.2012L7.26477 12.4228C7.60602 12.2325 8.15727 12.2325 8.49196 12.4228L11.6945 14.2012C12.7313 14.7787 13.5779 14.28 13.5779 13.0922V3.84563C13.5713 2.45438 12.436 1.3125 11.0382 1.3125Z" stroke="#171D1C" stroke-width="1.125" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-
 // 18x18 主色「移除删除」icon
 const archiveDelIconXml = `<svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path d="M12.6152 1.5C14.2125 1.50013 15.5098 2.80482 15.5176 4.39453V14.9629C15.5174 16.32 14.5499 16.8901 13.3652 16.2305L9.70508 14.1973C9.32267 13.9798 8.69274 13.9799 8.30273 14.1973L4.64258 16.2305C3.45775 16.8828 2.49042 16.3126 2.49023 14.9629V4.39453C2.49049 2.80482 3.78753 1.50012 5.38477 1.5H12.6152ZM7.125 7.4248C6.81756 7.4248 6.5626 7.67989 6.5625 7.9873C6.5625 8.2948 6.8175 8.5498 7.125 8.5498H10.875C11.1825 8.5498 11.4375 8.2948 11.4375 7.9873C11.4374 7.67989 11.1824 7.4248 10.875 7.4248H7.125Z" fill="#006A61"/></svg>`;
-
-/** 估算卡片高度（px），用于瀑布流平衡分列 */
-function estimateCardHeight(card: HomeCardItem): number {
-  switch (card.cardType) {
-    case 'factoryProduct':
-    case 'brandProduct':
-      return 280; // 价格 + 趋势图 + 表格 + 底栏
-    case 'merchant':
-      return 200; // 商家名 + 最新报盘 + 底栏
-    case 'factory':
-      return 180; // 排名列表
-    case 'countryProduct':
-      return 160; // 表格 + 底栏
-    case 'country':
-      return 150; // 双列表格
-    case 'product':
-    case 'brand':
-      return 130; // 简洁统计
-    default:
-      return 150;
-  }
-}
 
 export function HomeScreen({navigation}: Props) {
   const insets = useSafeAreaInsets();
   const [category, setCategory] = useState(DEFAULT_CATEGORY);
-  const [tab, setTab] = useState<0 | 1>(0);
   const [stat, setStat] = useState<HomeStatData | null>(null);
   const [hotSearches, setHotSearches] = useState<HotSearchItem[]>([]);
   const [cards, setCards] = useState<HomeCardItem[]>([]);
@@ -80,12 +48,9 @@ export function HomeScreen({navigation}: Props) {
   const [editMode, setEditMode] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [headerSticky, setHeaderSticky] = useState(false);
-  const [dismissedExampleKeys, setDismissedExampleKeys] = useState<Set<string>>(new Set());
-  const [promotedExampleKeys, setPromotedExampleKeys] = useState<Set<string>>(new Set());
   const headerHeightRef = useRef(0);
   const [fixedTopBottom, setFixedTopBottom] = useState(0);
   const focusRefreshReadyRef = useRef(false);
-  const autoTabSwitchReadyRef = useRef(true);
   const loadRef = useRef<(mode?: 'initial' | 'refresh' | 'silent') => Promise<void>>(async () => undefined);
   const sectionListRef = useRef<SectionList>(null);
   const handleEditToggle = useCallback(() => {
@@ -97,14 +62,6 @@ export function HomeScreen({navigation}: Props) {
       return next;
     });
   }, []);
-
-  const handleCardsReorder = useCallback(
-    (data: HomeCardItem[]) => {
-      setCards(data);
-      saveSelfSelectCardOrder(category, data).catch(() => undefined);
-    },
-    [category],
-  );
 
   const performScrollToTop = useCallback((animated: boolean) => {
     const list = sectionListRef.current as
@@ -153,46 +110,22 @@ export function HomeScreen({navigation}: Props) {
     }
 
     try {
-      const [statData, hotData, selfSelectData, recentData] = await Promise.all([
+      const [statData, hotData, selfSelectData, selfSelectHistories] = await Promise.all([
         mooketApi.getHomeStatData(category),
         mooketApi.getHotSearchRecommendations(category),
         mooketApi.getSelfSelectCards(category),
-        mooketApi.getRecentSearchCards(category),
+        mooketApi.getSelfSelectSearches(500).catch(() => []),
       ]);
       const selfSelectCards = selfSelectData.cards ?? [];
-      const recentCards = recentData.cards ?? [];
 
       setStat(statData);
       setHotSearches(hotData);
-      if (autoTabSwitchReadyRef.current && selfSelectCards.length === 0) {
-        autoTabSwitchReadyRef.current = false;
-        setTab(1);
-        if (recentCards.length > 0) {
-          setCards(recentCards);
-        } else {
-          const fallback = await mooketApi.getHomeCards(category, 0);
-          setCards(buildHomeFallbackExampleCards(fallback.cards ?? [], promotedExampleKeys, dismissedExampleKeys));
-        }
-        return;
-      }
-
-      autoTabSwitchReadyRef.current = false;
-
-      if (tab === 0) {
-        setCards(await applySavedSelfSelectCardOrder(category, selfSelectCards));
-      } else {
-        if (recentCards.length > 0) {
-          setCards(recentCards);
-        } else {
-          const fallback = await mooketApi.getHomeCards(category, 0);
-          setCards(buildHomeFallbackExampleCards(fallback.cards ?? [], promotedExampleKeys, dismissedExampleKeys));
-        }
-      }
+      setCards(sortSelfSelectCardsByCreateTime(selfSelectCards, selfSelectHistories));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [category, dismissedExampleKeys, promotedExampleKeys, tab]);
+  }, [category]);
 
   useEffect(() => {
     loadRef.current = load;
@@ -216,41 +149,14 @@ export function HomeScreen({navigation}: Props) {
     setCategory(value);
     setMenuOpen(false);
     setEditMode(false);
-    setDismissedExampleKeys(new Set());
-    setPromotedExampleKeys(new Set());
-    autoTabSwitchReadyRef.current = true;
-  }
-
-  function switchTab(value: 0 | 1) {
-    setTab(value);
-    setEditMode(false);
-    autoTabSwitchReadyRef.current = false;
   }
 
   function openOfferFeed(initialTab: 'offer' | 'inquiry') {
     navigation.navigate('OfferFeed', {category, initialTab});
   }
 
-  async function deleteHistory(historyId: number) {
-    const previous = cards;
-    setCards(prev => prev.filter(item => item.historyId !== historyId));
-    try {
-      await mooketApi.deleteSearchHistory(historyId);
-    } catch (error) {
-      setCards(previous);
-      Alert.alert('删除失败', error instanceof Error ? error.message : '请稍后重试');
-    }
-  }
-
-  async function moveToSelfSelect(historyId: number) {
-    const previous = cards;
-    setCards(prev => prev.filter(item => item.historyId !== historyId));
-    try {
-      await mooketApi.moveToSelfSelect(historyId);
-    } catch (error) {
-      setCards(previous);
-      Alert.alert('添加失败', error instanceof Error ? error.message : '请稍后重试');
-    }
+  function openSearch() {
+    navigation.navigate('Search', {category});
   }
 
   async function cancelSelfSelect(historyId: number) {
@@ -264,89 +170,15 @@ export function HomeScreen({navigation}: Props) {
     }
   }
 
-  async function addExampleCardToSelfSelect(card: HomeCardItem) {
-    const payload = buildHomeCardSearchHistoryPayload(card);
-    const entityKey = card.exampleEntityKey ?? getHomeCardEntityKey(card);
-    if (!payload || !entityKey) return;
-
-    try {
-      await mooketApi.saveSearchHistory({...payload, isSelfSelect: 1});
-      setPromotedExampleKeys(prev => {
-        const next = new Set(prev);
-        next.add(entityKey);
-        return next;
-      });
-      setCards(prev =>
-        prev.filter(item => (item.exampleEntityKey ?? getHomeCardEntityKey(item)) !== entityKey),
-      );
-    } catch (error) {
-      Alert.alert('添加失败', error instanceof Error ? error.message : '请稍后重试');
-    }
-  }
-
-  function dismissExampleCard(card: HomeCardItem) {
-    const entityKey = card.exampleEntityKey ?? getHomeCardEntityKey(card);
-    if (!entityKey) return;
-    setDismissedExampleKeys(prev => {
-      const next = new Set(prev);
-      next.add(entityKey);
-      return next;
-    });
-    setCards(prev => prev.filter(item => (item.exampleEntityKey ?? getHomeCardEntityKey(item)) !== entityKey));
-  }
-
-  function onArchiveAdd(card: HomeCardItem) {
-    if (card.isExample) {
-      Alert.alert('加入自选', getAddSelfSelectMessage(card), [
-        {text: '取消', style: 'cancel'},
-        {text: '确定', onPress: () => addExampleCardToSelfSelect(card).catch(() => undefined)},
-      ]);
-      return;
-    }
+  function onArchiveDelete(card: HomeCardItem) {
     if (!card.historyId) return;
-    Alert.alert('加入自选', getAddSelfSelectMessage(card), [
+    Alert.alert('移出自选', getRemoveSelfSelectMessage(card), [
       {text: '取消', style: 'cancel'},
-      {text: '确定', onPress: () => moveToSelfSelect(card.historyId!).catch(() => undefined)},
+      {text: '移出', style: 'destructive', onPress: () => cancelSelfSelect(card.historyId!).catch(() => undefined)},
     ]);
   }
 
-  function onArchiveDelete(card: HomeCardItem) {
-    if (card.isExample) {
-      Alert.alert('删除示例', '确定删除这张示例卡片吗？', [
-        {text: '取消', style: 'cancel'},
-        {text: '删除', style: 'destructive', onPress: () => dismissExampleCard(card)},
-      ]);
-      return;
-    }
-    if (!card.historyId) return;
-    if (tab === 0) {
-      Alert.alert('移出自选', getRemoveSelfSelectMessage(card), [
-        {text: '取消', style: 'cancel'},
-        {text: '移出', style: 'destructive', onPress: () => cancelSelfSelect(card.historyId!).catch(() => undefined)},
-      ]);
-    } else {
-      Alert.alert('删除记录', '确定删除这条历史搜索吗？', [
-        {text: '取消', style: 'cancel'},
-        {text: '删除', style: 'destructive', onPress: () => deleteHistory(card.historyId!).catch(() => undefined),},
-      ]);
-    }
-  }
-
-  // 把卡片按估算高度平衡分配到左右两列（瀑布流）
-  const leftColumn: HomeCardItem[] = [];
-  const rightColumn: HomeCardItem[] = [];
-  let leftH = 0;
-  let rightH = 0;
-  cards.forEach(card => {
-    const h = estimateCardHeight(card);
-    if (leftH <= rightH) {
-      leftColumn.push(card);
-      leftH += h;
-    } else {
-      rightColumn.push(card);
-      rightH += h;
-    }
-  });
+  const {leftColumn, rightColumn} = splitColumns(cards);
 
   // 用 SectionList：section header 固定在mooketmax栏下方
   const sections = [{key: 'cards', data: [{leftColumn, rightColumn}]}];
@@ -403,14 +235,14 @@ export function HomeScreen({navigation}: Props) {
                 <View style={styles.searchVDivider} />
                 <Pressable
                   style={styles.searchPlaceholder}
-                  onPress={() => navigation.navigate('Search', {category})}>
+                  onPress={openSearch}>
                   <Text style={styles.searchPlaceholderText} numberOfLines={1}>
                     搜索国家、厂号、产品、商家、品牌
                   </Text>
                 </Pressable>
-                <View style={styles.searchIcon}>
+                <Pressable hitSlop={8} onPress={openSearch} style={styles.searchIcon}>
                   <SearchIcon24 />
-                </View>
+                </Pressable>
               </View>
               {/* menu rendered at root level */}
             </View>
@@ -461,26 +293,22 @@ export function HomeScreen({navigation}: Props) {
             <View style={styles.tabsBar}>
               <Tab
                 text="自选数据"
-                active={tab === 0}
-                icon={<CandleIcon active={tab === 0} />}
-                onPress={() => switchTab(0)}
-              />
-              <Tab
-                text="历史搜索数据"
-                active={tab === 1}
-                icon={<ClockIcon active={tab === 1} />}
-                onPress={() => switchTab(1)}
+                active
+                icon={<CandleIcon active />}
+                onPress={() => undefined}
               />
               <View style={styles.tabsSpace} />
-              <Pressable onPress={handleEditToggle} style={styles.editButton}>
-                {editMode ? (
-                  <View style={styles.editDoneBadge}>
-                    <Text style={styles.editDoneText}>完成</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.editText}>编辑</Text>
-                )}
-              </Pressable>
+              {cards.length > 0 ? (
+                <Pressable onPress={handleEditToggle} style={styles.editButton}>
+                  {editMode ? (
+                    <View style={styles.editDoneBadge}>
+                      <Text style={styles.editDoneText}>完成</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.editText}>编辑</Text>
+                  )}
+                </Pressable>
+              ) : null}
             </View>
 
           </View>
@@ -490,27 +318,7 @@ export function HomeScreen({navigation}: Props) {
             return <ActivityIndicator color={colors.primary} style={styles.cardsLoading} />;
           }
           if (cards.length === 0) {
-            return <Text style={styles.empty}>{tab === 0 ? '暂无自选数据' : '暂无历史搜索数据'}</Text>;
-          }
-          if (editMode && tab === 0) {
-            return (
-              <MasonryDraggableGrid
-                cards={cards}
-                estimateHeight={estimateCardHeight}
-                keyExtractor={(card, index) => getSelfSelectCardOrderKey(card) ?? `card-${index}`}
-                onReorder={handleCardsReorder}
-                renderCard={card => (
-                  <CardWithEdit
-                    card={card}
-                    editMode={editMode}
-                    tab={tab}
-                    onPress={() => undefined}
-                    onArchiveAdd={() => onArchiveAdd(card)}
-                    onArchiveDelete={() => onArchiveDelete(card)}
-                  />
-                )}
-              />
-            );
+            return <EmptySelfSelectState onAdd={openSearch} />;
           }
           return (
             <View style={styles.gridRow}>
@@ -520,9 +328,7 @@ export function HomeScreen({navigation}: Props) {
                     key={`l-${card.cardType}-${card.historyId ?? index}`}
                     card={card}
                     editMode={editMode}
-                    tab={tab}
                     onPress={() => openHomeCard(navigation, category, card)}
-                    onArchiveAdd={() => onArchiveAdd(card)}
                     onArchiveDelete={() => onArchiveDelete(card)}
                   />
                 ))}
@@ -533,9 +339,7 @@ export function HomeScreen({navigation}: Props) {
                     key={`r-${card.cardType}-${card.historyId ?? index}`}
                     card={card}
                     editMode={editMode}
-                    tab={tab}
                     onPress={() => openHomeCard(navigation, category, card)}
-                    onArchiveAdd={() => onArchiveAdd(card)}
                     onArchiveDelete={() => onArchiveDelete(card)}
                   />
                 ))}
@@ -567,26 +371,22 @@ export function HomeScreen({navigation}: Props) {
           <View style={styles.tabsBar}>
             <Tab
               text="自选数据"
-              active={tab === 0}
-              icon={<CandleIcon active={tab === 0} />}
-              onPress={() => switchTab(0)}
-            />
-            <Tab
-              text="历史搜索数据"
-              active={tab === 1}
-              icon={<ClockIcon active={tab === 1} />}
-              onPress={() => switchTab(1)}
+              active
+              icon={<CandleIcon active />}
+              onPress={() => undefined}
             />
             <View style={styles.tabsSpace} />
-            <Pressable onPress={handleEditToggle} style={styles.editButton}>
-              {editMode ? (
-                <View style={styles.editDoneBadge}>
-                  <Text style={styles.editDoneText}>完成</Text>
-                </View>
-              ) : (
-                <Text style={styles.editText}>编辑</Text>
-              )}
-            </Pressable>
+            {cards.length > 0 ? (
+              <Pressable onPress={handleEditToggle} style={styles.editButton}>
+                {editMode ? (
+                  <View style={styles.editDoneBadge}>
+                    <Text style={styles.editDoneText}>完成</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.editText}>编辑</Text>
+                )}
+              </Pressable>
+            ) : null}
           </View>
         </View>
       ) : null}
@@ -677,18 +477,12 @@ function StatViewButton({onPress}: {onPress: () => void}) {
 function CardWithEdit({
   card,
   editMode,
-  tab,
   onPress,
-  onLongPress,
-  onArchiveAdd,
   onArchiveDelete,
 }: {
   card: HomeCardItem;
   editMode: boolean;
-  tab: 0 | 1;
   onPress: () => void;
-  onLongPress?: () => void;
-  onArchiveAdd: () => void;
   onArchiveDelete: () => void;
 }) {
   return (
@@ -696,48 +490,48 @@ function CardWithEdit({
       <HomeCardSwitcher
         card={card}
         onPress={editMode ? undefined : onPress}
-        onLongPress={editMode && tab === 0 ? onLongPress : undefined}
       />
       {card.isExample && !editMode ? (
         <View style={styles.exampleBadge}>
           <Text style={styles.exampleBadgeText}>例</Text>
         </View>
       ) : null}
-      {editMode && (card.historyId || (tab === 1 && card.isExample)) ? (
-        <>
-          {tab === 1 ? (
-            // 历史搜索：右上角添加 + 下方删除，垂直排列
-            <View style={styles.editIconColumn}>
-              <Pressable hitSlop={4} onPress={onArchiveAdd} style={styles.editIconAdd}>
-                <SvgXml xml={archiveAddIconXml} width={16} height={16} />
-              </Pressable>
-              <Pressable hitSlop={4} onPress={onArchiveDelete} style={styles.editIconDel}>
-                <SvgXml xml={archiveDelIconXml} width={16} height={16} />
-              </Pressable>
-            </View>
-          ) : (
-            // 自选：仅右上角删除
-            <Pressable hitSlop={4} onPress={onArchiveDelete} style={styles.editIconSingle}>
-              <SvgXml xml={archiveDelIconXml} width={16} height={16} />
-            </Pressable>
-          )}
-        </>
+      {editMode && card.historyId ? (
+        <Pressable hitSlop={4} onPress={onArchiveDelete} style={styles.editIconSingle}>
+          <SvgXml xml={archiveDelIconXml} width={16} height={16} />
+        </Pressable>
       ) : null}
     </View>
   );
 }
 
-/* ===== Inline icons ===== */
+function splitColumns(cards: HomeCardItem[]) {
+  const leftColumn: HomeCardItem[] = [];
+  const rightColumn: HomeCardItem[] = [];
+  cards.forEach((card, index) => {
+    if (index % 2 === 0) leftColumn.push(card);
+    else rightColumn.push(card);
+  });
+  return {leftColumn, rightColumn};
+}
 
-function DragHandleIcon() {
+function EmptySelfSelectState({onAdd}: {onAdd: () => void}) {
   return (
-    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-      <Path d="M4 5H12" stroke="#9DA4A3" strokeWidth={1.5} strokeLinecap="round" />
-      <Path d="M4 8H12" stroke="#9DA4A3" strokeWidth={1.5} strokeLinecap="round" />
-      <Path d="M4 11H12" stroke="#9DA4A3" strokeWidth={1.5} strokeLinecap="round" />
-    </Svg>
+    <View style={styles.emptySelfWrap}>
+      <Pressable onPress={onAdd} hitSlop={8} style={styles.emptySelfButton}>
+        <View style={styles.emptySelfSquare}>
+          <Svg width={42} height={42} viewBox="0 0 42 42" fill="none">
+            <Path d="M21 10.5V31.5" stroke={colors.primary} strokeWidth={2} strokeLinecap="round" />
+            <Path d="M10.5 21H31.5" stroke={colors.primary} strokeWidth={2} strokeLinecap="round" />
+          </Svg>
+        </View>
+        <Text style={styles.emptySelfText}>暂无数据 搜索后添加</Text>
+      </Pressable>
+    </View>
   );
 }
+
+/* ===== Inline icons ===== */
 
 function InventoryIcon() {
   return (
@@ -811,16 +605,6 @@ function CandleIcon({active}: {active: boolean}) {
       <Path d="M11.6667 6.00004V1.33337" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
       <Path d="M6.33325 4.66671V8.66671C6.33325 9.40004 5.99992 10 4.99992 10H3.66659C2.66659 10 2.33325 9.40004 2.33325 8.66671V4.66671C2.33325 3.93337 2.66659 3.33337 3.66659 3.33337H4.99992C5.99992 3.33337 6.33325 3.93337 6.33325 4.66671Z" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
       <Path d="M13.6667 7.33333V11.3333C13.6667 12.0667 13.3334 12.6667 12.3334 12.6667H11.0001C10.0001 12.6667 9.66675 12.0667 9.66675 11.3333V7.33333C9.66675 6.6 10.0001 6 11.0001 6H12.3334C13.3334 6 13.6667 6.6 13.6667 7.33333Z" stroke={color} strokeMiterlimit={10} strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-
-function ClockIcon({active}: {active: boolean}) {
-  const color = active ? colors.primary : '#3C4947';
-  return (
-    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-      <Circle cx={8} cy={8} r={6} stroke={color} strokeWidth={1.5} />
-      <Path d="M8 5v3l2 1" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -1008,7 +792,23 @@ const styles = StyleSheet.create({
 
   content: {paddingBottom: 32},
   cardsLoading: {marginTop: 32},
-  empty: {marginTop: 48, textAlign: 'center', color: '#9DA4A3', fontSize: 14},
+  emptySelfWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 80,
+    paddingBottom: 140,
+  },
+  emptySelfButton: {alignItems: 'center', justifyContent: 'center'},
+  emptySelfSquare: {
+    width: 86,
+    height: 86,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  emptySelfText: {marginTop: 10, color: '#6C7A77', fontSize: 12, lineHeight: 16},
   gridRow: {flexDirection: 'row', paddingHorizontal: 16, paddingTop: 12, gap: 12},
   gridCol: {flex: 1, gap: 12},
   cardWrap: {position: 'relative'},

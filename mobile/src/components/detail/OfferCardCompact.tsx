@@ -118,6 +118,9 @@ function OfferCardCompactInner({
               key={`${item.offerId ?? `${item.userNickname}-${index}`}`}
               offer={item}
               merchantPhone={merchantPhone ?? null}
+              country={offer.country}
+              factoryNo={offer.factoryNo}
+              productName={offer.productName}
               onCopyPhone={onCopyPhone}
               onDial={onDial}
               onViewOriginalText={onViewOriginalText}
@@ -133,12 +136,18 @@ export const OfferCardCompact = memo(OfferCardCompactInner);
 function EmployeeRow({
   offer,
   merchantPhone,
+  country,
+  factoryNo,
+  productName,
   onCopyPhone,
   onDial,
   onViewOriginalText,
 }: {
   offer: EmployeeOffer;
   merchantPhone?: string | null;
+  country?: string | null;
+  factoryNo?: string | null;
+  productName?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
   onViewOriginalText?: (payload: OriginalTextPayload) => void;
@@ -204,6 +213,9 @@ function EmployeeRow({
               onViewOriginalText?.(
                 buildOriginalTextPayload({
                   text: resolveOriginalText(offer),
+                  country,
+                  factoryNo,
+                  productName,
                   price: offer.price,
                   priceMax: offer.priceMax,
                   goodsLocation: offer.goodsLocation,

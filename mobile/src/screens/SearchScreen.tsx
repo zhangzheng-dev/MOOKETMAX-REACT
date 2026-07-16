@@ -5,6 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {ChevronDownIcon, DeleteIcon, HistoryIcon, SearchIcon} from '../components/common/AppIcons';
+import {OfferInquiryTabs, type OfferTab} from '../components/detail/TabAndSortBar';
 import {ArrowLeftIcon, ClearInputIcon} from '../components/login/LoginIcons';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
@@ -72,7 +73,7 @@ function prefetchBrandProduct(category: string, brandName?: string | null, produ
 }
 
 export function SearchScreen({route, navigation}: Props) {
-  const {category, keyword: routeKeyword} = route.params;
+  const {category, keyword: routeKeyword, initialTab: routeInitialTab} = route.params;
   const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState<(typeof categoryOptions)[number]>(
     categoryOptions.includes(category as (typeof categoryOptions)[number])
@@ -81,6 +82,7 @@ export function SearchScreen({route, navigation}: Props) {
   );
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [keyword, setKeyword] = useState(routeKeyword ?? '');
+  const [selectedTab, setSelectedTab] = useState<OfferTab>(routeInitialTab ?? 'offer');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<SearchSuggest[]>([]);
   const [histories, setHistories] = useState<SearchHistory[]>([]);
@@ -104,6 +106,12 @@ export function SearchScreen({route, navigation}: Props) {
   useEffect(() => {
     setKeyword(routeKeyword ?? '');
   }, [routeKeyword]);
+
+  useEffect(() => {
+    if (routeInitialTab) {
+      setSelectedTab(routeInitialTab);
+    }
+  }, [routeInitialTab]);
 
   useEffect(() => {
     if (categoryOptions.includes(category as (typeof categoryOptions)[number])) {
@@ -175,7 +183,7 @@ export function SearchScreen({route, navigation}: Props) {
     if (history.merchantId) {
       prefetchMerchant(selectedCategory, history.merchantId);
       prefetchMerchant(selectedCategory, history.merchantId);
-      navigation.navigate('Merchant', {merchantId: history.merchantId, category: selectedCategory});
+      navigation.navigate('Merchant', {merchantId: history.merchantId, category: selectedCategory, initialTab: selectedTab});
       return;
     }
 
@@ -188,6 +196,7 @@ export function SearchScreen({route, navigation}: Props) {
         productName: history.productName,
         category: selectedCategory,
         searchKeyword: searchWord,
+        initialTab: selectedTab,
       });
       return;
     }
@@ -200,6 +209,7 @@ export function SearchScreen({route, navigation}: Props) {
         productName: history.productName,
         category: selectedCategory,
         searchKeyword: searchWord,
+        initialTab: selectedTab,
       });
       return;
     }
@@ -212,6 +222,7 @@ export function SearchScreen({route, navigation}: Props) {
         factoryNo: history.factoryNo,
         category: selectedCategory,
         searchKeyword: searchWord,
+        initialTab: selectedTab,
       });
       return;
     }
@@ -224,6 +235,7 @@ export function SearchScreen({route, navigation}: Props) {
         category: selectedCategory,
         productName: history.productName ?? searchWord,
         searchKeyword: searchWord,
+        initialTab: selectedTab,
       });
       return;
     }
@@ -231,14 +243,24 @@ export function SearchScreen({route, navigation}: Props) {
     if (history.brandId) {
       prefetchBrand(selectedCategory, searchWord);
       prefetchBrand(selectedCategory, searchWord);
-      navigation.navigate('Brand', {brandName: searchWord, category: selectedCategory, searchKeyword: searchWord});
+      navigation.navigate('Brand', {
+        brandName: searchWord,
+        category: selectedCategory,
+        searchKeyword: searchWord,
+        initialTab: selectedTab,
+      });
       return;
     }
 
     if (history.country) {
       prefetchCountry(selectedCategory, history.country);
       prefetchCountry(selectedCategory, history.country);
-      navigation.navigate('Country', {country: history.country, category: selectedCategory, searchKeyword: searchWord});
+      navigation.navigate('Country', {
+        country: history.country,
+        category: selectedCategory,
+        searchKeyword: searchWord,
+        initialTab: selectedTab,
+      });
       return;
     }
 
@@ -258,7 +280,7 @@ export function SearchScreen({route, navigation}: Props) {
     switch (item.matchType) {
       case 'merchant':
         prefetchMerchant(selectedCategory, item.targetId);
-        navigation.navigate('Merchant', {merchantId: item.targetId, category: selectedCategory});
+        navigation.navigate('Merchant', {merchantId: item.targetId, category: selectedCategory, initialTab: selectedTab});
         return;
       case 'product':
         prefetchProduct(selectedCategory, item.targetId);
@@ -267,6 +289,7 @@ export function SearchScreen({route, navigation}: Props) {
           category: selectedCategory,
           productName: standard.productName ?? item.text,
           searchKeyword: item.text,
+          initialTab: selectedTab,
         });
         return;
       case 'country':
@@ -275,6 +298,7 @@ export function SearchScreen({route, navigation}: Props) {
           country: standard.country ?? getStandardSearchWord(item.text),
           category: selectedCategory,
           searchKeyword: item.text,
+          initialTab: selectedTab,
         });
         return;
       case 'brand':
@@ -285,6 +309,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
             searchKeyword: item.text,
+            initialTab: selectedTab,
           });
         } else {
           prefetchBrand(selectedCategory, standard.brandName ?? getStandardSearchWord(item.text));
@@ -292,6 +317,7 @@ export function SearchScreen({route, navigation}: Props) {
             brandName: standard.brandName ?? getStandardSearchWord(item.text),
             category: selectedCategory,
             searchKeyword: item.text,
+            initialTab: selectedTab,
           });
         }
         return;
@@ -303,6 +329,7 @@ export function SearchScreen({route, navigation}: Props) {
             factoryNo: standard.factoryNo,
             category: selectedCategory,
             searchKeyword: item.text,
+            initialTab: selectedTab,
           });
         } else if (parts.length >= 2) {
           prefetchFactory(selectedCategory, getCountryFromText(parts[0]), parts[1]);
@@ -311,6 +338,7 @@ export function SearchScreen({route, navigation}: Props) {
             factoryNo: parts[1],
             category: selectedCategory,
             searchKeyword: item.text,
+            initialTab: selectedTab,
           });
         }
         return;
@@ -322,6 +350,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
             searchKeyword: item.text,
+            initialTab: selectedTab,
           });
         } else if (standard.country && standard.factoryNo && standard.productName) {
           prefetchCountryFactoryProduct(selectedCategory, standard.country, standard.factoryNo, standard.productName);
@@ -331,6 +360,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: standard.productName,
             category: selectedCategory,
             searchKeyword: item.text,
+            initialTab: selectedTab,
           });
         } else if (parts.length >= 3) {
           prefetchCountryFactoryProduct(selectedCategory, getCountryFromText(parts[0]), parts[1], parts.slice(2).join(' '));
@@ -340,6 +370,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: parts.slice(2).join(' '),
             category: selectedCategory,
             searchKeyword: item.text,
+            initialTab: selectedTab,
           });
         }
         return;
@@ -351,6 +382,7 @@ export function SearchScreen({route, navigation}: Props) {
             productName: standard.productName ?? parts.slice(1).join(' '),
             category: selectedCategory,
             searchKeyword: item.text,
+            initialTab: selectedTab,
           });
         }
     }
@@ -380,10 +412,14 @@ export function SearchScreen({route, navigation}: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.topBar, {paddingTop: insets.top + 8, minHeight: insets.top + 60}]}>
-        <Pressable hitSlop={8} onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeftIcon size={18} />
-        </Pressable>
+      <View style={[styles.topBar, {paddingTop: insets.top + 8}]}>
+        <View style={styles.topTabRow}>
+          <Pressable hitSlop={8} onPress={() => navigation.goBack()} style={styles.backButton}>
+            <ArrowLeftIcon size={18} />
+          </Pressable>
+          <OfferInquiryTabs tab={selectedTab} onTabChange={setSelectedTab} style={styles.searchTabs} />
+          <View style={styles.topRightSpacer} />
+        </View>
         <View style={styles.searchInputWrap}>
           <Pressable onPress={() => setCategoryMenuOpen(prev => !prev)} style={styles.categoryButton}>
             <Text style={styles.categoryText}>{selectedCategory}</Text>
@@ -415,7 +451,7 @@ export function SearchScreen({route, navigation}: Props) {
       {categoryMenuOpen ? (
         <>
           <Pressable style={styles.categoryMenuBackdrop} onPress={() => setCategoryMenuOpen(false)} />
-          <View style={[styles.categoryMenu, {top: insets.top + 56}]}>
+          <View style={[styles.categoryMenu, {top: insets.top + 92}]}>
             {categoryOptions.map(item => (
               <Pressable
                 key={item}
@@ -618,22 +654,33 @@ function getBrandFromSuggestion(item: SearchSuggest, parts: string[]): string | 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: '#FFFFFF',
     zIndex: 20,
+  },
+  topTabRow: {
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  searchTabs: {
+    flex: 1,
+    minHeight: 36,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  topRightSpacer: {
+    width: 24,
   },
   backButton: {
     width: 24,
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
   },
   searchInputWrap: {
-    flex: 1,
     height: 40,
     borderRadius: 4,
     backgroundColor: '#EFF5F3',

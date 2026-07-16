@@ -6,21 +6,22 @@ import {DetailTopBar} from '../components/detail/DetailTopBar';
 import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {FactoryDashboard} from '../components/detail/FactoryDashboard';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
-import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
+import {OfferInquiryTabs, TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {FactoryDetail, FactoryProduct} from '../types/api';
+import {getTabCount, getTabProductCount} from '../utils/tabStats';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Factory'>;
 
 const pageSize = 20;
 
 export function FactoryScreen({navigation, route}: Props) {
-  const {country, factoryNo, category, searchKeyword: routeSearchKeyword} = route.params;
+  const {country, factoryNo, category, searchKeyword: routeSearchKeyword, initialTab} = route.params;
   const searchKeyword = routeSearchKeyword ?? `${country}${factoryNo}`;
   const [data, setData] = useState<FactoryDetail | null>(null);
-  const [tab, setTab] = useState<OfferTab>('offer');
+  const [tab, setTab] = useState<OfferTab>(initialTab ?? 'offer');
   const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -105,17 +106,18 @@ export function FactoryScreen({navigation, route}: Props) {
         onBack={() => navigation.goBack()}
         onSearchPress={() => {
           navigation.popToTop();
-          navigation.navigate('Search', {category, keyword: searchKeyword});
+          navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: tab});
         }}
         tags={[
           {
             text: tagText,
             onClose: () => {
               navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword});
+              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: tab});
             },
           },
         ]}
+        topSlot={<OfferInquiryTabs tab={tab} onTabChange={setTab} />}
         rightAction={
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }
@@ -142,28 +144,18 @@ export function FactoryScreen({navigation, route}: Props) {
                 country={data.country || country}
                 factoryNo={data.factoryNo || factoryNo}
                 isInquiry={tab === 'inquiry'}
-                productCount={data.productCount}
-                inquiryCount={data.inquiryCount}
-                recentOfferCount={data.recentOfferCount}
-                onFeedPress={() =>
-                  navigation.navigate('OfferFeed', {
-                    category,
-                    initialTab: tab,
-                    keyword: `${data.country || country}${data.factoryNo || factoryNo}`,
-                    queryKeyword: '',
-                    initialFilters: {
-                      country: data.country || country,
-                      factoryNo: data.factoryNo || factoryNo,
-                    },
-                  })
-                }
+                productCount={getTabProductCount(data, tab)}
+                inquiryCount={getTabCount(data, 'inquiry')}
+                recentOfferCount={getTabCount(data, 'offer')}
+                secondaryCountLabel={tab === 'offer' ? '报盘数' : '求购数'}
+                secondaryCount={getTabCount(data, tab)}
               />
               <View style={styles.gap} />
             </View>
           }
           renderSectionHeader={() => (
             <View style={styles.stickyHeader}>
-              <TabAndSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} />
+              <TabAndSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} showTabs={false} />
             </View>
           )}
           renderItem={({item}) => (
@@ -171,7 +163,7 @@ export function FactoryScreen({navigation, route}: Props) {
               title={item.productName}
               merchantNames={item.merchantNames}
               merchantCount={item.merchantCount}
-              count={item.offerCount}
+              count={getTabCount(item, tab)}
               countLabel={tab === 'offer' ? '报盘' : '求购'}
               priceMin={item.priceMin}
               priceMax={item.priceMax}
@@ -181,6 +173,7 @@ export function FactoryScreen({navigation, route}: Props) {
                   factoryNo: data.factoryNo || factoryNo,
                   productName: item.productName,
                   category,
+                  initialTab: tab,
                 })
               }
             />
@@ -225,6 +218,7 @@ function mergeProducts(prev: FactoryProduct[], incoming: FactoryProduct[]) {
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   loading: {paddingVertical: 48, alignItems: 'center'},
+  topTabs: {borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#EFF5F3', borderBottomWidth: 1, borderBottomColor: colors.border},
   gap: {height: 12, backgroundColor: '#F4FBF8'},
   footer: {alignItems: 'center', paddingVertical: 16},
   footerText: {color: '#9DA4A3', fontSize: 12},

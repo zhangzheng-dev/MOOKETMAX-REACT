@@ -11,24 +11,25 @@ import {MerchantSortBar, type MerchantSortMode} from '../components/detail/Merch
 import {OfferCardCompact} from '../components/detail/OfferCardCompact';
 import {OriginalTextSheet} from '../components/detail/OriginalTextSheet';
 import {ErrorState} from '../components/common/ErrorState';
-import type {OfferTab} from '../components/detail/TabAndSortBar';
+import {OfferInquiryTabs, type OfferTab} from '../components/detail/TabAndSortBar';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {MerchantDetail, OfferSummary} from '../types/api';
 import {copyToClipboard, dialPhone} from '../utils/contact';
 import type {OriginalTextPayload} from '../utils/originalText';
 import {extractCity, splitTags} from '../utils/offer';
+import {countUniqueFactories, countUniqueProducts, pickTabNumber} from '../utils/tabStats';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Merchant'>;
 
 const pageSize = 20;
 
 export function MerchantScreen({navigation, route}: Props) {
-  const {merchantId, category} = route.params;
+  const {merchantId, category, initialTab} = route.params;
   const [detail, setDetail] = useState<MerchantDetail | null>(null);
   const [offers, setOffers] = useState<OfferSummary[]>([]);
   const [inquiries, setInquiries] = useState<OfferSummary[]>([]);
-  const [tab, setTab] = useState<OfferTab>('offer');
+  const [tab, setTab] = useState<OfferTab>(initialTab ?? 'offer');
   const [sort, setSort] = useState<MerchantSortMode>({kind: 'comprehensive'});
   const [page, setPage] = useState({offer: 1, inquiry: 1});
   const [hasMore, setHasMore] = useState({offer: true, inquiry: true});
@@ -160,6 +161,20 @@ export function MerchantScreen({navigation, route}: Props) {
     () => (tab === 'offer' ? detail?.offerFilterOptions : detail?.inquiryFilterOptions) ?? null,
     [detail?.inquiryFilterOptions, detail?.offerFilterOptions, tab],
   );
+  const dashboardProductCount =
+    pickTabNumber(detail, tab, {
+      offer: ['offerProductCount', 'productOfferCount', 'todayOfferProductCount'],
+      inquiry: ['inquiryProductCount', 'productInquiryCount', 'todayInquiryProductCount'],
+    }) ??
+    currentFilterOptions?.products?.length ??
+    countUniqueProducts(currentList);
+  const dashboardFactoryCount =
+    pickTabNumber(detail, tab, {
+      offer: ['offerFactoryCount', 'factoryOfferCount', 'todayOfferFactoryCount'],
+      inquiry: ['inquiryFactoryCount', 'factoryInquiryCount', 'todayInquiryFactoryCount'],
+    }) ??
+    currentFilterOptions?.countryFactories?.length ??
+    countUniqueFactories(currentList);
 
   const allCountries = useMemo(() => currentFilterOptions?.countries ?? [], [currentFilterOptions?.countries]);
   const allFactoryKeys = useMemo(
@@ -218,6 +233,7 @@ export function MerchantScreen({navigation, route}: Props) {
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }
       />
+      <OfferInquiryTabs tab={tab} onTabChange={setTab} style={styles.topTabs} />
 
       {loading && !detail ? (
         <View style={styles.loading}>
@@ -241,16 +257,9 @@ export function MerchantScreen({navigation, route}: Props) {
                   {
                     label: tab === 'offer' ? '近2日报盘' : '近2日求购',
                     value: tab === 'offer' ? detail.todayOfferCount : detail.todayInquiryCount,
-                    onPress: () =>
-                      navigation.navigate('OfferFeed', {
-                        category,
-                        initialTab: tab,
-                        keyword: detail.merchantShortName || detail.merchantName,
-                        merchantId,
-                      }),
                   },
-                  {label: '产品数', value: detail.todayProductCount},
-                  {label: '工厂数', value: detail.todayFactoryCount},
+                  {label: '产品数', value: dashboardProductCount},
+                  {label: '工厂数', value: dashboardFactoryCount},
                 ]}
               />
               <View style={styles.gap} />
@@ -258,7 +267,7 @@ export function MerchantScreen({navigation, route}: Props) {
           }
           renderSectionHeader={() => (
             <View style={styles.stickyHeader}>
-              <MerchantSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} />
+              <MerchantSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} showTabs={false} />
               <FilterBar filters={filters} active={activeFilter} onPress={setActiveFilter} />
             </View>
           )}
@@ -477,6 +486,7 @@ function toggle<T>(set: Set<T>, value: T): Set<T> {
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   loading: {paddingVertical: 48, alignItems: 'center'},
+  topTabs: {borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#EFF5F3', borderBottomWidth: 1, borderBottomColor: colors.border},
   gap: {height: 12, backgroundColor: '#F4FBF8'},
   footer: {alignItems: 'center', paddingVertical: 8},
   footerText: {color: '#9DA4A3', fontSize: 11, lineHeight: 18},

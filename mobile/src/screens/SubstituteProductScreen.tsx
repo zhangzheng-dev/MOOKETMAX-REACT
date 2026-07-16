@@ -260,6 +260,9 @@ export function SubstituteProductScreen({navigation, route}: Props) {
             <MerchantOfferGroupCard
               group={item}
               isInquiry={tab === 'inquiry'}
+              country={country}
+              factoryNo={selectedFactory}
+              productName={productName}
               onCopyPhone={item.merchantPhone ?? undefined}
               onDial={item.merchantPhone ?? undefined}
               onViewOriginalText={value => setOriginalText(value)}

@@ -31,6 +31,10 @@ export function OriginalTextSheet({
   }, [visible]);
 
   useEffect(() => {
+    setSegmentLayouts({});
+  }, [keywords, text]);
+
+  useEffect(() => {
     if (!visible || analysis.bestSegmentIndex < 0) return;
     const y = segmentLayouts[analysis.bestSegmentIndex];
     if (typeof y === 'number') {
@@ -59,17 +63,22 @@ export function OriginalTextSheet({
             keyboardShouldPersistTaps="handled">
             {text ? (
               analysis.segments.length > 0 ? (
-                analysis.segments.map((segment, index) => (
-                  <Text
-                    key={`${index}-${segment.slice(0, 12)}`}
-                    style={styles.text}
-                    onLayout={(event: LayoutChangeEvent) => {
-                      const y = event.nativeEvent.layout.y;
-                      setSegmentLayouts(prev => (prev[index] === y ? prev : {...prev, [index]: y}));
-                    }}>
-                    {renderTextWithPhones(segment)}
-                  </Text>
-                ))
+                analysis.segments.map((segment, index) => {
+                  const active = index === analysis.bestSegmentIndex;
+                  return (
+                    <View
+                      key={`${index}-${segment.slice(0, 12)}`}
+                      style={styles.segmentBlock}
+                      onLayout={(event: LayoutChangeEvent) => {
+                        const y = event.nativeEvent.layout.y;
+                        setSegmentLayouts(prev => (prev[index] === y ? prev : {...prev, [index]: y}));
+                      }}>
+                      <Text style={[styles.text, active && styles.textActive]}>
+                        {renderTextWithPhones(segment)}
+                      </Text>
+                    </View>
+                  );
+                })
               ) : (
                 <Text style={styles.text}>{renderTextWithPhones(text)}</Text>
               )
@@ -152,11 +161,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 24,
   },
+  segmentBlock: {
+    marginBottom: 6,
+  },
   text: {
     color: '#3C4947',
     fontSize: 14,
     lineHeight: 22,
-    marginBottom: 6,
+  },
+  textActive: {
+    color: colors.primary,
   },
   phoneText: {
     color: colors.primary,

@@ -59,6 +59,7 @@ export type HomeCardItem = {
   rank?: number | null;
   todayOfferCount?: number | null;
   historyId?: number | null;
+  createTime?: string | null;
   productId?: number | null;
   productName?: string | null;
   merchantCount?: number | null;
