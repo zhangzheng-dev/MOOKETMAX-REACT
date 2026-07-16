@@ -124,6 +124,9 @@ export function OfferCard({
               key={`${item.offerId ?? `${item.userNickname}-${index}`}`}
               offer={item}
               merchantPhone={merchantPhone}
+              country={offer.country}
+              factoryNo={offer.factoryNo}
+              productName={offer.productName}
               fallbackGoodsType={offer.goodsType}
               fallbackFeedingType={offer.feedingType}
               onCopyPhone={onCopyPhone}
@@ -139,6 +142,9 @@ export function OfferCard({
 function EmployeeOfferCard({
   offer,
   merchantPhone,
+  country,
+  factoryNo,
+  productName,
   fallbackGoodsType,
   fallbackFeedingType,
   onCopyPhone,
@@ -147,6 +153,9 @@ function EmployeeOfferCard({
 }: {
   offer: EmployeeOffer;
   merchantPhone?: string | null;
+  country?: string | null;
+  factoryNo?: string | null;
+  productName?: string | null;
   fallbackGoodsType?: string | null;
   fallbackFeedingType?: string | null;
   onCopyPhone?: () => void;
@@ -227,6 +236,9 @@ function EmployeeOfferCard({
               onViewOriginalText?.(
                 buildOriginalTextPayload({
                   text: offer.offerOriginalText,
+                  country,
+                  factoryNo,
+                  productName,
                   price: offer.price,
                   priceMax: offer.priceMax,
                   goodsLocation: offer.goodsLocation,

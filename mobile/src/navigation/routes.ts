@@ -1,7 +1,7 @@
 export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
-  Search: {category: string; keyword?: string};
+  Search: {category: string; keyword?: string; initialTab?: 'offer' | 'inquiry'};
   OfferFeed: {
     category: string;
     initialTab?: 'offer' | 'inquiry';
@@ -16,18 +16,19 @@ export type RootStackParamList = {
       factoryNo?: string | null;
     };
   };
-  HomeCards: {category?: string; tab?: 0 | 1} | undefined;
-  Merchant: {merchantId: number | string; category: string};
-  Product: {productId: number; category: string; productName: string; searchKeyword?: string};
-  Country: {country: string; category: string; searchKeyword?: string};
-  Factory: {country: string; factoryNo: string; category: string; searchKeyword?: string};
-  CountryProduct: {country: string; productName: string; category: string; searchKeyword?: string};
+  HomeCards: {category?: string} | undefined;
+  Merchant: {merchantId: number | string; category: string; initialTab?: 'offer' | 'inquiry'};
+  Product: {productId: number; category: string; productName: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
+  Country: {country: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
+  Factory: {country: string; factoryNo: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
+  CountryProduct: {country: string; productName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
   CountryFactoryProduct: {
     country: string;
     factoryNo: string;
     productName: string;
     category: string;
     searchKeyword?: string;
+    initialTab?: 'offer' | 'inquiry';
   };
   SubstituteProduct: {
     country: string;
@@ -43,8 +44,8 @@ export type RootStackParamList = {
     category: string;
     excludeFactoryNo?: string | null;
   };
-  Brand: {brandName: string; category: string; searchKeyword?: string};
-  BrandProduct: {brandName: string; productName: string; category: string; searchKeyword?: string};
+  Brand: {brandName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
+  BrandProduct: {brandName: string; productName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
   Profile: undefined;
   EditProfile: undefined;
   Inventory: undefined;

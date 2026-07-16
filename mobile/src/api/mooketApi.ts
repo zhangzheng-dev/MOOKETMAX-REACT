@@ -27,6 +27,7 @@ import type {
 } from '../types/api';
 
 const DETAIL_REQUEST_TTL_MS = 5 * 60 * 1000;
+const OFFER_FEED_REQUEST_TTL_MS = 60 * 1000;
 
 type DetailRequestCacheEntry<T> = {
   expiresAt: number;
@@ -66,6 +67,16 @@ function withDetailCache<T>(key: string, loader: () => Promise<T>, ttlMs = DETAI
     expiresAt: now + ttlMs,
   });
   return promise;
+}
+
+function buildRequestCacheKey(prefix: string, params: Record<string, unknown>) {
+  const entries = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  return `${prefix}:${entries
+    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(',') : String(value)}`)
+    .join('&')}`;
 }
 
 export const mooketApi = {
@@ -112,8 +123,20 @@ export const mooketApi = {
     sortBy?: string;
     page?: number;
     pageSize?: number;
+    skipCache?: boolean;
   }) {
-    return unwrap<OfferFeedPage>(apiClient.get('api/v1/offers/feed', {params}));
+    const {skipCache, ...requestParams} = params;
+    const loader = () => unwrap<OfferFeedPage>(apiClient.get('api/v1/offers/feed', {params: requestParams}));
+
+    if (skipCache) {
+      return loader();
+    }
+
+    return withDetailCache(
+      buildRequestCacheKey('offerFeed', requestParams),
+      loader,
+      OFFER_FEED_REQUEST_TTL_MS,
+    );
   },
 
   getSearchSuggestions(category: string, keyword: string) {

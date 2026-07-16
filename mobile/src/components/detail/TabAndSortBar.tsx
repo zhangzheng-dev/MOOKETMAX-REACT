@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewStyle,
 } from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import {colors} from '../../theme/colors';
@@ -21,17 +22,77 @@ type Props = {
   onTabChange: (next: OfferTab) => void;
   sort: SortMode;
   onSortChange: (next: SortMode) => void;
+  showTabs?: boolean;
   showRecommend?: boolean;
   showPublishTime?: boolean;
   offerLabel?: string;
   inquiryLabel?: string;
 };
 
+type OfferInquiryTabsProps = {
+  tab: OfferTab;
+  onTabChange: (next: OfferTab) => void;
+  style?: ViewStyle;
+  offerLabel?: string;
+  inquiryLabel?: string;
+};
+
+export function OfferInquiryTabs({
+  tab,
+  onTabChange,
+  style,
+  offerLabel = '报盘',
+  inquiryLabel = '求购',
+}: OfferInquiryTabsProps) {
+  const [visualTab, setVisualTab] = React.useState<OfferTab>(tab);
+  const pendingFrame = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    setVisualTab(tab);
+  }, [tab]);
+
+  React.useEffect(
+    () => () => {
+      if (pendingFrame.current != null) {
+        cancelAnimationFrame(pendingFrame.current);
+      }
+    },
+    [],
+  );
+
+  const handleTabPress = React.useCallback(
+    (next: OfferTab) => {
+      if (next === visualTab) return;
+      setVisualTab(next);
+      if (pendingFrame.current != null) {
+        cancelAnimationFrame(pendingFrame.current);
+      }
+      pendingFrame.current = requestAnimationFrame(() => {
+        pendingFrame.current = null;
+        onTabChange(next);
+      });
+    },
+    [onTabChange, visualTab],
+  );
+
+  return (
+    <View style={[styles.topTabs, style]}>
+      <TopTabItem text={offerLabel} active={visualTab === 'offer'} onPress={() => handleTabPress('offer')} />
+      <TopTabItem
+        text={inquiryLabel}
+        active={visualTab === 'inquiry'}
+        onPress={() => handleTabPress('inquiry')}
+      />
+    </View>
+  );
+}
+
 export function TabAndSortBar({
   tab,
   onTabChange,
   sort,
   onSortChange,
+  showTabs = true,
   showRecommend = true,
   showPublishTime = false,
   offerLabel = '报盘',
@@ -58,15 +119,17 @@ export function TabAndSortBar({
 
   return (
     <View style={styles.bar}>
-      <View style={styles.left}>
-        <TabItem text={offerLabel} active={tab === 'offer'} onPress={() => onTabChange('offer')} />
-        <TabItem
-          text={inquiryLabel}
-          active={tab === 'inquiry'}
-          onPress={() => onTabChange('inquiry')}
-        />
-      </View>
-      <View style={styles.right}>
+      {showTabs ? (
+        <View style={styles.left}>
+          <TabItem text={offerLabel} active={tab === 'offer'} onPress={() => onTabChange('offer')} />
+          <TabItem
+            text={inquiryLabel}
+            active={tab === 'inquiry'}
+            onPress={() => onTabChange('inquiry')}
+          />
+        </View>
+      ) : null}
+      <View style={[styles.right, !showTabs && styles.rightOnly]}>
         {showRecommend ? (
           <SortItem
             text="综合推荐"
@@ -101,6 +164,15 @@ function TabItem({text, active, onPress}: {text: string; active: boolean; onPres
   );
 }
 
+function TopTabItem({text, active, onPress}: {text: string; active: boolean; onPress: () => void}) {
+  return (
+    <Pressable onPress={onPress} style={styles.item}>
+      <Text style={[styles.topTabText, active && styles.topTabTextActive]}>{text}</Text>
+      <View style={[styles.indicator, active && styles.indicatorActive]} />
+    </Pressable>
+  );
+}
+
 function SortItem({
   text,
   active,
@@ -124,6 +196,16 @@ function SortItem({
 }
 
 const styles = StyleSheet.create({
+  topTabs: {
+    minHeight: 40,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 32,
+    paddingTop: 6,
+    paddingBottom: 4,
+  },
   bar: {
     minHeight: 44,
     backgroundColor: '#FFFFFF',
@@ -149,6 +231,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     justifyContent: 'flex-end',
   },
+  rightOnly: {
+    flex: 1,
+  },
   item: {
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -164,6 +249,17 @@ const styles = StyleSheet.create({
     height: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  topTabText: {
+    color: '#171D1C',
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  topTabTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
   },
   text: {
     color: '#3C4947',

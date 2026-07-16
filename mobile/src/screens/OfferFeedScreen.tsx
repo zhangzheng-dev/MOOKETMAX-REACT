@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -56,7 +56,7 @@ type FeedFilters = {
   tag?: string | null;
 };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const categoryOptions = ['牛', '猪'];
 const sortOptions: Array<{label: string; value: SortMode}> = [
   {label: '综合排序', value: {kind: 'comprehensive'}},
@@ -108,9 +108,11 @@ export function OfferFeedScreen({navigation, route}: Props) {
   const [activeFilter, setActiveFilter] = useState<FeedFilterKey | null>(null);
   const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
   const [sortOverlayTop, setSortOverlayTop] = useState(0);
+  const requestSeqRef = useRef(0);
 
   const loadPage = useCallback(
     async (nextPage: number, mode: 'replace' | 'refresh' | 'more' = 'replace') => {
+      const requestSeq = (requestSeqRef.current += 1);
       if (mode === 'more') {
         setLoadingMore(true);
       } else if (mode === 'refresh') {
@@ -139,7 +141,9 @@ export function OfferFeedScreen({navigation, route}: Props) {
           sortBy,
           page: nextPage,
           pageSize: PAGE_SIZE,
+          skipCache: mode === 'refresh',
         });
+        if (requestSeq !== requestSeqRef.current) return;
         setItems(prev => (mode === 'more' ? prev.concat(result.items ?? []) : result.items ?? []));
         setFilterOptions(result.filterOptions ?? {});
         setTotalCount(result.totalCount ?? 0);
@@ -147,15 +151,18 @@ export function OfferFeedScreen({navigation, route}: Props) {
         setTotalPages(result.totalPages ?? 1);
         setError(null);
       } catch (err) {
+        if (requestSeq !== requestSeqRef.current) return;
         setError(err instanceof Error ? err.message : '加载失败，请稍后重试');
         if (mode !== 'more') {
           setItems([]);
           setTotalCount(0);
         }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
-        setLoadingMore(false);
+        if (requestSeq === requestSeqRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+          setLoadingMore(false);
+        }
       }
     },
     [brandName, category, filters, keyword, merchantId, productName, quotedOnly, realNameOnly, sortBy, tab, verifiedOnly],
@@ -388,6 +395,11 @@ export function OfferFeedScreen({navigation, route}: Props) {
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadPage(1, 'refresh')} />}
         onEndReachedThreshold={0.25}
+        initialNumToRender={PAGE_SIZE}
+        maxToRenderPerBatch={PAGE_SIZE}
+        updateCellsBatchingPeriod={16}
+        windowSize={5}
+        removeClippedSubviews={false}
         onEndReached={() => {
           if (!loading && !loadingMore && page < totalPages) {
             loadPage(page + 1, 'more').catch(() => undefined);
@@ -650,6 +662,7 @@ export function OfferFeedCard({
   const phone = item.contactPhone?.trim() ?? '';
   const detailParts = buildDetailParts(item);
   const isInquiry = tab === 'inquiry';
+  const priceText = price.amount ?? (isInquiry ? null : '协商报价');
 
   return (
     <View style={styles.card}>
@@ -680,12 +693,14 @@ export function OfferFeedCard({
             <Text style={styles.publisherNameText} numberOfLines={1}>{publisherName}</Text>
           </View>
         </Pressable>
-        <View style={styles.priceLine}>
-          <Text style={[styles.priceValue, !price.amount && styles.negotiateText]} numberOfLines={1}>
-            {price.amount || '协商报价'}
-          </Text>
-          {price.unit ? <Text style={styles.priceUnit}>{price.unit}</Text> : null}
-        </View>
+        {priceText ? (
+          <View style={styles.priceLine}>
+            <Text style={[styles.priceValue, !price.amount && styles.negotiateText]} numberOfLines={1}>
+              {priceText}
+            </Text>
+            {price.unit ? <Text style={styles.priceUnit}>{price.unit}</Text> : null}
+          </View>
+        ) : null}
       </View>
 
       {hasRealName(item.merchantTags) || hasVerified(item.merchantTags) ? (
@@ -717,6 +732,8 @@ export function OfferFeedCard({
                 remark: item.remark,
                 publishTime: item.publishTime,
                 userNickname: item.userNickname,
+                merchantName: item.merchantName,
+                merchantShortName: item.merchantShortName,
               }),
             )
           }>
@@ -1452,9 +1469,9 @@ const styles = StyleSheet.create({
   },
   cardHeader: {flexDirection: 'row', alignItems: 'center', gap: 8},
   typeBadge: {
-    minWidth: 44,
-    height: 28,
-    paddingHorizontal: 8,
+    minWidth: 38,
+    height: 24,
+    paddingHorizontal: 7,
     borderRadius: 4,
     borderWidth: 1,
     alignItems: 'center',
@@ -1462,10 +1479,10 @@ const styles = StyleSheet.create({
   },
   typeBadgeOffer: {backgroundColor: '#EAF9F7', borderColor: '#BDE9E4'},
   typeBadgeInquiry: {backgroundColor: '#EEF4FF', borderColor: '#C8D8FF'},
-  typeBadgeText: {fontSize: 16, lineHeight: 20, fontWeight: '700'},
+  typeBadgeText: {fontSize: 13, lineHeight: 18, fontWeight: '400'},
   typeBadgeTextOffer: {color: colors.primary},
   typeBadgeTextInquiry: {color: '#3767D6'},
-  cardTitle: {flex: 1, color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: '700'},
+  cardTitle: {flex: 1, color: colors.text, fontSize: 16, lineHeight: 20, fontWeight: '500'},
   cardTime: {color: colors.textMuted, fontSize: 14, lineHeight: 20, flexShrink: 0},
   detailRow: {
     marginTop: 10,
@@ -1536,9 +1553,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   priceLine: {flexDirection: 'row', alignItems: 'baseline', flexShrink: 0, justifyContent: 'flex-end', maxWidth: '32%'},
-  priceValue: {fontFamily: fonts.manropeBold, color: colors.price, fontSize: 24, lineHeight: 32},
-  priceUnit: {color: colors.price, fontSize: 13, lineHeight: 18, marginLeft: 2},
-  negotiateText: {fontFamily: undefined, color: '#E56B2F', fontSize: 18, lineHeight: 24, fontWeight: '600'},
+  priceValue: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 16, lineHeight: 20},
+  priceUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20, marginLeft: 2},
+  negotiateText: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 16, lineHeight: 20},
   actionDivider: {
     marginTop: 10,
     height: StyleSheet.hairlineWidth,

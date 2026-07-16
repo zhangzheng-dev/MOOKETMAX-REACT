@@ -4,23 +4,26 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {DataDashboard} from '../components/detail/DataDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {InquiryFeedSectionList} from '../components/detail/InquiryFeedSectionList';
 import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
-import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
+import {OfferInquiryTabs, TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
+import {useInquiryFeed} from '../hooks/useInquiryFeed';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {ProductDetail, ProductSummary} from '../types/api';
+import {getTabCount, getTabFactoryCount, getTabMerchantCount} from '../utils/tabStats';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Product'>;
 
 const pageSize = 20;
 
 export function ProductScreen({navigation, route}: Props) {
-  const {productId, category, productName, searchKeyword: routeSearchKeyword} = route.params;
+  const {productId, category, productName, searchKeyword: routeSearchKeyword, initialTab} = route.params;
   const searchKeyword = routeSearchKeyword ?? productName;
   const [data, setData] = useState<ProductDetail | null>(null);
-  const [tab, setTab] = useState<OfferTab>('offer');
+  const [tab, setTab] = useState<OfferTab>(initialTab ?? 'offer');
   const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -30,8 +33,21 @@ export function ProductScreen({navigation, route}: Props) {
     () => sortToParam(sort),
     [sort],
   );
+  const handleTabChange = useCallback(
+    (nextTab: OfferTab) => {
+      if (nextTab === tab) return;
+      setTab(nextTab);
+    },
+    [tab],
+  );
   const summaries = data?.summaries ?? [];
   const currentProductName = data?.productName || productName;
+  const inquiryFeed = useInquiryFeed({
+    enabled: Boolean(currentProductName),
+    category,
+    sortBy: requestSortParam,
+    productName: currentProductName,
+  });
   const selfSelectCard = currentProductName
     ? {cardType: 'product', productId, productName: currentProductName}
     : null;
@@ -66,8 +82,14 @@ export function ProductScreen({navigation, route}: Props) {
   }, [category, productId, requestSortParam, tab]);
 
   useEffect(() => {
+    if (tab !== 'offer') return;
     loadFirst().catch(() => undefined);
-  }, [loadFirst]);
+  }, [loadFirst, tab]);
+
+  useEffect(() => {
+    if (tab !== 'inquiry' || data) return;
+    loadFirst().catch(() => undefined);
+  }, [data, loadFirst, tab]);
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !data) return;
@@ -92,23 +114,48 @@ export function ProductScreen({navigation, route}: Props) {
     }
   }, [category, data, loading, loadingMore, page, productId, requestSortParam, tab]);
 
+  const listHeader = data ? (
+    <View>
+      <DataDashboard
+        title={data.productName}
+        mainStat={{
+          label: tab === 'offer' ? '近2日报盘' : '近2日求购',
+          value: tab === 'inquiry' ? inquiryFeed.totalCount : getTabCount(data, tab),
+        }}
+        priceRange={{min: data.priceMin, max: data.priceMax}}
+        stats={[
+          {label: '商家数', value: getTabMerchantCount(data, tab)},
+          {label: '工厂数', value: getTabFactoryCount(data, tab)},
+        ]}
+      />
+      <View style={styles.gap} />
+    </View>
+  ) : null;
+
+  const stickyHeader = () => (
+    <View style={styles.stickyHeader}>
+      <TabAndSortBar tab={tab} onTabChange={handleTabChange} sort={sort} onSortChange={setSort} showTabs={false} />
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <DetailTopBar
         onBack={() => navigation.goBack()}
         onSearchPress={() => {
           navigation.popToTop();
-          navigation.navigate('Search', {category, keyword: searchKeyword});
+          navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: tab});
         }}
         tags={[
           {
             text: productName,
             onClose: () => {
               navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword});
+              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: tab});
             },
           },
         ]}
+        topSlot={<OfferInquiryTabs tab={tab} onTabChange={handleTabChange} />}
         rightAction={
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }
@@ -120,6 +167,20 @@ export function ProductScreen({navigation, route}: Props) {
         </View>
       ) : error && !data ? (
         <ErrorState message={error} onRetry={loadFirst} />
+      ) : data && tab === 'inquiry' ? (
+        <InquiryFeedSectionList
+          items={inquiryFeed.items}
+          category={category}
+          navigation={navigation}
+          loading={inquiryFeed.loading}
+          refreshing={inquiryFeed.refreshing}
+          loadingMore={inquiryFeed.loadingMore}
+          error={inquiryFeed.error}
+          onRefresh={inquiryFeed.refresh}
+          onLoadMore={inquiryFeed.loadMore}
+          ListHeaderComponent={listHeader}
+          renderSectionHeader={stickyHeader}
+        />
       ) : data ? (
         <SectionList
           sections={[{key: 'items', data: summaries}]}
@@ -135,19 +196,12 @@ export function ProductScreen({navigation, route}: Props) {
                 title={data.productName}
                 mainStat={{
                   label: tab === 'offer' ? '近2日报盘' : '近2日求购',
-                  value: data.offerCount,
-                  onPress: () =>
-                    navigation.navigate('OfferFeed', {
-                      category,
-                      initialTab: tab,
-                      keyword: data.productName || currentProductName,
-                      keywordScope: 'product',
-                    }),
+                  value: getTabCount(data, tab),
                 }}
                 priceRange={{min: data.priceMin, max: data.priceMax}}
                 stats={[
-                  {label: '商家数', value: data.merchantCount},
-                  {label: '工厂数', value: data.factoryCount},
+                  {label: '商家数', value: getTabMerchantCount(data, tab)},
+                  {label: '工厂数', value: getTabFactoryCount(data, tab)},
                 ]}
               />
               <View style={styles.gap} />
@@ -155,7 +209,7 @@ export function ProductScreen({navigation, route}: Props) {
           }
           renderSectionHeader={() => (
             <View style={styles.stickyHeader}>
-              <TabAndSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} />
+              <TabAndSortBar tab={tab} onTabChange={handleTabChange} sort={sort} onSortChange={setSort} showTabs={false} />
             </View>
           )}
           renderItem={({item}) => (
@@ -163,7 +217,7 @@ export function ProductScreen({navigation, route}: Props) {
               title={buildCountryFactoryTitle(item.country, item.factoryNo, item.countryFactory)}
               merchantNames={item.merchantNames}
               merchantCount={item.merchantCount}
-              count={item.offerCount}
+              count={getTabCount(item, tab)}
               countLabel={tab === 'offer' ? '报盘' : '求购'}
               priceMin={item.priceMin}
               priceMax={item.priceMax}
@@ -173,6 +227,7 @@ export function ProductScreen({navigation, route}: Props) {
                   factoryNo: item.factoryNo ?? '',
                   productName: data.productName,
                   category,
+                  initialTab: tab,
                 })
               }
             />
@@ -244,6 +299,12 @@ const styles = StyleSheet.create({
   loading: {
     paddingVertical: 48,
     alignItems: 'center',
+  },
+  topTabs: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EFF5F3',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   gap: {
     height: 12,

@@ -15,17 +15,20 @@ import {mooketApi} from '../api/mooketApi';
 import {CountryProductDashboard} from '../components/detail/CountryProductDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
 import {SelfSelectButton} from '../components/detail/SelfSelectButton';
+import {InquiryFeedSectionList} from '../components/detail/InquiryFeedSectionList';
 import {FilterBar, type FilterKey} from '../components/detail/FilterBar';
 import {FilterPanelSheet, MultiSelectChips} from '../components/detail/FilterPanelSheet';
 import {MerchantOfferGroupCard} from '../components/detail/MerchantOfferGroupCard';
 import {OriginalTextSheet} from '../components/detail/OriginalTextSheet';
-import {TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
+import {OfferInquiryTabs, TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
+import {useInquiryFeed} from '../hooks/useInquiryFeed';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {CountryFactoryProductDetail, MerchantOfferGroup} from '../types/api';
 import {extractCity, splitTags} from '../utils/offer';
 import type {OriginalTextPayload} from '../utils/originalText';
+import {getTabCount, getTabMerchantCount} from '../utils/tabStats';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CountryFactoryProduct'>;
 
@@ -48,10 +51,10 @@ function buildCFLabel(country?: string | null, factoryNo?: string | null): strin
 }
 
 export function CountryFactoryProductScreen({navigation, route}: Props) {
-  const {country, factoryNo, productName, category, searchKeyword: routeSearchKeyword} = route.params;
+  const {country, factoryNo, productName, category, searchKeyword: routeSearchKeyword, initialTab} = route.params;
   const searchKeyword = routeSearchKeyword ?? `${country}${factoryNo}${productName}`;
   const [data, setData] = useState<CountryFactoryProductDetail | null>(null);
-  const [tab, setTab] = useState<OfferTab>('offer');
+  const [tab, setTab] = useState<OfferTab>(initialTab ?? 'offer');
   const [sort, setSort] = useState<SortMode>({kind: 'comprehensive'});
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -77,6 +80,21 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   const currentCountry = data?.country || country;
   const currentFactoryNo = data?.factoryNo || factoryNo;
   const currentProductName = data?.productName || productName;
+  const inquiryFeed = useInquiryFeed({
+    enabled: Boolean(currentCountry && currentFactoryNo && currentProductName),
+    category,
+    sortBy: requestSortParam,
+    productName: currentProductName,
+    country: currentCountry,
+    factoryNo: currentFactoryNo,
+  });
+  const handleTabChange = useCallback(
+    (nextTab: OfferTab) => {
+      if (nextTab === tab) return;
+      setTab(nextTab);
+    },
+    [tab],
+  );
   const selfSelectCard = currentCountry && currentFactoryNo && currentProductName
     ? {
         cardType: 'factoryProduct',
@@ -119,8 +137,14 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   }, [category, country, factoryNo, productName, requestSortParam, tab]);
 
   useEffect(() => {
+    if (tab !== 'offer') return;
     loadFirst().catch(() => undefined);
-  }, [loadFirst]);
+  }, [loadFirst, tab]);
+
+  useEffect(() => {
+    if (tab !== 'inquiry' || data) return;
+    loadFirst().catch(() => undefined);
+  }, [data, loadFirst, tab]);
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !data) return;
@@ -262,7 +286,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         onBack={() => navigation.goBack()}
         onSearchPress={() => {
           navigation.popToTop();
-          navigation.navigate('Search', {category, keyword: searchKeyword});
+          navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: tab});
         }}
         tags={[
           {
@@ -273,15 +297,17 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
                   productId: data.productId,
                   category,
                   productName,
+                  initialTab: tab,
                 });
               }
             },
           },
           {
             text: productName,
-            onClose: () => navigation.navigate('Factory', {country, factoryNo, category}),
+            onClose: () => navigation.navigate('Factory', {country, factoryNo, category, initialTab: tab}),
           },
         ]}
+        topSlot={<OfferInquiryTabs tab={tab} onTabChange={handleTabChange} />}
         rightAction={
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }
@@ -293,6 +319,49 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         </View>
       ) : error && !data ? (
         <ErrorState message={error} onRetry={loadFirst} />
+      ) : data && tab === 'inquiry' ? (
+        <InquiryFeedSectionList
+          items={inquiryFeed.items}
+          category={category}
+          navigation={navigation}
+          loading={inquiryFeed.loading}
+          refreshing={inquiryFeed.refreshing}
+          loadingMore={inquiryFeed.loadingMore}
+          error={inquiryFeed.error}
+          onRefresh={inquiryFeed.refresh}
+          onLoadMore={inquiryFeed.loadMore}
+          ListHeaderComponent={
+            <View>
+              <CountryProductDashboard
+                country={buildCFLabel(currentCountry, currentFactoryNo)}
+                productName={data.productName || productName}
+                isInquiry
+                priceMin={data.priceMin}
+                priceMax={data.priceMax}
+                priceChange={data.priceChange}
+                priceChangeRate={data.priceChangeRate}
+                offerCount={getTabCount(data, 'offer')}
+                inquiryCount={inquiryFeed.totalCount}
+                merchantCount={getTabMerchantCount(data, tab)}
+                history7Days={data.priceHistory7Days}
+                history30Days={data.priceHistory30Days}
+              />
+              <View style={styles.gap} />
+            </View>
+          }
+          renderSectionHeader={() => (
+            <View style={styles.stickyHeader}>
+              <TabAndSortBar
+                tab={tab}
+                onTabChange={handleTabChange}
+                sort={sort}
+                onSortChange={setSort}
+                showPublishTime
+                showTabs={false}
+              />
+            </View>
+          )}
+        />
       ) : data ? (
         <>
           <SectionList
@@ -313,31 +382,11 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
                   priceMax={data.priceMax}
                   priceChange={data.priceChange}
                   priceChangeRate={data.priceChangeRate}
-                  offerCount={data.offerCount}
-                  inquiryCount={data.inquiryCount}
-                  merchantCount={data.merchantCount}
+                  offerCount={getTabCount(data, 'offer')}
+                  inquiryCount={getTabCount(data, 'inquiry')}
+                  merchantCount={getTabMerchantCount(data, tab)}
                   history7Days={data.priceHistory7Days}
                   history30Days={data.priceHistory30Days}
-                  onOfferPress={() =>
-                    navigation.navigate('OfferFeed', {
-                      category,
-                      initialTab: 'offer',
-                      keyword: `${currentCountry}${currentFactoryNo} ${data.productName || productName}`,
-                      queryKeyword: data.productName || productName,
-                      keywordScope: 'product',
-                      initialFilters: {country: currentCountry, factoryNo: currentFactoryNo},
-                    })
-                  }
-                  onInquiryPress={() =>
-                    navigation.navigate('OfferFeed', {
-                      category,
-                      initialTab: 'inquiry',
-                      keyword: `${currentCountry}${currentFactoryNo} ${data.productName || productName}`,
-                      queryKeyword: data.productName || productName,
-                      keywordScope: 'product',
-                      initialFilters: {country: currentCountry, factoryNo: currentFactoryNo},
-                    })
-                  }
                 />
                 <View style={styles.gap} />
               </View>
@@ -346,10 +395,11 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
               <View style={styles.stickyHeader}>
                 <TabAndSortBar
                   tab={tab}
-                  onTabChange={setTab}
+                  onTabChange={handleTabChange}
                   sort={sort}
                   onSortChange={setSort}
                   showPublishTime
+                  showTabs={false}
                 />
                 <FilterBar
                   filters={filterDefs}
@@ -362,6 +412,9 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
               <MerchantOfferGroupCard
                 group={item}
                 isInquiry={tab === 'inquiry'}
+                country={currentCountry}
+                factoryNo={currentFactoryNo}
+                productName={currentProductName}
                 onCopyPhone={item.merchantPhone ?? undefined}
                 onDial={item.merchantPhone ?? undefined}
                 onViewOriginalText={handleViewOriginalText}
@@ -676,6 +729,7 @@ function formatPriceRangeHint(min?: number | null, max?: number | null) {
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   loading: {paddingVertical: 48, alignItems: 'center'},
+  topTabs: {borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#EFF5F3', borderBottomWidth: 1, borderBottomColor: colors.border},
   gap: {height: 12, backgroundColor: '#F4FBF8'},
   itemDivider: {
     marginHorizontal: 16,

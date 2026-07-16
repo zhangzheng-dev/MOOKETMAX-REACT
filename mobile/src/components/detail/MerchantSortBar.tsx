@@ -22,6 +22,7 @@ type Props = {
   sort: MerchantSortMode;
   onSortChange: (next: MerchantSortMode) => void;
   hideInquiry?: boolean;
+  showTabs?: boolean;
 };
 
 export function MerchantSortBar({
@@ -30,6 +31,7 @@ export function MerchantSortBar({
   sort,
   onSortChange,
   hideInquiry = false,
+  showTabs = true,
 }: Props) {
   const priceOrder = sort.kind === 'price' ? sort.order : 'none';
 
@@ -52,13 +54,15 @@ export function MerchantSortBar({
 
   return (
     <View style={styles.bar}>
-      <View style={styles.left}>
-        <TabItem text="报盘" active={tab === 'offer'} onPress={() => onTabChange('offer')} />
-        {!hideInquiry ? (
-          <TabItem text="求购" active={tab === 'inquiry'} onPress={() => onTabChange('inquiry')} />
-        ) : null}
-      </View>
-      <View style={styles.right}>
+      {showTabs ? (
+        <View style={styles.left}>
+          <TabItem text="报盘" active={tab === 'offer'} onPress={() => onTabChange('offer')} />
+          {!hideInquiry ? (
+            <TabItem text="求购" active={tab === 'inquiry'} onPress={() => onTabChange('inquiry')} />
+          ) : null}
+        </View>
+      ) : null}
+      <View style={[styles.right, !showTabs && styles.rightOnly]}>
         <Pressable onPress={() => onSortChange({kind: 'comprehensive'})}>
           <Text style={[styles.sortText, sort.kind === 'comprehensive' && styles.sortTextActive]}>
             综合推荐
@@ -109,6 +113,7 @@ const styles = StyleSheet.create({
   },
   left: {flexDirection: 'row', alignItems: 'center', gap: 28},
   right: {flexDirection: 'row', alignItems: 'center', gap: 28},
+  rightOnly: {flex: 1, justifyContent: 'flex-end'},
   tabItem: {alignItems: 'center', gap: 2},
   tabText: {color: '#3C4947', fontSize: 14, lineHeight: 20, textAlign: 'center'},
   tabTextActive: {color: colors.text, fontWeight: '600'},

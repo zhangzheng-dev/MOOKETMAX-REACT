@@ -19,6 +19,9 @@ import {OfferTagChip} from './OfferTagChip';
 type Props = {
   group: MerchantOfferGroup;
   isInquiry?: boolean;
+  country?: string | null;
+  factoryNo?: string | null;
+  productName?: string | null;
   onCopyPhone?: string;
   onDial?: string;
   onViewOriginalText?: (payload: OriginalTextPayload) => void;
@@ -28,6 +31,9 @@ type Props = {
 function MerchantOfferGroupCardInner({
   group,
   isInquiry,
+  country,
+  factoryNo,
+  productName,
   onCopyPhone,
   onDial,
   onViewOriginalText,
@@ -120,6 +126,10 @@ function MerchantOfferGroupCardInner({
               }
               onDial={() => dialPhone(offer.contactPhone ?? onDial ?? null)}
               onViewOriginalText={onViewOriginalText}
+              country={country}
+              factoryNo={factoryNo}
+              productName={productName}
+              merchantName={group.merchantName}
             />
           ))}
           {group.offerCount > (group.employeeOffers?.length ?? 0) ? (
@@ -139,12 +149,20 @@ function EmployeeOfferRow({
   onCopyPhone,
   onDial,
   onViewOriginalText,
+  country,
+  factoryNo,
+  productName,
+  merchantName,
 }: {
   offer: EmployeeOfferItem;
   merchantPhone?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
   onViewOriginalText?: (payload: OriginalTextPayload) => void;
+  country?: string | null;
+  factoryNo?: string | null;
+  productName?: string | null;
+  merchantName?: string | null;
 }) {
   const [weightValue, weightUnit] = parseWeight(offer.weight);
   const time = formatPublishTime(offer.publishTime);
@@ -207,6 +225,9 @@ function EmployeeOfferRow({
             onViewOriginalText?.(
               buildOriginalTextPayload({
                 text: offer.offerOriginalText,
+                country,
+                factoryNo,
+                productName,
                 price: offer.price,
                 goodsLocation: offer.goodsLocation,
                 goodsType: offer.goodsType,
@@ -217,6 +238,7 @@ function EmployeeOfferRow({
                 remark,
                 publishTime: offer.publishTime,
                 userNickname: offer.userNickname,
+                merchantName,
               }),
             )
           }>
