@@ -17,6 +17,7 @@ export type RootStackParamList = {
       factoryNo?: string | null;
     };
   };
+  PlateFollow: {initialTab?: 'intent' | 'recent'; category?: string} | undefined;
   HomeCards: {category?: string} | undefined;
   Merchant: {merchantId: number | string; category: string; initialTab?: 'offer' | 'inquiry'; initialCategory?: 'all' | '牛' | '猪'};
   Product: {productId: number; category: string; productName: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};

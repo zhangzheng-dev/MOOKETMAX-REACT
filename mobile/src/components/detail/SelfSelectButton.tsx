@@ -16,7 +16,7 @@ type SelfSelectPayload = {
   country?: string | null;
   factoryNo?: string | null;
   brandId?: number | null;
-  merchantId?: number | null;
+  merchantId?: number | string | null;
 };
 
 type Props = {
@@ -220,8 +220,7 @@ async function findSelfSelectRecord(
 export function toHistoryMerchantId(value: number | string | null | undefined) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
+    return value.trim();
   }
   return null;
 }

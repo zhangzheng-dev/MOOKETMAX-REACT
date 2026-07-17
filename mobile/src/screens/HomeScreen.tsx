@@ -28,8 +28,13 @@ import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
 import type {HomeCardItem, HomeStatData, HotSearchItem, OfferFeedItem} from '../types/api';
 import {openHomeCard, openHotSearch} from '../utils/navigation';
+import {getPlateFollowCounts} from '../utils/plateFollowStore';
 import {getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
-import {sortSelfSelectCardsByCreateTime} from '../utils/selfSelectCards';
+import {
+  enrichSelfSelectCards,
+  mergeSelfSelectCardsWithHistories,
+  sortSelfSelectCardsByCreateTime,
+} from '../utils/selfSelectCards';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -49,7 +54,7 @@ export function HomeScreen({navigation}: Props) {
   const [hotSearches, setHotSearches] = useState<HotSearchItem[]>([]);
   const [cards, setCards] = useState<HomeCardItem[]>([]);
   const [homeInquiries, setHomeInquiries] = useState<OfferFeedItem[]>([]);
-  const [inquiryTickerPaused, setInquiryTickerPaused] = useState(false);
+  const [followCounts, setFollowCounts] = useState({intentCount: 0, recentCount: 0});
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -120,7 +125,7 @@ export function HomeScreen({navigation}: Props) {
     }
 
     try {
-      const [statData, hotData, selfSelectData, selfSelectHistories, inquiryFeedData] = await Promise.all([
+      const [statData, hotData, selfSelectData, selfSelectHistories, inquiryFeedData, followCountData] = await Promise.all([
         mooketApi.getHomeStatData(category),
         mooketApi.getHotSearchRecommendations(category),
         mooketApi.getSelfSelectCards(category),
@@ -134,13 +139,19 @@ export function HomeScreen({navigation}: Props) {
             sortBy: 'publishTime',
           })
           .catch(() => null),
+        getPlateFollowCounts().catch(() => ({intentCount: 0, recentCount: 0})),
       ]);
-      const selfSelectCards = selfSelectData.cards ?? [];
+      const mergedSelfSelectCards = mergeSelfSelectCardsWithHistories(
+        selfSelectData.cards ?? [],
+        selfSelectHistories,
+      );
+      const selfSelectCards = await enrichSelfSelectCards(category, mergedSelfSelectCards);
 
       setStat(statData);
       setHotSearches(hotData);
       setCards(sortSelfSelectCardsByCreateTime(selfSelectCards, selfSelectHistories));
       setHomeInquiries(inquiryFeedData?.items ?? []);
+      setFollowCounts(followCountData);
       inquiryTickerY.setValue(0);
     } finally {
       setLoading(false);
@@ -170,7 +181,7 @@ export function HomeScreen({navigation}: Props) {
     inquiryTickerLoopRef.current?.stop();
     inquiryTickerLoopRef.current = null;
 
-    if (inquiryTickerPaused || homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
+    if (homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
       if (homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
         inquiryTickerY.setValue(0);
       }
@@ -196,7 +207,7 @@ export function HomeScreen({navigation}: Props) {
         inquiryTickerLoopRef.current = null;
       }
     };
-  }, [homeInquiries.length, inquiryTickerPaused, inquiryTickerY]);
+  }, [homeInquiries.length, inquiryTickerY]);
 
   const visibleHomeInquiries = useMemo(() => {
     if (homeInquiries.length === 0) return [];
@@ -219,6 +230,14 @@ export function HomeScreen({navigation}: Props) {
 
   function openSearch(initialTab?: 'offer' | 'inquiry' | 'merchant') {
     navigation.navigate('Search', initialTab ? {category, initialTab} : {category});
+  }
+
+  function openIntentPlates() {
+    navigation.navigate('PlateFollow', {initialTab: 'intent', category});
+  }
+
+  function openRecentContacts() {
+    navigation.navigate('PlateFollow', {initialTab: 'recent', category});
   }
 
   async function cancelSelfSelect(historyId: number) {
@@ -338,10 +357,15 @@ export function HomeScreen({navigation}: Props) {
             offerCount={stat?.totalOfferCount}
             inquiries={visibleHomeInquiries}
             tickerTranslateY={inquiryTickerY}
-            onTickerPauseChange={setInquiryTickerPaused}
             onInquiryPress={() => openOfferFeed('inquiry')}
             onOfferSearchPress={() => openSearch('offer')}
             onMerchantSearchPress={() => openSearch('merchant')}
+          />
+          <FollowUpSection
+            intentCount={followCounts.intentCount}
+            recentCount={followCounts.recentCount}
+            onIntentPress={openIntentPlates}
+            onRecentPress={openRecentContacts}
           />
           </View>
         }
@@ -523,7 +547,6 @@ function TradingGuideSection({
   offerCount,
   inquiries,
   tickerTranslateY,
-  onTickerPauseChange,
   onInquiryPress,
   onOfferSearchPress,
   onMerchantSearchPress,
@@ -531,7 +554,6 @@ function TradingGuideSection({
   offerCount?: string | number | null;
   inquiries: OfferFeedItem[];
   tickerTranslateY: Animated.Value;
-  onTickerPauseChange: (paused: boolean) => void;
   onInquiryPress: () => void;
   onOfferSearchPress: () => void;
   onMerchantSearchPress: () => void;
@@ -543,23 +565,19 @@ function TradingGuideSection({
       <View style={styles.tradeGuideGrid}>
         <Pressable
           onPress={onInquiryPress}
-          onPressIn={() => onTickerPauseChange(true)}
-          onPressOut={() => onTickerPauseChange(false)}
           style={({pressed}) => [styles.tradeInquiryCard, pressed && styles.tradeCardPressed]}>
-          <View style={styles.tradeIconBubble}>
-            <ClipboardListIcon />
-          </View>
-          <View style={styles.tradeTitleRow}>
-            <Text style={styles.tradeMainTitle}>求购专区</Text>
-            <SmallChevronIcon color={colors.text} />
+            <View style={styles.tradeHeadingRow}>
+              <View style={styles.tradeIconBubble}>
+              <ClipboardListIcon size={18} />
+            </View>
+            <View style={styles.tradeTitleRow}>
+              <Text style={styles.tradeMainTitle} numberOfLines={1}>求购专区</Text>
+              <SmallChevronIcon color={colors.text} />
+            </View>
           </View>
           <Text style={styles.tradeSubtitle}>看看今日市场需求</Text>
 
-          <View
-            style={styles.inquiryTickerClip}
-            onTouchStart={() => onTickerPauseChange(true)}
-            onTouchEnd={() => onTickerPauseChange(false)}
-            onTouchCancel={() => onTickerPauseChange(false)}>
+          <View style={styles.inquiryTickerClip}>
             {hasInquiry ? (
               <Animated.View style={[styles.inquiryTickerTrack, {transform: [{translateY: tickerTranslateY}]}]}>
                 {inquiries.map((item, index) => (
@@ -582,12 +600,21 @@ function TradingGuideSection({
           <Pressable
             onPress={onOfferSearchPress}
             style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
-            <View style={styles.tradeIconBubbleSmall}>
-              <OfferSearchIcon />
-            </View>
-            <View style={styles.tradeSideTitleRow}>
-              <Text style={styles.tradeSideTitle}>搜报盘</Text>
-              <SmallChevronIcon color={colors.text} />
+            <View style={styles.tradeSideHeadingRow}>
+              <View style={styles.tradeIconBubbleSmall}>
+                <OfferSearchIcon size={15} />
+              </View>
+              <View style={styles.tradeSideTitleRow}>
+                <Text
+                  style={styles.tradeSideTitle}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                  maxFontSizeMultiplier={1}>
+                  搜报盘
+                </Text>
+                <SmallChevronIcon color={colors.text} />
+              </View>
             </View>
             <Text style={styles.tradeSideSubtitle}>按产品/厂号/集团搜索</Text>
             <Text style={styles.tradeSideStat}>
@@ -598,18 +625,90 @@ function TradingGuideSection({
           <Pressable
             onPress={onMerchantSearchPress}
             style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
-            <View style={styles.tradeIconBubbleSmall}>
-              <MerchantSearchIcon />
-            </View>
-            <View style={styles.tradeSideTitleRow}>
-              <Text style={styles.tradeSideTitle}>搜商家</Text>
-              <SmallChevronIcon color={colors.text} />
+            <View style={styles.tradeSideHeadingRow}>
+              <View style={styles.tradeIconBubbleSmall}>
+                <MerchantSearchIcon size={15} />
+              </View>
+              <View style={styles.tradeSideTitleRow}>
+                <Text
+                  style={styles.tradeSideTitle}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                  maxFontSizeMultiplier={1}>
+                  搜商家
+                </Text>
+                <SmallChevronIcon color={colors.text} />
+              </View>
             </View>
             <Text style={styles.tradeSideSubtitle}>查商家 看报盘求购</Text>
           </Pressable>
         </View>
       </View>
     </View>
+  );
+}
+
+function FollowUpSection({
+  intentCount,
+  recentCount,
+  onIntentPress,
+  onRecentPress,
+}: {
+  intentCount: number;
+  recentCount: number;
+  onIntentPress: () => void;
+  onRecentPress: () => void;
+}) {
+  return (
+    <View style={styles.followWrap}>
+      <View style={styles.followHeader}>
+        <Text style={styles.followTitle}>我的跟进</Text>
+      </View>
+      <View style={styles.followGrid}>
+        <FollowEntryCard
+          title="意向盘"
+          count={intentCount}
+          subtitle="暂存感兴趣的盘"
+          icon={<IntentBookmarkIcon />}
+          onPress={onIntentPress}
+        />
+        <FollowEntryCard
+          title="最近沟通"
+          count={recentCount}
+          subtitle="找回联系过的盘"
+          icon={<RecentChatIcon />}
+          onPress={onRecentPress}
+        />
+      </View>
+    </View>
+  );
+}
+
+function FollowEntryCard({
+  title,
+  count,
+  subtitle,
+  icon,
+  onPress,
+}: {
+  title: string;
+  count: number;
+  subtitle: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({pressed}) => [styles.followCard, pressed && styles.tradeCardPressed]}>
+      <View style={styles.followCardTop}>
+        <View style={styles.followIconBubble}>{icon}</View>
+        <View style={styles.followCountBadge}>
+          <Text style={styles.followCountText}>{count}</Text>
+        </View>
+      </View>
+      <Text style={styles.followCardTitle}>{title}</Text>
+      <Text style={styles.followCardSubtitle} numberOfLines={1}>{subtitle}</Text>
+    </Pressable>
   );
 }
 
@@ -718,9 +817,9 @@ function EmptySelfSelectState({onAdd}: {onAdd: () => void}) {
 
 /* ===== Inline icons ===== */
 
-function ClipboardListIcon() {
+function ClipboardListIcon({size = 24}: {size?: number}) {
   return (
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M8.75 5.25H7.6C6.72 5.25 6 5.97 6 6.85V18.4C6 19.28 6.72 20 7.6 20H16.4C17.28 20 18 19.28 18 18.4V6.85C18 5.97 17.28 5.25 16.4 5.25H15.25"
         stroke="#006A61"
@@ -739,9 +838,9 @@ function ClipboardListIcon() {
   );
 }
 
-function OfferSearchIcon() {
+function OfferSearchIcon({size = 24}: {size?: number}) {
   return (
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M7 4.5H14.4L18 8.1V19.5H7V4.5Z"
         stroke="#006A61"
@@ -755,9 +854,9 @@ function OfferSearchIcon() {
   );
 }
 
-function MerchantSearchIcon() {
+function MerchantSearchIcon({size = 24}: {size?: number}) {
   return (
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M5.5 10.2H18.5L17.7 19.5H6.3L5.5 10.2Z"
         stroke="#006A61"
@@ -768,6 +867,38 @@ function MerchantSearchIcon() {
       <Path d="M9 19.4V15.2H12.8V19.4" stroke="#006A61" strokeWidth={1.55} strokeLinejoin="round" />
       <Path d="M14.8 15.1C15.96 15.1 16.9 14.16 16.9 13C16.9 11.84 15.96 10.9 14.8 10.9C13.64 10.9 12.7 11.84 12.7 13C12.7 14.16 13.64 15.1 14.8 15.1Z" fill="#006A61" fillOpacity={0.16} />
       <Path d="M16.35 14.55L18.1 16.3" stroke="#006A61" strokeWidth={1.55} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function IntentBookmarkIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M6.15 2.5H13.85C15.05 2.5 16 3.48 16 4.68V16.18C16 16.92 15.2 17.4 14.55 17.05L10.45 14.83C10.17 14.68 9.83 14.68 9.55 14.83L5.45 17.05C4.8 17.4 4 16.92 4 16.18V4.68C4 3.48 4.95 2.5 6.15 2.5Z"
+        fill="#006A61"
+        fillOpacity={0.12}
+        stroke="#006A61"
+        strokeWidth={1.45}
+        strokeLinejoin="round"
+      />
+      <Path d="M10 6.1V10.9M7.6 8.5H12.4" stroke="#006A61" strokeWidth={1.45} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function RecentChatIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M3.2 9.15C3.2 5.85 6.08 3.25 10 3.25C13.92 3.25 16.8 5.85 16.8 9.15C16.8 12.45 13.92 15.05 10 15.05C9.28 15.05 8.58 14.96 7.94 14.79L4.58 16.4C4.14 16.61 3.7 16.17 3.9 15.73L5.04 13.18C3.9 12.13 3.2 10.73 3.2 9.15Z"
+        fill="#006A61"
+        fillOpacity={0.12}
+        stroke="#006A61"
+        strokeWidth={1.45}
+        strokeLinejoin="round"
+      />
+      <Path d="M7.25 9.1H7.3M9.95 9.1H10M12.65 9.1H12.7" stroke="#006A61" strokeWidth={2.1} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -999,7 +1130,7 @@ const styles = StyleSheet.create({
   tradeSideCard: {
     flex: 1,
     minHeight: 105,
-    padding: 12,
+    padding: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#D7E1DF',
@@ -1014,30 +1145,37 @@ const styles = StyleSheet.create({
     opacity: 0.72,
   },
   tradeIconBubble: {
-    width: 42,
-    height: 42,
-    borderRadius: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#E2F4F0',
   },
   tradeIconBubbleSmall: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EAF7F4',
   },
-  tradeTitleRow: {
-    marginTop: 14,
+  tradeHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 7,
+  },
+  tradeTitleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
   tradeMainTitle: {
+    flexShrink: 1,
     color: colors.text,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 19,
+    lineHeight: 24,
     fontWeight: '700',
   },
   tradeSubtitle: {
@@ -1068,10 +1206,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E9E7',
   },
   homeInquiryBadge: {
-    minWidth: 38,
-    height: 24,
-    paddingHorizontal: 7,
-    borderRadius: 4,
+    minWidth: 32,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: '#C8D8FF',
     backgroundColor: '#EEF4FF',
@@ -1081,8 +1219,8 @@ const styles = StyleSheet.create({
   },
   homeInquiryBadgeText: {
     color: '#3767D6',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 15,
     fontWeight: '400',
   },
   inquiryTickerTitle: {
@@ -1103,15 +1241,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  tradeSideTitleRow: {
-    marginTop: 10,
+  tradeSideHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+  },
+  tradeSideTitleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
   tradeSideTitle: {
+    flex: 1,
+    flexShrink: 1,
     color: colors.text,
-    fontSize: 20,
-    lineHeight: 25,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '700',
   },
   tradeSideSubtitle: {
@@ -1131,6 +1277,82 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 14,
     lineHeight: 18,
+  },
+  followWrap: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 6,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DDEAE7',
+    backgroundColor: '#F8FFFD',
+  },
+  followHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  followTitle: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  followGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  followCard: {
+    flex: 1,
+    minHeight: 72,
+    padding: 10,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#E2ECE9',
+    backgroundColor: '#FFFFFF',
+  },
+  followCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  followIconBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8F5F3',
+  },
+  followCountBadge: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: '#E8F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  followCountText: {
+    color: colors.primary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
+  followCardTitle: {
+    marginTop: 8,
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  followCardSubtitle: {
+    marginTop: 3,
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 15,
   },
 
   // sticky stat + tabs

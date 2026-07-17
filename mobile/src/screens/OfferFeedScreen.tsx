@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
   Modal,
@@ -14,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Circle, Path} from 'react-native-svg';
 import {mooketApi} from '../api/mooketApi';
@@ -29,6 +31,13 @@ import type {OfferFeedFilterOptions, OfferFeedItem, SearchSuggest} from '../type
 import {copyToClipboard, dialPhone} from '../utils/contact';
 import {buildOriginalTextPayload, type OriginalTextPayload} from '../utils/originalText';
 import {parseWeight} from '../utils/offer';
+import {
+  addIntentPlate,
+  createPlateSnapshotFromFeed,
+  getIntentPlateKeys,
+  recordRecentContactPlate,
+  type ContactAction,
+} from '../utils/plateFollowStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OfferFeed'>;
 export type OfferTab = 'offer' | 'inquiry';
@@ -108,8 +117,41 @@ export function OfferFeedScreen({navigation, route}: Props) {
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FeedFilterKey | null>(null);
   const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
+  const [intentKeys, setIntentKeys] = useState<Set<string>>(new Set());
   const [sortOverlayTop, setSortOverlayTop] = useState(0);
   const requestSeqRef = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      getIntentPlateKeys()
+        .then(setIntentKeys)
+        .catch(() => undefined);
+    }, []),
+  );
+
+  const handleAddIntent = useCallback(async (item: OfferFeedItem, itemTab: OfferTab) => {
+    const snapshot = createPlateSnapshotFromFeed(item, itemTab);
+    if (intentKeys.has(snapshot.key)) return;
+
+    try {
+      await addIntentPlate(snapshot);
+      setIntentKeys(prev => {
+        const next = new Set(prev);
+        next.add(snapshot.key);
+        return next;
+      });
+    } catch (error) {
+      Alert.alert('加入失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }, [intentKeys]);
+
+  const handleRecordContact = useCallback(async (item: OfferFeedItem, itemTab: OfferTab, action: ContactAction) => {
+    try {
+      await recordRecentContactPlate(createPlateSnapshotFromFeed(item, itemTab), action);
+    } catch {
+      // Contact action itself should not be blocked by local follow-up storage.
+    }
+  }, []);
 
   const loadPage = useCallback(
     async (nextPage: number, mode: 'replace' | 'refresh' | 'more' = 'replace') => {
@@ -242,6 +284,10 @@ export function OfferFeedScreen({navigation, route}: Props) {
 
   const applyKeyword = useCallback(() => {
     const value = keywordInput.trim();
+    if (inquiryOnly && value) {
+      setSearchFocused(true);
+      return;
+    }
     const parsed = parseOfferSearchText(value);
     const hasStructuredFilter = Boolean(parsed.country || parsed.factoryNo);
     const isStructuredProductSearch = Boolean(parsed.keyword && hasStructuredFilter);
@@ -251,14 +297,14 @@ export function OfferFeedScreen({navigation, route}: Props) {
     setFilters(prev => ({...prev, country: parsed.country, factoryNo: parsed.factoryNo}));
     setSearchFocused(false);
     setSuggestions([]);
-  }, [keywordInput]);
+  }, [inquiryOnly, keywordInput]);
 
   const selectSuggestion = useCallback((item: SearchSuggest) => {
     const query = buildOfferSuggestionQuery(item);
     Keyboard.dismiss();
     setKeywordInput(query.display);
     setKeyword(query.keyword);
-    setKeywordScope(query.keyword && (query.country || query.factoryNo) ? 'product' : 'all');
+    setKeywordScope(query.productOnly ? 'product' : 'all');
     setFilters(prev => ({...prev, country: query.country, factoryNo: query.factoryNo}));
     setSearchFocused(false);
     setSuggestions([]);
@@ -289,6 +335,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
     priceMinInput.trim().length > 0 ||
     priceMaxInput.trim().length > 0 ||
     sort.kind !== 'comprehensive';
+  const showSuggestionPanel = searchFocused && keywordInput.trim().length > 0;
 
   function handleFilterPress(key: DetailFilterKey) {
     if (key === 'sort' || key === 'category') {
@@ -356,7 +403,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
             </Pressable>
           ) : null}
         </View>
-        {searchFocused && keywordInput.trim() ? (
+        {showSuggestionPanel ? (
           <View style={styles.suggestionPanel}>
             {suggestions.length > 0 ? (
               suggestions.slice(0, 8).map((item, index) => (
@@ -375,6 +422,13 @@ export function OfferFeedScreen({navigation, route}: Props) {
           </View>
         ) : null}
       </View>
+
+      {showSuggestionPanel ? (
+        <Pressable
+          style={[styles.suggestionOverlayMask, {top: insets.top + 108}]}
+          onPress={() => setSearchFocused(false)}
+        />
+      ) : null}
 
       <View
         style={styles.filterBlock}
@@ -398,6 +452,9 @@ export function OfferFeedScreen({navigation, route}: Props) {
               }
             }}
             onViewOriginalText={setOriginalText}
+            isIntentAdded={intentKeys.has(createPlateSnapshotFromFeed(item, tab).key)}
+            onAddIntent={() => handleAddIntent(item, tab)}
+            onContact={action => handleRecordContact(item, tab, action)}
           />
         )}
         contentContainerStyle={styles.listContent}
@@ -656,11 +713,17 @@ export function OfferFeedCard({
   tab,
   onMerchantPress,
   onViewOriginalText,
+  isIntentAdded = false,
+  onAddIntent,
+  onContact,
 }: {
   item: OfferFeedItem;
   tab: OfferTab;
   onMerchantPress: () => void;
   onViewOriginalText: (payload: OriginalTextPayload) => void;
+  isIntentAdded?: boolean;
+  onAddIntent?: () => void;
+  onContact?: (action: ContactAction) => void;
 }) {
   const title = buildTitle(item, tab);
   const price = formatPrice(item.price, item.priceMax);
@@ -755,13 +818,31 @@ export function OfferFeedCard({
         </Pressable>
         <View style={styles.actionVDivider} />
         <Pressable
+          disabled={isIntentAdded}
           style={styles.actionButton}
-          onPress={() => copyToClipboard(phone, '已复制手机号').catch(() => undefined)}>
+          onPress={onAddIntent}>
+          <IntentActionIcon selected={isIntentAdded} />
+          <Text style={[styles.actionText, isIntentAdded && styles.actionTextPrimary]}>
+            {isIntentAdded ? '已加意向' : '加意向'}
+          </Text>
+        </Pressable>
+        <View style={styles.actionVDivider} />
+        <Pressable
+          style={styles.actionButton}
+          onPress={() => {
+            onContact?.('wechat');
+            copyToClipboard(phone, '已复制手机号').catch(() => undefined);
+          }}>
           <AddSquareIcon />
           <Text style={styles.actionText}>添加微信</Text>
         </Pressable>
         <View style={styles.actionVDivider} />
-        <Pressable style={styles.actionButton} onPress={() => dialPhone(phone)}>
+        <Pressable
+          style={styles.actionButton}
+          onPress={() => {
+            onContact?.('phone');
+            dialPhone(phone);
+          }}>
           <PhoneIcon />
           <Text style={[styles.actionText, styles.actionTextPrimary]}>拨打电话</Text>
         </Pressable>
@@ -1057,6 +1138,7 @@ type OfferSearchQuery = {
   keyword: string;
   country: string | null;
   factoryNo: string | null;
+  productOnly?: boolean;
 };
 
 function buildOfferSuggestionQuery(item: SearchSuggest): OfferSearchQuery {
@@ -1071,13 +1153,14 @@ function buildOfferSuggestionQuery(item: SearchSuggest): OfferSearchQuery {
     keyword: productName || parsed.keyword,
     country,
     factoryNo,
+    productOnly: Boolean(productName),
   };
 }
 
 export function parseOfferSearchText(text: string): OfferSearchQuery {
   const display = getStandardSuggestionText(text).trim();
   if (!display) {
-    return {display: '', keyword: '', country: null, factoryNo: null};
+    return {display: '', keyword: '', country: null, factoryNo: null, productOnly: false};
   }
 
   const parts = display.split(/\s+/).filter(Boolean);
@@ -1091,6 +1174,7 @@ export function parseOfferSearchText(text: string): OfferSearchQuery {
       keyword: [before, after].filter(Boolean).join(' ').trim(),
       country: compound?.country ?? null,
       factoryNo: compound?.factoryNo ?? null,
+      productOnly: Boolean(before || after),
     };
   }
 
@@ -1103,10 +1187,11 @@ export function parseOfferSearchText(text: string): OfferSearchQuery {
       keyword,
       country: country || null,
       factoryNo: parts[factoryIndex],
+      productOnly: Boolean(keyword),
     };
   }
 
-  return {display, keyword: display, country: null, factoryNo: null};
+  return {display, keyword: display, country: null, factoryNo: null, productOnly: false};
 }
 
 function extractSuggestionProduct(display: string, country: string | null, factoryNo: string | null) {
@@ -1267,6 +1352,24 @@ function AddSquareIcon() {
   );
 }
 
+function IntentActionIcon({selected = false}: {selected?: boolean}) {
+  const color = selected ? colors.primary : '#3C4947';
+  return (
+    <Svg width={15} height={15} viewBox="0 0 18 18" fill="none">
+      <Path
+        d="M5.45 2.25H12.55C13.65 2.25 14.5 3.13 14.5 4.23V15C14.5 15.62 13.84 16.02 13.3 15.73L9.42 13.62C9.16 13.48 8.84 13.48 8.58 13.62L4.7 15.73C4.16 16.02 3.5 15.62 3.5 15V4.23C3.5 3.13 4.35 2.25 5.45 2.25Z"
+        fill={selected ? colors.primary : 'none'}
+        stroke={color}
+        strokeWidth={1.35}
+        strokeLinejoin="round"
+      />
+      {selected ? null : (
+        <Path d="M9 5.8V10.2M6.8 8H11.2" stroke={color} strokeWidth={1.35} strokeLinecap="round" />
+      )}
+    </Svg>
+  );
+}
+
 function PhoneIcon() {
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
@@ -1329,15 +1432,15 @@ const styles = StyleSheet.create({
   backButton: {width: 36, height: 36, alignItems: 'center', justifyContent: 'center'},
   clearButton: {width: 36, height: 36, alignItems: 'center', justifyContent: 'center'},
   headerTitleWrap: {alignItems: 'center', justifyContent: 'center', paddingTop: 6},
-  headerTitle: {color: '#00A99A', fontSize: 22, lineHeight: 28, fontWeight: '700'},
-  headerTitleLine: {marginTop: 2, width: 28, height: 3, borderRadius: 3, backgroundColor: '#00A99A'},
+  headerTitle: {color: colors.primary, fontSize: 17, lineHeight: 24, fontWeight: '700'},
+  headerTitleLine: {marginTop: 2, width: 18, height: 3, borderRadius: 3, backgroundColor: colors.primary},
   headerTabs: {flexDirection: 'row', alignItems: 'center', gap: 34},
   headerTab: {alignItems: 'center', justifyContent: 'center', paddingTop: 6},
   headerTabText: {fontSize: 22, lineHeight: 28, color: colors.text, fontWeight: '400'},
   headerTabTextActive: {color: '#00A99A', fontWeight: '700'},
   headerTabLine: {marginTop: 2, width: 28, height: 3, borderRadius: 3, backgroundColor: 'transparent'},
   headerTabLineActive: {backgroundColor: '#00A99A'},
-  searchArea: {backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingBottom: 10, zIndex: 10},
+  searchArea: {backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingBottom: 10, zIndex: 40, elevation: 40},
   searchBox: {
     height: 42,
     borderRadius: 22,
@@ -1352,7 +1455,10 @@ const styles = StyleSheet.create({
   searchInput: {flex: 1, color: colors.text, fontSize: 14, paddingVertical: 0},
   clearSearch: {fontSize: 22, color: '#9DA4A3', lineHeight: 22},
   suggestionPanel: {
-    marginTop: 8,
+    position: 'absolute',
+    top: 48,
+    left: 12,
+    right: 12,
     borderRadius: 8,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -1363,6 +1469,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: {width: 0, height: 4},
     elevation: 6,
+    zIndex: 45,
+  },
+  suggestionOverlayMask: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 25,
+    backgroundColor: 'rgba(0,0,0,0.10)',
   },
   suggestionRow: {
     minHeight: 48,
@@ -1541,8 +1656,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   publisherRow: {
-    width: '68%',
-    maxWidth: '68%',
+    width: '76%',
+    maxWidth: '76%',
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1555,9 +1670,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  merchantText: {flex: 1.05, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
-  publisherDivider: {width: 14, textAlign: 'center', color: '#D4DAD8', fontSize: 14, lineHeight: 20},
-  publisherNameText: {flex: 0.95, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
+  merchantText: {flex: 1.15, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
+  publisherDivider: {width: 10, textAlign: 'center', color: '#D4DAD8', fontSize: 14, lineHeight: 20},
+  publisherNameText: {flex: 1.05, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
   publisherNameOnlyText: {flex: 1.8},
   certTags: {marginTop: 4, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5},
   certTag: {
@@ -1568,7 +1683,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     paddingHorizontal: 3,
   },
-  priceLine: {flexDirection: 'row', alignItems: 'baseline', flexShrink: 0, justifyContent: 'flex-end', maxWidth: '32%'},
+  priceLine: {flexDirection: 'row', alignItems: 'baseline', flexShrink: 0, justifyContent: 'flex-end', maxWidth: '24%'},
   priceValue: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 16, lineHeight: 20},
   priceUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20, marginLeft: 2},
   negotiateText: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 16, lineHeight: 20},
@@ -1588,10 +1703,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
     paddingVertical: 8,
   },
-  actionText: {color: '#3C4947', fontSize: 13, lineHeight: 18},
+  actionText: {color: '#3C4947', fontSize: 12, lineHeight: 17},
   actionTextPrimary: {color: colors.primary, fontWeight: '600'},
   actionVDivider: {
     width: StyleSheet.hairlineWidth,

@@ -17,6 +17,7 @@ import type {RootStackParamList} from './routes';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const getSearchScreen = () => require('../screens/SearchScreen').SearchScreen;
 const getOfferFeedScreen = () => require('../screens/OfferFeedScreen').OfferFeedScreen;
+const getPlateFollowScreen = () => require('../screens/PlateFollowScreen').PlateFollowScreen;
 const getHomeCardsScreen = () => require('../screens/HomeCardsScreen').HomeCardsScreen;
 const getMerchantScreen = () => require('../screens/MerchantScreen').MerchantScreen;
 const getProductScreen = () => require('../screens/ProductScreen').ProductScreen;
@@ -132,6 +133,7 @@ export function AppNavigator() {
                 options={{headerShown: false}}
               />
               <Stack.Screen name="OfferFeed" getComponent={getOfferFeedScreen} options={{headerShown: false}} />
+              <Stack.Screen name="PlateFollow" getComponent={getPlateFollowScreen} options={{headerShown: false}} />
               <Stack.Screen name="HomeCards" getComponent={getHomeCardsScreen} options={{headerShown: false}} />
               <Stack.Screen name="Merchant" getComponent={getMerchantScreen} options={{headerShown: false}} />
               <Stack.Screen name="Product" getComponent={getProductScreen} options={{headerShown: false}} />

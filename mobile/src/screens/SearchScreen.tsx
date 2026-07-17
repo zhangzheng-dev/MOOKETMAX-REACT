@@ -48,6 +48,7 @@ type MerchantSearchSample = {
   productName?: string | null;
   country?: string | null;
   factoryNo?: string | null;
+  publishTime?: string | null;
 };
 
 type MerchantSearchResult = {
@@ -62,6 +63,10 @@ type MerchantSearchResult = {
 
 type MerchantSearchCondition = {
   raw: string;
+  matchType?: string | null;
+  targetId?: number | string | null;
+  merchantName?: string | null;
+  brandName?: string | null;
   country?: string | null;
   factoryNo?: string | null;
   productName?: string | null;
@@ -70,6 +75,27 @@ type MerchantSearchCondition = {
 type MerchantBrandQuery = {
   brandName: string;
   productName?: string | null;
+};
+
+type MerchantSearchSelection = {
+  display: string;
+  matchType: string;
+  type: string;
+  targetId?: number | string | null;
+  country?: string | null;
+  factoryNo?: string | null;
+  productName?: string | null;
+  brandName?: string | null;
+  merchantName?: string | null;
+};
+
+type MerchantFeedParamVariant = {
+  keyword?: string;
+  merchantId?: number | string;
+  brandName?: string;
+  productName?: string;
+  country?: string | null;
+  factoryNo?: string | null;
 };
 
 const examples: Array<[string, string]> = [
@@ -143,11 +169,20 @@ export function SearchScreen({route, navigation}: Props) {
   const [selectedTab, setSelectedTab] = useState<SearchTab>(routeInitialTab ?? 'offer');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<SearchSuggest[]>([]);
+  const [merchantSelection, setMerchantSelection] = useState<MerchantSearchSelection | null>(null);
   const [merchantResults, setMerchantResults] = useState<MerchantSearchResult[]>([]);
   const [merchantLoading, setMerchantLoading] = useState(false);
   const [histories, setHistories] = useState<SearchHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const merchantSearchSeqRef = useRef(0);
+
+  const activeMerchantSelection = useMemo(() => {
+    if (selectedTab !== 'merchant') return null;
+    if (merchantSelection) return merchantSelection;
+    const raw = keyword.trim();
+    if (!raw) return null;
+    return buildMerchantSelectionFromKeyword(raw);
+  }, [keyword, merchantSelection, selectedTab]);
 
   const loadHistories = useCallback(async () => {
     try {
@@ -183,7 +218,7 @@ export function SearchScreen({route, navigation}: Props) {
   useFocusEffect(
     useCallback(() => {
       const value = keyword.trim();
-      if (!value || selectedTab === 'merchant') {
+      if (!value) {
         setSuggestions([]);
         setLoading(false);
         return undefined;
@@ -208,8 +243,7 @@ export function SearchScreen({route, navigation}: Props) {
   );
 
   useEffect(() => {
-    const value = keyword.trim();
-    if (selectedTab !== 'merchant' || !value) {
+    if (selectedTab !== 'merchant' || !activeMerchantSelection) {
       merchantSearchSeqRef.current += 1;
       setMerchantResults([]);
       setMerchantLoading(false);
@@ -219,7 +253,7 @@ export function SearchScreen({route, navigation}: Props) {
     const requestSeq = (merchantSearchSeqRef.current += 1);
     setMerchantLoading(true);
     const timer = setTimeout(() => {
-      loadMerchantSearchResults(value)
+      loadMerchantSearchResults(activeMerchantSelection)
         .then(result => {
           if (requestSeq !== merchantSearchSeqRef.current) return;
           setMerchantResults(result);
@@ -235,7 +269,7 @@ export function SearchScreen({route, navigation}: Props) {
     return () => {
       clearTimeout(timer);
     };
-  }, [keyword, selectedTab]);
+  }, [activeMerchantSelection, selectedTab]);
 
   const historyEntries = useMemo(
     () => uniqueBySearchWord(histories.filter(item => item.searchWord)),
@@ -264,6 +298,25 @@ export function SearchScreen({route, navigation}: Props) {
     } catch (err) {
       Alert.alert('保存搜索记录失败', err instanceof Error ? err.message : String(err));
     }
+
+    if (selectedTab === 'merchant') {
+      const display = getStandardSearchWord(item.text);
+      setKeyword(display);
+      setMerchantSelection({
+        display,
+        matchType: item.matchType,
+        type: item.type,
+        targetId: item.targetId,
+        country,
+        factoryNo,
+        productName,
+        brandName,
+        merchantName: item.merchantName ?? item.standardName ?? display,
+      });
+      setIsInputFocused(false);
+      return;
+    }
+
     navigateSuggestion(item, parts, {country, factoryNo, productName, brandName});
   }
 
@@ -540,6 +593,7 @@ export function SearchScreen({route, navigation}: Props) {
             onBlur={() => setIsInputFocused(false)}
             onChangeText={text => {
               setKeyword(text);
+              setMerchantSelection(null);
               setCategoryMenuOpen(false);
             }}
             placeholder={selectedTab === 'merchant' ? '搜索商家、产品、国家厂号' : '搜索国家、厂号、产品、商家、品牌'}
@@ -547,7 +601,13 @@ export function SearchScreen({route, navigation}: Props) {
             style={[styles.input, isInputFocused && styles.inputFocused]}
           />
           {keyword.length > 0 ? (
-            <Pressable hitSlop={8} onPress={() => setKeyword('')} style={styles.inputClear}>
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                setKeyword('');
+                setMerchantSelection(null);
+              }}
+              style={styles.inputClear}>
               <ClearInputIcon size={16} />
             </Pressable>
           ) : null}
@@ -578,7 +638,7 @@ export function SearchScreen({route, navigation}: Props) {
 
       {keyword.trim() ? (
         <View style={styles.resultContent}>
-          {selectedTab === 'merchant' ? (
+          {selectedTab === 'merchant' && activeMerchantSelection ? (
             <FlatList
               data={merchantResults}
               keyExtractor={(item, index) => `${item.merchantId ?? item.merchantName}-${index}`}
@@ -743,28 +803,27 @@ function MerchantSearchResultItem({
         报盘 {item.offerCount}  求购 {item.inquiryCount}
       </Text>
 
-      <View style={styles.merchantSampleList}>
-        {item.samples.slice(0, 3).map((sample, index) => (
-          <View key={`${sample.type}-${sample.category}-${sample.productName}-${sample.country}-${sample.factoryNo}-${index}`} style={styles.merchantSampleCard}>
-            <View style={styles.merchantSampleTopLine}>
-              <View style={[styles.merchantSampleBadge, sample.type === 'inquiry' && styles.merchantSampleBadgeInquiry]}>
-                <Text style={[styles.merchantSampleBadgeText, sample.type === 'inquiry' && styles.merchantSampleBadgeTextInquiry]}>
-                  {sample.type === 'offer' ? '报盘' : '求购'}
+      {item.samples.length > 0 ? (
+        <View style={styles.merchantSampleList}>
+          {item.samples.slice(0, 3).map((sample, index) => (
+            <View key={`${sample.type}-${sample.category}-${sample.productName}-${sample.country}-${sample.factoryNo}-${index}`} style={styles.merchantSampleCard}>
+              <View style={styles.merchantSampleTopLine}>
+                <View style={[styles.merchantSampleBadge, sample.type === 'inquiry' && styles.merchantSampleBadgeInquiry]}>
+                  <Text style={[styles.merchantSampleBadgeText, sample.type === 'inquiry' && styles.merchantSampleBadgeTextInquiry]}>
+                    {sample.type === 'offer' ? '报盘' : '求购'}
+                  </Text>
+                </View>
+                <Text style={styles.merchantSampleProduct} numberOfLines={1}>
+                  {sample.productName?.trim() || '未知产品'}
                 </Text>
               </View>
-              <Text style={styles.merchantSampleProduct} numberOfLines={1}>
-                {sample.productName?.trim() || '未知产品'}
+              <Text style={styles.merchantSampleFactory} numberOfLines={1}>
+                {buildMerchantSampleFactoryText(sample)}
               </Text>
             </View>
-            <Text style={styles.merchantSampleFactory} numberOfLines={1}>
-              {buildMerchantSampleFactoryText(sample)}
-            </Text>
-          </View>
-        ))}
-        {item.samples.length === 0 ? (
-          <Text style={styles.merchantSampleEmpty}>点击查看该商家报盘和求购</Text>
-        ) : null}
-      </View>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.merchantResultFooter}>
         <Text style={styles.merchantResultMore}>查看更多</Text>
@@ -774,52 +833,24 @@ function MerchantSearchResultItem({
   );
 }
 
-async function loadMerchantSearchResults(keyword: string): Promise<MerchantSearchResult[]> {
-  const normalized = keyword.trim();
-  if (!normalized) return [];
+async function loadMerchantSearchResults(selection: MerchantSearchSelection): Promise<MerchantSearchResult[]> {
+  const condition = buildMerchantSearchConditionFromSelection(selection);
+  if (!condition.raw) return [];
 
-  const condition = buildMerchantSearchCondition(normalized);
   const map = new Map<string, MerchantSearchResult>();
   const feedTasks = merchantSearchCategories.flatMap(category =>
     merchantSearchTypes.map(type => ({category, type})),
   );
+  const paramVariants = buildMerchantFeedParamVariants(condition);
 
-  const [feedResponses, suggestionResponses] = await Promise.all([
-    Promise.allSettled(
-      feedTasks.map(task =>
+  const feedResponses = await Promise.allSettled(
+    feedTasks.flatMap(task =>
+      paramVariants.map(params =>
         mooketApi
           .getOfferFeed({
             category: task.category,
             type: task.type,
-            keyword: normalized,
-            page: 1,
-            pageSize: merchantSearchPageSize,
-            sortBy: 'publish_time',
-            skipCache: true,
-          })
-          .then(page => ({...task, items: page.items ?? []})),
-      ),
-    ),
-    Promise.allSettled(
-      merchantSearchCategories.map(category =>
-        mooketApi.getSearchSuggestions(category, normalized).then(items => ({category, items})),
-      ),
-    ),
-  ]);
-
-  const suggestionItems = suggestionResponses.flatMap(response =>
-    response.status === 'fulfilled' ? response.value.items : [],
-  );
-  const brandQueries = buildMerchantBrandQueries(normalized, suggestionItems, condition);
-  const brandResponses = await Promise.allSettled(
-    brandQueries.flatMap(query =>
-      feedTasks.map(task =>
-        mooketApi
-          .getOfferFeed({
-            category: task.category,
-            type: task.type,
-            brandName: query.brandName,
-            productName: query.productName || undefined,
+            ...params,
             page: 1,
             pageSize: merchantSearchPageSize,
             sortBy: 'publish_time',
@@ -837,20 +868,139 @@ async function loadMerchantSearchResults(keyword: string): Promise<MerchantSearc
       .forEach(item => addMerchantFeedItem(map, item, response.value.type, response.value.category));
   });
 
-  brandResponses.forEach(response => {
-    if (response.status !== 'fulfilled') return;
-    response.value.items.forEach(item => addMerchantFeedItem(map, item, response.value.type, response.value.category));
-  });
-
-  suggestionItems
-    .filter(item => item.matchType === 'merchant')
-    .forEach(item => addMerchantSuggestion(map, item));
+  if (condition.matchType === 'merchant' && map.size === 0) {
+    addMerchantSuggestion(map, {
+      text: condition.merchantName || condition.raw,
+      keyword: condition.raw,
+      type: '商家',
+      priority: 0,
+      targetId: Number(condition.targetId) || 0,
+      matchType: 'merchant',
+      merchantName: condition.merchantName || condition.raw,
+      standardName: condition.merchantName || condition.raw,
+    });
+  }
 
   return Array.from(map.values()).sort((left, right) => {
+    const rightTime = getMerchantLatestTime(right);
+    const leftTime = getMerchantLatestTime(left);
+    if (rightTime !== leftTime) return rightTime - leftTime;
     const rightScore = right.offerCount + right.inquiryCount;
     const leftScore = left.offerCount + left.inquiryCount;
     return rightScore - leftScore;
   });
+}
+
+function buildMerchantSelectionFromKeyword(keyword: string): MerchantSearchSelection {
+  return {
+    display: getStandardSearchWord(keyword),
+    matchType: 'keyword',
+    type: '关键词',
+  };
+}
+
+function buildMerchantSearchConditionFromSelection(selection: MerchantSearchSelection): MerchantSearchCondition {
+  const raw = getStandardSearchWord(selection.display || '').trim();
+  const parsed = buildMerchantSearchCondition(raw);
+  const condition: MerchantSearchCondition = {
+    ...parsed,
+    raw,
+    matchType: selection.matchType,
+    targetId: selection.targetId,
+    merchantName: selection.merchantName,
+    brandName: selection.brandName ?? parsed.brandName ?? null,
+    country: selection.country ?? parsed.country ?? null,
+    factoryNo: selection.factoryNo ?? parsed.factoryNo ?? null,
+    productName: selection.productName ?? parsed.productName ?? null,
+  };
+
+  if (selection.matchType === 'product') {
+    condition.productName = selection.productName ?? raw;
+  }
+  if (selection.matchType === 'country') {
+    condition.country = selection.country ?? raw;
+    condition.productName = null;
+  }
+  if (selection.matchType === 'brand') {
+    condition.brandName = selection.brandName ?? getBrandFromSuggestion(
+      {
+        text: raw,
+        keyword: raw,
+        type: selection.type,
+        priority: 0,
+        targetId: Number(selection.targetId) || 0,
+        matchType: 'brand',
+      },
+      raw.split(/\s+/).filter(Boolean),
+    ) ?? raw.split(/\s+/)[0];
+  }
+
+  return condition;
+}
+
+function buildMerchantFeedKeyword(condition: MerchantSearchCondition) {
+  if (condition.matchType === 'merchant') {
+    return condition.merchantName || condition.raw;
+  }
+  if (condition.matchType === 'merchant' || condition.brandName || condition.productName || condition.country || condition.factoryNo) {
+    return undefined;
+  }
+  return condition.raw;
+}
+
+function buildMerchantFeedParamVariants(condition: MerchantSearchCondition): MerchantFeedParamVariant[] {
+  const map = new Map<string, MerchantFeedParamVariant>();
+  const add = (params: MerchantFeedParamVariant) => {
+    const cleanParams: MerchantFeedParamVariant = {};
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        (cleanParams as Record<string, string | number>)[key] = value as string | number;
+      }
+    });
+    if (Object.keys(cleanParams).length === 0) return;
+    const key = Object.entries(cleanParams)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([itemKey, value]) => `${itemKey}:${String(value)}`)
+      .join('|');
+    if (!map.has(key)) map.set(key, cleanParams);
+  };
+
+  const keyword = buildMerchantFeedKeyword(condition);
+  if (condition.matchType === 'merchant') {
+    add({
+      keyword,
+      merchantId: condition.targetId ?? undefined,
+    });
+  } else {
+    const hasStructuredCondition = Boolean(
+      condition.brandName ||
+        condition.productName ||
+        condition.country ||
+        condition.factoryNo,
+    );
+    add({
+      brandName: condition.brandName ?? undefined,
+      productName: condition.productName ?? undefined,
+      country: condition.country,
+      factoryNo: condition.factoryNo,
+    });
+    add({keyword});
+    if (hasStructuredCondition) {
+      add({keyword: condition.raw});
+    }
+  }
+
+  if (!condition.brandName && !condition.productName && !condition.country && !condition.factoryNo) {
+    add({productName: condition.raw});
+    if (looksLikeBrandKeyword(condition.raw)) {
+      add({brandName: condition.raw});
+    }
+    if (looksLikeFactoryNo(condition.raw)) {
+      add({factoryNo: condition.raw});
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 function addMerchantFeedItem(map: Map<string, MerchantSearchResult>, item: OfferFeedItem, type: OfferTab, category: string) {
@@ -882,13 +1032,17 @@ function addMerchantFeedItem(map: Map<string, MerchantSearchResult>, item: Offer
     productName: item.productName,
     country: item.country,
     factoryNo: item.factoryNo,
+    publishTime: item.publishTime,
   };
   const sampleKey = `${sample.type}-${sample.productName ?? ''}-${sample.country ?? ''}-${sample.factoryNo ?? ''}`;
   const hasSample = current.samples.some(
     existing => `${existing.type}-${existing.productName ?? ''}-${existing.country ?? ''}-${existing.factoryNo ?? ''}` === sampleKey,
   );
-  if (!hasSample && current.samples.length < 5) {
+  if (!hasSample) {
     current.samples.push(sample);
+    current.samples = current.samples
+      .sort((left, right) => parseMerchantTime(right.publishTime) - parseMerchantTime(left.publishTime))
+      .slice(0, 5);
   }
   map.set(key, current);
 }
@@ -928,6 +1082,17 @@ function buildMerchantFeedKey(item: OfferFeedItem, type: OfferTab) {
     item.publishTime ?? '',
     item.price ?? '',
   ].join('|');
+}
+
+function getMerchantLatestTime(item: MerchantSearchResult) {
+  return Math.max(0, ...item.samples.map(sample => parseMerchantTime(sample.publishTime)));
+}
+
+function parseMerchantTime(value?: string | null) {
+  if (!value) return 0;
+  const parsed = Date.parse(value.replace(/-/g, '/'));
+  if (Number.isFinite(parsed)) return parsed;
+  return 0;
 }
 
 function getMerchantCategoryMark(item: MerchantSearchResult, fallback: string) {
@@ -1029,6 +1194,14 @@ function buildMerchantSearchCondition(keyword: string): MerchantSearchCondition 
     };
   }
 
+  if (parts.length >= 2 && looksLikeBrandKeyword(parts[0])) {
+    return {
+      raw,
+      brandName: parts[0],
+      productName: parts.slice(1).join(' '),
+    };
+  }
+
   if (parts.length >= 2) {
     return {
       raw,
@@ -1070,7 +1243,18 @@ function looksLikeCountryText(value?: string | null) {
 }
 
 function merchantFeedItemMatchesCondition(item: OfferFeedItem, condition: MerchantSearchCondition) {
-  const hasStructuredCondition = Boolean(condition.country || condition.factoryNo || condition.productName);
+  if (condition.matchType === 'merchant') {
+    const idMatches =
+      condition.targetId != null &&
+      String(item.merchantId ?? '').trim() === String(condition.targetId).trim();
+    const nameMatches =
+      fieldIncludes(item.merchantName, condition.merchantName ?? condition.raw) ||
+      fieldIncludes(item.merchantShortName, condition.merchantName ?? condition.raw);
+    return idMatches || nameMatches;
+  }
+
+  const hasStructuredCondition = Boolean(condition.country || condition.factoryNo || condition.productName || condition.brandName);
+  if (condition.brandName && !fieldIncludes(item.brandName, condition.brandName)) return false;
   if (condition.country && !fieldIncludes(item.country, condition.country)) return false;
   if (condition.factoryNo && !fieldIncludes(item.factoryNo, condition.factoryNo)) return false;
   if (condition.productName && !fieldIncludes(item.productName, condition.productName)) return false;
@@ -1079,8 +1263,11 @@ function merchantFeedItemMatchesCondition(item: OfferFeedItem, condition: Mercha
   const raw = condition.raw;
   return (
     fieldIncludes(item.productName, raw) ||
+    fieldIncludes(item.brandName, raw) ||
     fieldIncludes(item.country, raw) ||
     fieldIncludes(item.factoryNo, raw) ||
+    fieldIncludes(item.merchantName, raw) ||
+    fieldIncludes(item.merchantShortName, raw) ||
     fieldIncludes(item.goodsType, raw) ||
     fieldIncludes(item.region, raw) ||
     fieldIncludes(item.tags, raw) ||

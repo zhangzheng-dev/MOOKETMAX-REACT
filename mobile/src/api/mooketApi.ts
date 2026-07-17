@@ -152,7 +152,7 @@ export const mooketApi = {
     country?: string | null;
     factoryNo?: string | null;
     brandId?: number | null;
-    merchantId?: number | null;
+    merchantId?: number | string | null;
   }) {
     // Remove null/undefined values to avoid sending "null" as string
     const cleanParams: Record<string, string | number> = {};
@@ -165,12 +165,11 @@ export const mooketApi = {
     // Re-apply self-select through its dedicated endpoint so the home screen
     // receives the newly added card as soon as it refreshes.
     if (params.isSelfSelect === 1) {
+      const selfSelectParams = {...cleanParams};
+      delete selfSelectParams.isSelfSelect;
       await unwrap<void>(
         apiClient.post('api/v1/search-history/self-select/add', null, {
-          params: {
-            searchWord: params.searchWord,
-            searchType: params.searchType,
-          },
+          params: selfSelectParams,
         }),
       );
     }
