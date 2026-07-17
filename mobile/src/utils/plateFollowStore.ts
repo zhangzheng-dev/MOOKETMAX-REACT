@@ -133,7 +133,7 @@ export async function addIntentPlate(snapshot: PlateSnapshot) {
     ...snapshot,
     createdAt: existing?.createdAt ?? now,
     note: existing?.note ?? snapshot.note ?? null,
-    followStatus: existing?.followStatus ?? snapshot.followStatus ?? 'new',
+    followStatus: existing?.followStatus ?? snapshot.followStatus ?? undefined,
   };
   const nextItems =
     existingIndex >= 0
@@ -167,6 +167,11 @@ export async function getPlateFollowCounts() {
 
 export async function getIntentPlates() {
   return readSnapshots(INTENT_STORAGE_KEY);
+}
+
+export async function getIntentPlateKeys() {
+  const items = await readSnapshots(INTENT_STORAGE_KEY);
+  return new Set(items.map(item => item.key));
 }
 
 export async function getRecentContactPlates() {

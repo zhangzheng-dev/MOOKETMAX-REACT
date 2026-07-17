@@ -30,7 +30,11 @@ import type {HomeCardItem, HomeStatData, HotSearchItem, OfferFeedItem} from '../
 import {openHomeCard, openHotSearch} from '../utils/navigation';
 import {getPlateFollowCounts} from '../utils/plateFollowStore';
 import {getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
-import {sortSelfSelectCardsByCreateTime} from '../utils/selfSelectCards';
+import {
+  enrichSelfSelectCards,
+  mergeSelfSelectCardsWithHistories,
+  sortSelfSelectCardsByCreateTime,
+} from '../utils/selfSelectCards';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -51,7 +55,6 @@ export function HomeScreen({navigation}: Props) {
   const [cards, setCards] = useState<HomeCardItem[]>([]);
   const [homeInquiries, setHomeInquiries] = useState<OfferFeedItem[]>([]);
   const [followCounts, setFollowCounts] = useState({intentCount: 0, recentCount: 0});
-  const [inquiryTickerPaused, setInquiryTickerPaused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -138,7 +141,11 @@ export function HomeScreen({navigation}: Props) {
           .catch(() => null),
         getPlateFollowCounts().catch(() => ({intentCount: 0, recentCount: 0})),
       ]);
-      const selfSelectCards = selfSelectData.cards ?? [];
+      const mergedSelfSelectCards = mergeSelfSelectCardsWithHistories(
+        selfSelectData.cards ?? [],
+        selfSelectHistories,
+      );
+      const selfSelectCards = await enrichSelfSelectCards(category, mergedSelfSelectCards);
 
       setStat(statData);
       setHotSearches(hotData);
@@ -174,7 +181,7 @@ export function HomeScreen({navigation}: Props) {
     inquiryTickerLoopRef.current?.stop();
     inquiryTickerLoopRef.current = null;
 
-    if (inquiryTickerPaused || homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
+    if (homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
       if (homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
         inquiryTickerY.setValue(0);
       }
@@ -200,7 +207,7 @@ export function HomeScreen({navigation}: Props) {
         inquiryTickerLoopRef.current = null;
       }
     };
-  }, [homeInquiries.length, inquiryTickerPaused, inquiryTickerY]);
+  }, [homeInquiries.length, inquiryTickerY]);
 
   const visibleHomeInquiries = useMemo(() => {
     if (homeInquiries.length === 0) return [];
@@ -350,7 +357,6 @@ export function HomeScreen({navigation}: Props) {
             offerCount={stat?.totalOfferCount}
             inquiries={visibleHomeInquiries}
             tickerTranslateY={inquiryTickerY}
-            onTickerPauseChange={setInquiryTickerPaused}
             onInquiryPress={() => openOfferFeed('inquiry')}
             onOfferSearchPress={() => openSearch('offer')}
             onMerchantSearchPress={() => openSearch('merchant')}
@@ -360,7 +366,6 @@ export function HomeScreen({navigation}: Props) {
             recentCount={followCounts.recentCount}
             onIntentPress={openIntentPlates}
             onRecentPress={openRecentContacts}
-            onBatchPress={openIntentPlates}
           />
           </View>
         }
@@ -542,7 +547,6 @@ function TradingGuideSection({
   offerCount,
   inquiries,
   tickerTranslateY,
-  onTickerPauseChange,
   onInquiryPress,
   onOfferSearchPress,
   onMerchantSearchPress,
@@ -550,7 +554,6 @@ function TradingGuideSection({
   offerCount?: string | number | null;
   inquiries: OfferFeedItem[];
   tickerTranslateY: Animated.Value;
-  onTickerPauseChange: (paused: boolean) => void;
   onInquiryPress: () => void;
   onOfferSearchPress: () => void;
   onMerchantSearchPress: () => void;
@@ -562,25 +565,19 @@ function TradingGuideSection({
       <View style={styles.tradeGuideGrid}>
         <Pressable
           onPress={onInquiryPress}
-          onPressIn={() => onTickerPauseChange(true)}
-          onPressOut={() => onTickerPauseChange(false)}
           style={({pressed}) => [styles.tradeInquiryCard, pressed && styles.tradeCardPressed]}>
-          <View style={styles.tradeHeadingRow}>
-            <View style={styles.tradeIconBubble}>
-              <ClipboardListIcon />
+            <View style={styles.tradeHeadingRow}>
+              <View style={styles.tradeIconBubble}>
+              <ClipboardListIcon size={18} />
             </View>
             <View style={styles.tradeTitleRow}>
-              <Text style={styles.tradeMainTitle}>求购专区</Text>
+              <Text style={styles.tradeMainTitle} numberOfLines={1}>求购专区</Text>
               <SmallChevronIcon color={colors.text} />
             </View>
           </View>
           <Text style={styles.tradeSubtitle}>看看今日市场需求</Text>
 
-          <View
-            style={styles.inquiryTickerClip}
-            onTouchStart={() => onTickerPauseChange(true)}
-            onTouchEnd={() => onTickerPauseChange(false)}
-            onTouchCancel={() => onTickerPauseChange(false)}>
+          <View style={styles.inquiryTickerClip}>
             {hasInquiry ? (
               <Animated.View style={[styles.inquiryTickerTrack, {transform: [{translateY: tickerTranslateY}]}]}>
                 {inquiries.map((item, index) => (
@@ -605,10 +602,10 @@ function TradingGuideSection({
             style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
             <View style={styles.tradeSideHeadingRow}>
               <View style={styles.tradeIconBubbleSmall}>
-                <OfferSearchIcon />
+                <OfferSearchIcon size={17} />
               </View>
               <View style={styles.tradeSideTitleRow}>
-                <Text style={styles.tradeSideTitle}>搜报盘</Text>
+                <Text style={styles.tradeSideTitle} numberOfLines={1}>搜报盘</Text>
                 <SmallChevronIcon color={colors.text} />
               </View>
             </View>
@@ -623,10 +620,10 @@ function TradingGuideSection({
             style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
             <View style={styles.tradeSideHeadingRow}>
               <View style={styles.tradeIconBubbleSmall}>
-                <MerchantSearchIcon />
+                <MerchantSearchIcon size={17} />
               </View>
               <View style={styles.tradeSideTitleRow}>
-                <Text style={styles.tradeSideTitle}>搜商家</Text>
+                <Text style={styles.tradeSideTitle} numberOfLines={1}>搜商家</Text>
                 <SmallChevronIcon color={colors.text} />
               </View>
             </View>
@@ -643,22 +640,16 @@ function FollowUpSection({
   recentCount,
   onIntentPress,
   onRecentPress,
-  onBatchPress,
 }: {
   intentCount: number;
   recentCount: number;
   onIntentPress: () => void;
   onRecentPress: () => void;
-  onBatchPress: () => void;
 }) {
   return (
     <View style={styles.followWrap}>
       <View style={styles.followHeader}>
         <Text style={styles.followTitle}>我的跟进</Text>
-        <Pressable onPress={onBatchPress} hitSlop={8} style={styles.followBatchButton}>
-          <Text style={styles.followBatchText}>批量联系</Text>
-          <SmallChevronIcon color={colors.primary} />
-        </Pressable>
       </View>
       <View style={styles.followGrid}>
         <FollowEntryCard
@@ -812,9 +803,9 @@ function EmptySelfSelectState({onAdd}: {onAdd: () => void}) {
 
 /* ===== Inline icons ===== */
 
-function ClipboardListIcon() {
+function ClipboardListIcon({size = 24}: {size?: number}) {
   return (
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M8.75 5.25H7.6C6.72 5.25 6 5.97 6 6.85V18.4C6 19.28 6.72 20 7.6 20H16.4C17.28 20 18 19.28 18 18.4V6.85C18 5.97 17.28 5.25 16.4 5.25H15.25"
         stroke="#006A61"
@@ -833,9 +824,9 @@ function ClipboardListIcon() {
   );
 }
 
-function OfferSearchIcon() {
+function OfferSearchIcon({size = 24}: {size?: number}) {
   return (
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M7 4.5H14.4L18 8.1V19.5H7V4.5Z"
         stroke="#006A61"
@@ -849,9 +840,9 @@ function OfferSearchIcon() {
   );
 }
 
-function MerchantSearchIcon() {
+function MerchantSearchIcon({size = 24}: {size?: number}) {
   return (
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d="M5.5 10.2H18.5L17.7 19.5H6.3L5.5 10.2Z"
         stroke="#006A61"
@@ -1140,17 +1131,17 @@ const styles = StyleSheet.create({
     opacity: 0.72,
   },
   tradeIconBubble: {
-    width: 42,
-    height: 42,
-    borderRadius: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#E2F4F0',
   },
   tradeIconBubbleSmall: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EAF7F4',
@@ -1158,17 +1149,19 @@ const styles = StyleSheet.create({
   tradeHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 7,
   },
   tradeTitleRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 0,
   },
   tradeMainTitle: {
+    flexShrink: 1,
     color: colors.text,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 19,
+    lineHeight: 24,
     fontWeight: '700',
   },
   tradeSubtitle: {
@@ -1199,10 +1192,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E9E7',
   },
   homeInquiryBadge: {
-    minWidth: 38,
-    height: 24,
-    paddingHorizontal: 7,
-    borderRadius: 4,
+    minWidth: 32,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: '#C8D8FF',
     backgroundColor: '#EEF4FF',
@@ -1212,8 +1205,8 @@ const styles = StyleSheet.create({
   },
   homeInquiryBadgeText: {
     color: '#3767D6',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 15,
     fontWeight: '400',
   },
   inquiryTickerTitle: {
@@ -1237,17 +1230,19 @@ const styles = StyleSheet.create({
   tradeSideHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   tradeSideTitleRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 0,
   },
   tradeSideTitle: {
+    flexShrink: 1,
     color: colors.text,
-    fontSize: 20,
-    lineHeight: 25,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: '700',
   },
   tradeSideSubtitle: {
@@ -1289,17 +1284,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '700',
-  },
-  followBatchButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 1,
-  },
-  followBatchText: {
-    color: colors.primary,
-    fontSize: 11,
-    lineHeight: 16,
-    fontWeight: '500',
   },
   followGrid: {
     flexDirection: 'row',

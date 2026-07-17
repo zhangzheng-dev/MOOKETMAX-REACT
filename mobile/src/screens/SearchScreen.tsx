@@ -89,6 +89,15 @@ type MerchantSearchSelection = {
   merchantName?: string | null;
 };
 
+type MerchantFeedParamVariant = {
+  keyword?: string;
+  merchantId?: number | string;
+  brandName?: string;
+  productName?: string;
+  country?: string | null;
+  factoryNo?: string | null;
+};
+
 const examples: Array<[string, string]> = [
   ['巴西', '查找国家相关信息'],
   ['SIF504', '查找厂号'],
@@ -167,6 +176,14 @@ export function SearchScreen({route, navigation}: Props) {
   const [loading, setLoading] = useState(false);
   const merchantSearchSeqRef = useRef(0);
 
+  const activeMerchantSelection = useMemo(() => {
+    if (selectedTab !== 'merchant') return null;
+    if (merchantSelection) return merchantSelection;
+    const raw = keyword.trim();
+    if (!raw) return null;
+    return buildMerchantSelectionFromKeyword(raw);
+  }, [keyword, merchantSelection, selectedTab]);
+
   const loadHistories = useCallback(async () => {
     try {
       const next = await mooketApi.getRecentSearches(12);
@@ -226,7 +243,7 @@ export function SearchScreen({route, navigation}: Props) {
   );
 
   useEffect(() => {
-    if (selectedTab !== 'merchant' || !merchantSelection) {
+    if (selectedTab !== 'merchant' || !activeMerchantSelection) {
       merchantSearchSeqRef.current += 1;
       setMerchantResults([]);
       setMerchantLoading(false);
@@ -236,7 +253,7 @@ export function SearchScreen({route, navigation}: Props) {
     const requestSeq = (merchantSearchSeqRef.current += 1);
     setMerchantLoading(true);
     const timer = setTimeout(() => {
-      loadMerchantSearchResults(merchantSelection)
+      loadMerchantSearchResults(activeMerchantSelection)
         .then(result => {
           if (requestSeq !== merchantSearchSeqRef.current) return;
           setMerchantResults(result);
@@ -252,7 +269,7 @@ export function SearchScreen({route, navigation}: Props) {
     return () => {
       clearTimeout(timer);
     };
-  }, [merchantSelection, selectedTab]);
+  }, [activeMerchantSelection, selectedTab]);
 
   const historyEntries = useMemo(
     () => uniqueBySearchWord(histories.filter(item => item.searchWord)),
@@ -621,7 +638,7 @@ export function SearchScreen({route, navigation}: Props) {
 
       {keyword.trim() ? (
         <View style={styles.resultContent}>
-          {selectedTab === 'merchant' && merchantSelection ? (
+          {selectedTab === 'merchant' && activeMerchantSelection ? (
             <FlatList
               data={merchantResults}
               keyExtractor={(item, index) => `${item.merchantId ?? item.merchantName}-${index}`}
@@ -824,25 +841,23 @@ async function loadMerchantSearchResults(selection: MerchantSearchSelection): Pr
   const feedTasks = merchantSearchCategories.flatMap(category =>
     merchantSearchTypes.map(type => ({category, type})),
   );
+  const paramVariants = buildMerchantFeedParamVariants(condition);
 
   const feedResponses = await Promise.allSettled(
-    feedTasks.map(task =>
-      mooketApi
-        .getOfferFeed({
-          category: task.category,
-          type: task.type,
-          keyword: buildMerchantFeedKeyword(condition),
-          merchantId: condition.matchType === 'merchant' ? condition.targetId ?? undefined : undefined,
-          brandName: condition.brandName ?? undefined,
-          productName: condition.productName ?? undefined,
-          country: condition.country,
-          factoryNo: condition.factoryNo,
-          page: 1,
-          pageSize: merchantSearchPageSize,
-          sortBy: 'publish_time',
-          skipCache: true,
-        })
-        .then(page => ({...task, items: page.items ?? []})),
+    feedTasks.flatMap(task =>
+      paramVariants.map(params =>
+        mooketApi
+          .getOfferFeed({
+            category: task.category,
+            type: task.type,
+            ...params,
+            page: 1,
+            pageSize: merchantSearchPageSize,
+            sortBy: 'publish_time',
+            skipCache: true,
+          })
+          .then(page => ({...task, items: page.items ?? []})),
+      ),
     ),
   );
 
@@ -874,6 +889,14 @@ async function loadMerchantSearchResults(selection: MerchantSearchSelection): Pr
     const leftScore = left.offerCount + left.inquiryCount;
     return rightScore - leftScore;
   });
+}
+
+function buildMerchantSelectionFromKeyword(keyword: string): MerchantSearchSelection {
+  return {
+    display: getStandardSearchWord(keyword),
+    matchType: 'keyword',
+    type: '关键词',
+  };
 }
 
 function buildMerchantSearchConditionFromSelection(selection: MerchantSearchSelection): MerchantSearchCondition {
@@ -923,6 +946,61 @@ function buildMerchantFeedKeyword(condition: MerchantSearchCondition) {
     return undefined;
   }
   return condition.raw;
+}
+
+function buildMerchantFeedParamVariants(condition: MerchantSearchCondition): MerchantFeedParamVariant[] {
+  const map = new Map<string, MerchantFeedParamVariant>();
+  const add = (params: MerchantFeedParamVariant) => {
+    const cleanParams: MerchantFeedParamVariant = {};
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        (cleanParams as Record<string, string | number>)[key] = value as string | number;
+      }
+    });
+    if (Object.keys(cleanParams).length === 0) return;
+    const key = Object.entries(cleanParams)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([itemKey, value]) => `${itemKey}:${String(value)}`)
+      .join('|');
+    if (!map.has(key)) map.set(key, cleanParams);
+  };
+
+  const keyword = buildMerchantFeedKeyword(condition);
+  if (condition.matchType === 'merchant') {
+    add({
+      keyword,
+      merchantId: condition.targetId ?? undefined,
+    });
+  } else {
+    const hasStructuredCondition = Boolean(
+      condition.brandName ||
+        condition.productName ||
+        condition.country ||
+        condition.factoryNo,
+    );
+    add({
+      brandName: condition.brandName ?? undefined,
+      productName: condition.productName ?? undefined,
+      country: condition.country,
+      factoryNo: condition.factoryNo,
+    });
+    add({keyword});
+    if (hasStructuredCondition) {
+      add({keyword: condition.raw});
+    }
+  }
+
+  if (!condition.brandName && !condition.productName && !condition.country && !condition.factoryNo) {
+    add({productName: condition.raw});
+    if (looksLikeBrandKeyword(condition.raw)) {
+      add({brandName: condition.raw});
+    }
+    if (looksLikeFactoryNo(condition.raw)) {
+      add({factoryNo: condition.raw});
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 function addMerchantFeedItem(map: Map<string, MerchantSearchResult>, item: OfferFeedItem, type: OfferTab, category: string) {
@@ -1116,6 +1194,14 @@ function buildMerchantSearchCondition(keyword: string): MerchantSearchCondition 
     };
   }
 
+  if (parts.length >= 2 && looksLikeBrandKeyword(parts[0])) {
+    return {
+      raw,
+      brandName: parts[0],
+      productName: parts.slice(1).join(' '),
+    };
+  }
+
   if (parts.length >= 2) {
     return {
       raw,
@@ -1167,7 +1253,8 @@ function merchantFeedItemMatchesCondition(item: OfferFeedItem, condition: Mercha
     return idMatches || nameMatches;
   }
 
-  const hasStructuredCondition = Boolean(condition.country || condition.factoryNo || condition.productName);
+  const hasStructuredCondition = Boolean(condition.country || condition.factoryNo || condition.productName || condition.brandName);
+  if (condition.brandName && !fieldIncludes(item.brandName, condition.brandName)) return false;
   if (condition.country && !fieldIncludes(item.country, condition.country)) return false;
   if (condition.factoryNo && !fieldIncludes(item.factoryNo, condition.factoryNo)) return false;
   if (condition.productName && !fieldIncludes(item.productName, condition.productName)) return false;
@@ -1176,8 +1263,11 @@ function merchantFeedItemMatchesCondition(item: OfferFeedItem, condition: Mercha
   const raw = condition.raw;
   return (
     fieldIncludes(item.productName, raw) ||
+    fieldIncludes(item.brandName, raw) ||
     fieldIncludes(item.country, raw) ||
     fieldIncludes(item.factoryNo, raw) ||
+    fieldIncludes(item.merchantName, raw) ||
+    fieldIncludes(item.merchantShortName, raw) ||
     fieldIncludes(item.goodsType, raw) ||
     fieldIncludes(item.region, raw) ||
     fieldIncludes(item.tags, raw) ||

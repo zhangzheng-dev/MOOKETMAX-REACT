@@ -22,7 +22,11 @@ import {colors} from '../theme/colors';
 import type {HomeCardItem} from '../types/api';
 import {openHomeCard} from '../utils/navigation';
 import {getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
-import {sortSelfSelectCardsByCreateTime} from '../utils/selfSelectCards';
+import {
+  enrichSelfSelectCards,
+  mergeSelfSelectCardsWithHistories,
+  sortSelfSelectCardsByCreateTime,
+} from '../utils/selfSelectCards';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HomeCards'>;
 
@@ -44,7 +48,8 @@ export function HomeCardsScreen({navigation, route}: Props) {
         mooketApi.getSelfSelectCards(category),
         mooketApi.getSelfSelectSearches(500).catch(() => []),
       ]);
-      const nextCards = result.cards ?? [];
+      const mergedCards = mergeSelfSelectCardsWithHistories(result.cards ?? [], histories);
+      const nextCards = await enrichSelfSelectCards(category, mergedCards);
       setCards(sortSelfSelectCardsByCreateTime(nextCards, histories));
     } finally {
       setLoading(false);

@@ -1,4 +1,4 @@
-import React, {memo, useState} from 'react';
+import React, {memo, useEffect, useState} from 'react';
 import {Alert, Pressable, StyleSheet, Text, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
@@ -17,6 +17,7 @@ import {
 import {
   addIntentPlate,
   createPlateSnapshotFromEmployee,
+  getIntentPlateKeys,
   recordRecentContactPlate,
   type PlateKind,
 } from '../../utils/plateFollowStore';
@@ -184,6 +185,7 @@ function EmployeeOfferRow({
   const cattleBreed = offer.cattleBreed?.trim() ?? '';
   const remark = offer.remark?.trim() ?? '';
   const tags = splitTags(offer.tags, 4);
+  const [intentAdded, setIntentAdded] = useState(false);
   const snapshot = createPlateSnapshotFromEmployee(offer, plateType, {
     country,
     factoryNo,
@@ -193,10 +195,23 @@ function EmployeeOfferRow({
     contactPhone: merchantPhone,
   });
 
+  useEffect(() => {
+    let cancelled = false;
+    getIntentPlateKeys()
+      .then(keys => {
+        if (!cancelled) setIntentAdded(keys.has(snapshot.key));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshot.key]);
+
   async function handleAddIntent() {
+    if (intentAdded) return;
     try {
-      const result = await addIntentPlate(snapshot);
-      Alert.alert(result.alreadyAdded ? '已在意向盘' : '已加入意向盘', result.alreadyAdded ? '这条盘已在意向盘中。' : '后续可以在首页“我的跟进”里找回。');
+      await addIntentPlate(snapshot);
+      setIntentAdded(true);
     } catch (error) {
       Alert.alert('加入失败', error instanceof Error ? error.message : '请稍后重试');
     }
@@ -286,9 +301,11 @@ function EmployeeOfferRow({
           <Text style={styles.actionText}>查看原文</Text>
         </Pressable>
         <View style={styles.actionVDivider} />
-        <Pressable style={styles.actionButton} onPress={handleAddIntent}>
-          <IntentActionIcon />
-          <Text style={styles.actionText}>加意向</Text>
+        <Pressable disabled={intentAdded} style={styles.actionButton} onPress={handleAddIntent}>
+          <IntentActionIcon selected={intentAdded} />
+          <Text style={[styles.actionText, intentAdded && styles.actionTextPrimary]}>
+            {intentAdded ? '已加意向' : '加意向'}
+          </Text>
         </Pressable>
         <View style={styles.actionVDivider} />
         <Pressable style={styles.actionButton} onPress={handleCopyPhone}>
@@ -413,16 +430,20 @@ function AddSquareIcon() {
   );
 }
 
-function IntentActionIcon() {
+function IntentActionIcon({selected = false}: {selected?: boolean}) {
+  const color = selected ? colors.primary : '#3C4947';
   return (
-    <Svg width={16} height={16} viewBox="0 0 18 18" fill="none">
+    <Svg width={15} height={15} viewBox="0 0 18 18" fill="none">
       <Path
         d="M5.45 2.25H12.55C13.65 2.25 14.5 3.13 14.5 4.23V15C14.5 15.62 13.84 16.02 13.3 15.73L9.42 13.62C9.16 13.48 8.84 13.48 8.58 13.62L4.7 15.73C4.16 16.02 3.5 15.62 3.5 15V4.23C3.5 3.13 4.35 2.25 5.45 2.25Z"
-        stroke={colors.primary}
+        fill={selected ? colors.primary : 'none'}
+        stroke={color}
         strokeWidth={1.35}
         strokeLinejoin="round"
       />
-      <Path d="M9 5.8V10.2M6.8 8H11.2" stroke={colors.primary} strokeWidth={1.35} strokeLinecap="round" />
+      {selected ? null : (
+        <Path d="M9 5.8V10.2M6.8 8H11.2" stroke={color} strokeWidth={1.35} strokeLinecap="round" />
+      )}
     </Svg>
   );
 }

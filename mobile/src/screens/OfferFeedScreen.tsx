@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Circle, Path} from 'react-native-svg';
 import {mooketApi} from '../api/mooketApi';
@@ -33,6 +34,7 @@ import {parseWeight} from '../utils/offer';
 import {
   addIntentPlate,
   createPlateSnapshotFromFeed,
+  getIntentPlateKeys,
   recordRecentContactPlate,
   type ContactAction,
 } from '../utils/plateFollowStore';
@@ -115,17 +117,33 @@ export function OfferFeedScreen({navigation, route}: Props) {
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FeedFilterKey | null>(null);
   const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
+  const [intentKeys, setIntentKeys] = useState<Set<string>>(new Set());
   const [sortOverlayTop, setSortOverlayTop] = useState(0);
   const requestSeqRef = useRef(0);
 
+  useFocusEffect(
+    useCallback(() => {
+      getIntentPlateKeys()
+        .then(setIntentKeys)
+        .catch(() => undefined);
+    }, []),
+  );
+
   const handleAddIntent = useCallback(async (item: OfferFeedItem, itemTab: OfferTab) => {
+    const snapshot = createPlateSnapshotFromFeed(item, itemTab);
+    if (intentKeys.has(snapshot.key)) return;
+
     try {
-      const result = await addIntentPlate(createPlateSnapshotFromFeed(item, itemTab));
-      Alert.alert(result.alreadyAdded ? '已在意向盘' : '已加入意向盘', result.alreadyAdded ? '这条盘已在意向盘中。' : '后续可以在首页“我的跟进”里找回。');
+      await addIntentPlate(snapshot);
+      setIntentKeys(prev => {
+        const next = new Set(prev);
+        next.add(snapshot.key);
+        return next;
+      });
     } catch (error) {
       Alert.alert('加入失败', error instanceof Error ? error.message : '请稍后重试');
     }
-  }, []);
+  }, [intentKeys]);
 
   const handleRecordContact = useCallback(async (item: OfferFeedItem, itemTab: OfferTab, action: ContactAction) => {
     try {
@@ -434,6 +452,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
               }
             }}
             onViewOriginalText={setOriginalText}
+            isIntentAdded={intentKeys.has(createPlateSnapshotFromFeed(item, tab).key)}
             onAddIntent={() => handleAddIntent(item, tab)}
             onContact={action => handleRecordContact(item, tab, action)}
           />
@@ -694,6 +713,7 @@ export function OfferFeedCard({
   tab,
   onMerchantPress,
   onViewOriginalText,
+  isIntentAdded = false,
   onAddIntent,
   onContact,
 }: {
@@ -701,6 +721,7 @@ export function OfferFeedCard({
   tab: OfferTab;
   onMerchantPress: () => void;
   onViewOriginalText: (payload: OriginalTextPayload) => void;
+  isIntentAdded?: boolean;
   onAddIntent?: () => void;
   onContact?: (action: ContactAction) => void;
 }) {
@@ -796,9 +817,14 @@ export function OfferFeedCard({
           <Text style={styles.actionText}>查看原文</Text>
         </Pressable>
         <View style={styles.actionVDivider} />
-        <Pressable style={styles.actionButton} onPress={onAddIntent}>
-          <IntentActionIcon />
-          <Text style={styles.actionText}>加意向</Text>
+        <Pressable
+          disabled={isIntentAdded}
+          style={styles.actionButton}
+          onPress={onAddIntent}>
+          <IntentActionIcon selected={isIntentAdded} />
+          <Text style={[styles.actionText, isIntentAdded && styles.actionTextPrimary]}>
+            {isIntentAdded ? '已加意向' : '加意向'}
+          </Text>
         </Pressable>
         <View style={styles.actionVDivider} />
         <Pressable
@@ -1326,16 +1352,20 @@ function AddSquareIcon() {
   );
 }
 
-function IntentActionIcon() {
+function IntentActionIcon({selected = false}: {selected?: boolean}) {
+  const color = selected ? colors.primary : '#3C4947';
   return (
-    <Svg width={16} height={16} viewBox="0 0 18 18" fill="none">
+    <Svg width={15} height={15} viewBox="0 0 18 18" fill="none">
       <Path
         d="M5.45 2.25H12.55C13.65 2.25 14.5 3.13 14.5 4.23V15C14.5 15.62 13.84 16.02 13.3 15.73L9.42 13.62C9.16 13.48 8.84 13.48 8.58 13.62L4.7 15.73C4.16 16.02 3.5 15.62 3.5 15V4.23C3.5 3.13 4.35 2.25 5.45 2.25Z"
-        stroke={colors.primary}
+        fill={selected ? colors.primary : 'none'}
+        stroke={color}
         strokeWidth={1.35}
         strokeLinejoin="round"
       />
-      <Path d="M9 5.8V10.2M6.8 8H11.2" stroke={colors.primary} strokeWidth={1.35} strokeLinecap="round" />
+      {selected ? null : (
+        <Path d="M9 5.8V10.2M6.8 8H11.2" stroke={color} strokeWidth={1.35} strokeLinecap="round" />
+      )}
     </Svg>
   );
 }
@@ -1626,8 +1656,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   publisherRow: {
-    width: '68%',
-    maxWidth: '68%',
+    width: '76%',
+    maxWidth: '76%',
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1640,9 +1670,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  merchantText: {flex: 1.05, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
-  publisherDivider: {width: 14, textAlign: 'center', color: '#D4DAD8', fontSize: 14, lineHeight: 20},
-  publisherNameText: {flex: 0.95, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
+  merchantText: {flex: 1.15, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
+  publisherDivider: {width: 10, textAlign: 'center', color: '#D4DAD8', fontSize: 14, lineHeight: 20},
+  publisherNameText: {flex: 1.05, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
   publisherNameOnlyText: {flex: 1.8},
   certTags: {marginTop: 4, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5},
   certTag: {
@@ -1653,7 +1683,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     paddingHorizontal: 3,
   },
-  priceLine: {flexDirection: 'row', alignItems: 'baseline', flexShrink: 0, justifyContent: 'flex-end', maxWidth: '32%'},
+  priceLine: {flexDirection: 'row', alignItems: 'baseline', flexShrink: 0, justifyContent: 'flex-end', maxWidth: '24%'},
   priceValue: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 16, lineHeight: 20},
   priceUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20, marginLeft: 2},
   negotiateText: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 16, lineHeight: 20},

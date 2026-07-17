@@ -152,7 +152,7 @@ export const mooketApi = {
     country?: string | null;
     factoryNo?: string | null;
     brandId?: number | null;
-    merchantId?: number | null;
+    merchantId?: number | string | null;
   }) {
     // Remove null/undefined values to avoid sending "null" as string
     const cleanParams: Record<string, string | number> = {};

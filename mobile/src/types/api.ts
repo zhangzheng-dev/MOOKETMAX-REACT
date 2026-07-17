@@ -153,6 +153,7 @@ export type OfferFeedItem = {
   merchantId?: number | string | null;
   merchantName?: string | null;
   merchantShortName?: string | null;
+  brandName?: string | null;
   merchantTags?: string | null;
   contactPhone?: string | null;
   userNickname?: string | null;
