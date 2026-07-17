@@ -28,6 +28,7 @@ import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
 import type {HomeCardItem, HomeStatData, HotSearchItem, OfferFeedItem} from '../types/api';
 import {openHomeCard, openHotSearch} from '../utils/navigation';
+import {getPlateFollowCounts} from '../utils/plateFollowStore';
 import {getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
 import {sortSelfSelectCardsByCreateTime} from '../utils/selfSelectCards';
 
@@ -49,6 +50,7 @@ export function HomeScreen({navigation}: Props) {
   const [hotSearches, setHotSearches] = useState<HotSearchItem[]>([]);
   const [cards, setCards] = useState<HomeCardItem[]>([]);
   const [homeInquiries, setHomeInquiries] = useState<OfferFeedItem[]>([]);
+  const [followCounts, setFollowCounts] = useState({intentCount: 0, recentCount: 0});
   const [inquiryTickerPaused, setInquiryTickerPaused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -120,7 +122,7 @@ export function HomeScreen({navigation}: Props) {
     }
 
     try {
-      const [statData, hotData, selfSelectData, selfSelectHistories, inquiryFeedData] = await Promise.all([
+      const [statData, hotData, selfSelectData, selfSelectHistories, inquiryFeedData, followCountData] = await Promise.all([
         mooketApi.getHomeStatData(category),
         mooketApi.getHotSearchRecommendations(category),
         mooketApi.getSelfSelectCards(category),
@@ -134,6 +136,7 @@ export function HomeScreen({navigation}: Props) {
             sortBy: 'publishTime',
           })
           .catch(() => null),
+        getPlateFollowCounts().catch(() => ({intentCount: 0, recentCount: 0})),
       ]);
       const selfSelectCards = selfSelectData.cards ?? [];
 
@@ -141,6 +144,7 @@ export function HomeScreen({navigation}: Props) {
       setHotSearches(hotData);
       setCards(sortSelfSelectCardsByCreateTime(selfSelectCards, selfSelectHistories));
       setHomeInquiries(inquiryFeedData?.items ?? []);
+      setFollowCounts(followCountData);
       inquiryTickerY.setValue(0);
     } finally {
       setLoading(false);
@@ -219,6 +223,14 @@ export function HomeScreen({navigation}: Props) {
 
   function openSearch(initialTab?: 'offer' | 'inquiry' | 'merchant') {
     navigation.navigate('Search', initialTab ? {category, initialTab} : {category});
+  }
+
+  function openIntentPlates() {
+    navigation.navigate('PlateFollow', {initialTab: 'intent', category});
+  }
+
+  function openRecentContacts() {
+    navigation.navigate('PlateFollow', {initialTab: 'recent', category});
   }
 
   async function cancelSelfSelect(historyId: number) {
@@ -342,6 +354,13 @@ export function HomeScreen({navigation}: Props) {
             onInquiryPress={() => openOfferFeed('inquiry')}
             onOfferSearchPress={() => openSearch('offer')}
             onMerchantSearchPress={() => openSearch('merchant')}
+          />
+          <FollowUpSection
+            intentCount={followCounts.intentCount}
+            recentCount={followCounts.recentCount}
+            onIntentPress={openIntentPlates}
+            onRecentPress={openRecentContacts}
+            onBatchPress={openIntentPlates}
           />
           </View>
         }
@@ -546,12 +565,14 @@ function TradingGuideSection({
           onPressIn={() => onTickerPauseChange(true)}
           onPressOut={() => onTickerPauseChange(false)}
           style={({pressed}) => [styles.tradeInquiryCard, pressed && styles.tradeCardPressed]}>
-          <View style={styles.tradeIconBubble}>
-            <ClipboardListIcon />
-          </View>
-          <View style={styles.tradeTitleRow}>
-            <Text style={styles.tradeMainTitle}>求购专区</Text>
-            <SmallChevronIcon color={colors.text} />
+          <View style={styles.tradeHeadingRow}>
+            <View style={styles.tradeIconBubble}>
+              <ClipboardListIcon />
+            </View>
+            <View style={styles.tradeTitleRow}>
+              <Text style={styles.tradeMainTitle}>求购专区</Text>
+              <SmallChevronIcon color={colors.text} />
+            </View>
           </View>
           <Text style={styles.tradeSubtitle}>看看今日市场需求</Text>
 
@@ -582,12 +603,14 @@ function TradingGuideSection({
           <Pressable
             onPress={onOfferSearchPress}
             style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
-            <View style={styles.tradeIconBubbleSmall}>
-              <OfferSearchIcon />
-            </View>
-            <View style={styles.tradeSideTitleRow}>
-              <Text style={styles.tradeSideTitle}>搜报盘</Text>
-              <SmallChevronIcon color={colors.text} />
+            <View style={styles.tradeSideHeadingRow}>
+              <View style={styles.tradeIconBubbleSmall}>
+                <OfferSearchIcon />
+              </View>
+              <View style={styles.tradeSideTitleRow}>
+                <Text style={styles.tradeSideTitle}>搜报盘</Text>
+                <SmallChevronIcon color={colors.text} />
+              </View>
             </View>
             <Text style={styles.tradeSideSubtitle}>按产品/厂号/集团搜索</Text>
             <Text style={styles.tradeSideStat}>
@@ -598,18 +621,89 @@ function TradingGuideSection({
           <Pressable
             onPress={onMerchantSearchPress}
             style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
-            <View style={styles.tradeIconBubbleSmall}>
-              <MerchantSearchIcon />
-            </View>
-            <View style={styles.tradeSideTitleRow}>
-              <Text style={styles.tradeSideTitle}>搜商家</Text>
-              <SmallChevronIcon color={colors.text} />
+            <View style={styles.tradeSideHeadingRow}>
+              <View style={styles.tradeIconBubbleSmall}>
+                <MerchantSearchIcon />
+              </View>
+              <View style={styles.tradeSideTitleRow}>
+                <Text style={styles.tradeSideTitle}>搜商家</Text>
+                <SmallChevronIcon color={colors.text} />
+              </View>
             </View>
             <Text style={styles.tradeSideSubtitle}>查商家 看报盘求购</Text>
           </Pressable>
         </View>
       </View>
     </View>
+  );
+}
+
+function FollowUpSection({
+  intentCount,
+  recentCount,
+  onIntentPress,
+  onRecentPress,
+  onBatchPress,
+}: {
+  intentCount: number;
+  recentCount: number;
+  onIntentPress: () => void;
+  onRecentPress: () => void;
+  onBatchPress: () => void;
+}) {
+  return (
+    <View style={styles.followWrap}>
+      <View style={styles.followHeader}>
+        <Text style={styles.followTitle}>我的跟进</Text>
+        <Pressable onPress={onBatchPress} hitSlop={8} style={styles.followBatchButton}>
+          <Text style={styles.followBatchText}>批量联系</Text>
+          <SmallChevronIcon color={colors.primary} />
+        </Pressable>
+      </View>
+      <View style={styles.followGrid}>
+        <FollowEntryCard
+          title="意向盘"
+          count={intentCount}
+          subtitle="暂存感兴趣的盘"
+          icon={<IntentBookmarkIcon />}
+          onPress={onIntentPress}
+        />
+        <FollowEntryCard
+          title="最近沟通"
+          count={recentCount}
+          subtitle="找回联系过的盘"
+          icon={<RecentChatIcon />}
+          onPress={onRecentPress}
+        />
+      </View>
+    </View>
+  );
+}
+
+function FollowEntryCard({
+  title,
+  count,
+  subtitle,
+  icon,
+  onPress,
+}: {
+  title: string;
+  count: number;
+  subtitle: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({pressed}) => [styles.followCard, pressed && styles.tradeCardPressed]}>
+      <View style={styles.followCardTop}>
+        <View style={styles.followIconBubble}>{icon}</View>
+        <View style={styles.followCountBadge}>
+          <Text style={styles.followCountText}>{count}</Text>
+        </View>
+      </View>
+      <Text style={styles.followCardTitle}>{title}</Text>
+      <Text style={styles.followCardSubtitle} numberOfLines={1}>{subtitle}</Text>
+    </Pressable>
   );
 }
 
@@ -768,6 +862,38 @@ function MerchantSearchIcon() {
       <Path d="M9 19.4V15.2H12.8V19.4" stroke="#006A61" strokeWidth={1.55} strokeLinejoin="round" />
       <Path d="M14.8 15.1C15.96 15.1 16.9 14.16 16.9 13C16.9 11.84 15.96 10.9 14.8 10.9C13.64 10.9 12.7 11.84 12.7 13C12.7 14.16 13.64 15.1 14.8 15.1Z" fill="#006A61" fillOpacity={0.16} />
       <Path d="M16.35 14.55L18.1 16.3" stroke="#006A61" strokeWidth={1.55} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function IntentBookmarkIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M6.15 2.5H13.85C15.05 2.5 16 3.48 16 4.68V16.18C16 16.92 15.2 17.4 14.55 17.05L10.45 14.83C10.17 14.68 9.83 14.68 9.55 14.83L5.45 17.05C4.8 17.4 4 16.92 4 16.18V4.68C4 3.48 4.95 2.5 6.15 2.5Z"
+        fill="#006A61"
+        fillOpacity={0.12}
+        stroke="#006A61"
+        strokeWidth={1.45}
+        strokeLinejoin="round"
+      />
+      <Path d="M10 6.1V10.9M7.6 8.5H12.4" stroke="#006A61" strokeWidth={1.45} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function RecentChatIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M3.2 9.15C3.2 5.85 6.08 3.25 10 3.25C13.92 3.25 16.8 5.85 16.8 9.15C16.8 12.45 13.92 15.05 10 15.05C9.28 15.05 8.58 14.96 7.94 14.79L4.58 16.4C4.14 16.61 3.7 16.17 3.9 15.73L5.04 13.18C3.9 12.13 3.2 10.73 3.2 9.15Z"
+        fill="#006A61"
+        fillOpacity={0.12}
+        stroke="#006A61"
+        strokeWidth={1.45}
+        strokeLinejoin="round"
+      />
+      <Path d="M7.25 9.1H7.3M9.95 9.1H10M12.65 9.1H12.7" stroke="#006A61" strokeWidth={2.1} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -1029,10 +1155,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#EAF7F4',
   },
-  tradeTitleRow: {
-    marginTop: 14,
+  tradeHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+  },
+  tradeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
   tradeMainTitle: {
     color: colors.text,
@@ -1103,10 +1234,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  tradeSideTitleRow: {
-    marginTop: 10,
+  tradeSideHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  tradeSideTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
   tradeSideTitle: {
     color: colors.text,
@@ -1131,6 +1267,93 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 14,
     lineHeight: 18,
+  },
+  followWrap: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 6,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DDEAE7',
+    backgroundColor: '#F8FFFD',
+  },
+  followHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  followTitle: {
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  followBatchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 1,
+  },
+  followBatchText: {
+    color: colors.primary,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  followGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  followCard: {
+    flex: 1,
+    minHeight: 72,
+    padding: 10,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#E2ECE9',
+    backgroundColor: '#FFFFFF',
+  },
+  followCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  followIconBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8F5F3',
+  },
+  followCountBadge: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: '#E8F5F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  followCountText: {
+    color: colors.primary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
+  followCardTitle: {
+    marginTop: 8,
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  followCardSubtitle: {
+    marginTop: 3,
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 15,
   },
 
   // sticky stat + tabs

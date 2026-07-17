@@ -1,5 +1,5 @@
 import React, {memo} from 'react';
-import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Alert, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
@@ -7,6 +7,12 @@ import {fonts} from '../../theme/typography';
 import type {EmployeeOffer, OfferSummary} from '../../types/api';
 import {buildOriginalTextPayload, type OriginalTextPayload} from '../../utils/originalText';
 import {colorForOfferField, colorForTag, computePriceRange, extractCity, formatPublishTime, parseWeight, splitTags} from '../../utils/offer';
+import {
+  addIntentPlate,
+  createPlateSnapshotFromEmployee,
+  recordRecentContactPlate,
+  type PlateKind,
+} from '../../utils/plateFollowStore';
 import {OfferTagChip} from './OfferTagChip';
 
 type Props = {
@@ -14,6 +20,9 @@ type Props = {
   expanded: boolean;
   onToggle: () => void;
   merchantPhone?: string | null;
+  plateType?: PlateKind;
+  merchantId?: number | string | null;
+  merchantName?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
   onViewOriginalText?: (payload: OriginalTextPayload) => void;
@@ -29,6 +38,9 @@ function OfferCardCompactInner({
   expanded,
   onToggle,
   merchantPhone,
+  plateType = 'offer',
+  merchantId,
+  merchantName,
   onCopyPhone,
   onDial,
   onViewOriginalText,
@@ -121,6 +133,9 @@ function OfferCardCompactInner({
               country={offer.country}
               factoryNo={offer.factoryNo}
               productName={offer.productName}
+              plateType={plateType}
+              merchantId={merchantId}
+              merchantName={merchantName}
               onCopyPhone={onCopyPhone}
               onDial={onDial}
               onViewOriginalText={onViewOriginalText}
@@ -139,6 +154,9 @@ function EmployeeRow({
   country,
   factoryNo,
   productName,
+  plateType,
+  merchantId,
+  merchantName,
   onCopyPhone,
   onDial,
   onViewOriginalText,
@@ -148,6 +166,9 @@ function EmployeeRow({
   country?: string | null;
   factoryNo?: string | null;
   productName?: string | null;
+  plateType: PlateKind;
+  merchantId?: number | string | null;
+  merchantName?: string | null;
   onCopyPhone?: () => void;
   onDial?: () => void;
   onViewOriginalText?: (payload: OriginalTextPayload) => void;
@@ -159,6 +180,33 @@ function EmployeeRow({
   const fatRatio = offer.fatRatio?.trim() ?? '';
   const cattleBreed = offer.cattleBreed?.trim() ?? '';
   const remark = offer.remark?.trim() ?? '';
+  const snapshot = createPlateSnapshotFromEmployee(offer, plateType, {
+    country,
+    factoryNo,
+    productName,
+    merchantName,
+    merchantId,
+    contactPhone: merchantPhone,
+  });
+
+  async function handleAddIntent() {
+    try {
+      const result = await addIntentPlate(snapshot);
+      Alert.alert(result.alreadyAdded ? '已在意向盘' : '已加入意向盘', result.alreadyAdded ? '这条盘已在意向盘中。' : '后续可以在首页“我的跟进”里找回。');
+    } catch (error) {
+      Alert.alert('加入失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }
+
+  function handleCopyPhone() {
+    recordRecentContactPlate(snapshot, 'wechat').catch(() => undefined);
+    onCopyPhone?.();
+  }
+
+  function handleDial() {
+    recordRecentContactPlate(snapshot, 'phone').catch(() => undefined);
+    onDial?.();
+  }
 
   return (
     <View style={empStyles.wrap}>
@@ -232,9 +280,11 @@ function EmployeeRow({
             }
           />
           <View style={empStyles.actionVDivider} />
-          <ActionButton text="添加微信" onPress={onCopyPhone} />
+          <ActionButton text="加意向" onPress={handleAddIntent} />
           <View style={empStyles.actionVDivider} />
-          <ActionButton text="拨打电话" onPress={onDial} primary />
+          <ActionButton text="添加微信" onPress={handleCopyPhone} />
+          <View style={empStyles.actionVDivider} />
+          <ActionButton text="拨打电话" onPress={handleDial} primary />
         </View>
       </View>
     </View>

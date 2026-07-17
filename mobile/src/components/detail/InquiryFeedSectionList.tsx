@@ -1,8 +1,9 @@
 import React, {useState} from 'react';
-import {ActivityIndicator, RefreshControl, SectionList, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, Alert, RefreshControl, SectionList, StyleSheet, Text, View} from 'react-native';
 import {colors} from '../../theme/colors';
 import type {OfferFeedItem} from '../../types/api';
 import type {OriginalTextPayload} from '../../utils/originalText';
+import {addIntentPlate, createPlateSnapshotFromFeed, recordRecentContactPlate} from '../../utils/plateFollowStore';
 import {OriginalTextSheet} from './OriginalTextSheet';
 import {OfferFeedCard} from '../../screens/OfferFeedScreen';
 
@@ -37,6 +38,15 @@ export function InquiryFeedSectionList({
 }: Props) {
   const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
 
+  async function addIntent(item: OfferFeedItem) {
+    try {
+      const result = await addIntentPlate(createPlateSnapshotFromFeed(item, 'inquiry'));
+      Alert.alert(result.alreadyAdded ? '已在意向盘' : '已加入意向盘', result.alreadyAdded ? '这条盘已在意向盘中。' : '后续可以在首页“我的跟进”里找回。');
+    } catch (error) {
+      Alert.alert('加入失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }
+
   return (
     <>
       <SectionList
@@ -61,6 +71,10 @@ export function InquiryFeedSectionList({
                 }
               }}
               onViewOriginalText={setOriginalText}
+              onAddIntent={() => addIntent(item)}
+              onContact={action => {
+                recordRecentContactPlate(createPlateSnapshotFromFeed(item, 'inquiry'), action).catch(() => undefined);
+              }}
             />
           </View>
         )}

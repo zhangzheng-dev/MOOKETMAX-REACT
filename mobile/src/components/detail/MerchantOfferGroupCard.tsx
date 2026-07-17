@@ -1,5 +1,5 @@
 import React, {memo, useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Alert, Pressable, StyleSheet, Text, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
@@ -14,6 +14,12 @@ import {
   parseWeight,
   splitTags,
 } from '../../utils/offer';
+import {
+  addIntentPlate,
+  createPlateSnapshotFromEmployee,
+  recordRecentContactPlate,
+  type PlateKind,
+} from '../../utils/plateFollowStore';
 import {OfferTagChip} from './OfferTagChip';
 
 type Props = {
@@ -41,6 +47,7 @@ function MerchantOfferGroupCardInner({
 }: Props) {
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const merchantName = group.merchantName || `商家-${group.merchantId ?? ''}`;
+  const plateType: PlateKind = isInquiry ? 'inquiry' : 'offer';
 
   const prices = (group.employeeOffers ?? [])
     .map(item => Number(item.price))
@@ -130,6 +137,8 @@ function MerchantOfferGroupCardInner({
               factoryNo={factoryNo}
               productName={productName}
               merchantName={group.merchantName}
+              merchantId={group.merchantId}
+              plateType={plateType}
             />
           ))}
           {group.offerCount > (group.employeeOffers?.length ?? 0) ? (
@@ -153,6 +162,8 @@ function EmployeeOfferRow({
   factoryNo,
   productName,
   merchantName,
+  merchantId,
+  plateType,
 }: {
   offer: EmployeeOfferItem;
   merchantPhone?: string | null;
@@ -163,6 +174,8 @@ function EmployeeOfferRow({
   factoryNo?: string | null;
   productName?: string | null;
   merchantName?: string | null;
+  merchantId?: number | string | null;
+  plateType: PlateKind;
 }) {
   const [weightValue, weightUnit] = parseWeight(offer.weight);
   const time = formatPublishTime(offer.publishTime);
@@ -171,6 +184,33 @@ function EmployeeOfferRow({
   const cattleBreed = offer.cattleBreed?.trim() ?? '';
   const remark = offer.remark?.trim() ?? '';
   const tags = splitTags(offer.tags, 4);
+  const snapshot = createPlateSnapshotFromEmployee(offer, plateType, {
+    country,
+    factoryNo,
+    productName,
+    merchantName,
+    merchantId,
+    contactPhone: merchantPhone,
+  });
+
+  async function handleAddIntent() {
+    try {
+      const result = await addIntentPlate(snapshot);
+      Alert.alert(result.alreadyAdded ? '已在意向盘' : '已加入意向盘', result.alreadyAdded ? '这条盘已在意向盘中。' : '后续可以在首页“我的跟进”里找回。');
+    } catch (error) {
+      Alert.alert('加入失败', error instanceof Error ? error.message : '请稍后重试');
+    }
+  }
+
+  function handleCopyPhone() {
+    recordRecentContactPlate(snapshot, 'wechat').catch(() => undefined);
+    onCopyPhone?.();
+  }
+
+  function handleDial() {
+    recordRecentContactPlate(snapshot, 'phone').catch(() => undefined);
+    onDial?.();
+  }
 
   return (
     <View style={styles.offerCard}>
@@ -246,12 +286,17 @@ function EmployeeOfferRow({
           <Text style={styles.actionText}>查看原文</Text>
         </Pressable>
         <View style={styles.actionVDivider} />
-        <Pressable style={styles.actionButton} onPress={onCopyPhone}>
+        <Pressable style={styles.actionButton} onPress={handleAddIntent}>
+          <IntentActionIcon />
+          <Text style={styles.actionText}>加意向</Text>
+        </Pressable>
+        <View style={styles.actionVDivider} />
+        <Pressable style={styles.actionButton} onPress={handleCopyPhone}>
           <AddSquareIcon />
           <Text style={styles.actionText}>添加微信</Text>
         </Pressable>
         <View style={styles.actionVDivider} />
-        <Pressable style={styles.actionButton} onPress={onDial}>
+        <Pressable style={styles.actionButton} onPress={handleDial}>
           <PhoneIcon />
           <Text style={[styles.actionText, styles.actionTextPrimary]}>拨打电话</Text>
         </Pressable>
@@ -364,6 +409,20 @@ function AddSquareIcon() {
     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
       <Path d="M9 22h6c5 0 7-2 7-7V9c0-5-2-7-7-7H9C4 2 2 4 2 9v6c0 5 2 7 7 7Z" stroke="#3C4947" strokeWidth={1.5} />
       <Path d="M8 12h8M12 16V8" stroke="#3C4947" strokeWidth={1.5} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function IntentActionIcon() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 18 18" fill="none">
+      <Path
+        d="M5.45 2.25H12.55C13.65 2.25 14.5 3.13 14.5 4.23V15C14.5 15.62 13.84 16.02 13.3 15.73L9.42 13.62C9.16 13.48 8.84 13.48 8.58 13.62L4.7 15.73C4.16 16.02 3.5 15.62 3.5 15V4.23C3.5 3.13 4.35 2.25 5.45 2.25Z"
+        stroke={colors.primary}
+        strokeWidth={1.35}
+        strokeLinejoin="round"
+      />
+      <Path d="M9 5.8V10.2M6.8 8H11.2" stroke={colors.primary} strokeWidth={1.35} strokeLinecap="round" />
     </Svg>
   );
 }

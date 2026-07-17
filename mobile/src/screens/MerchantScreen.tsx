@@ -312,6 +312,9 @@ export function MerchantScreen({navigation, route}: Props) {
                 expanded={expanded.has(key)}
                 onToggle={() => toggleExpand(key)}
                 merchantPhone={detail.contactPhone ?? null}
+                plateType={tab === 'inquiry' ? 'inquiry' : 'offer'}
+                merchantId={detail.merchantId}
+                merchantName={detail.merchantShortName || detail.merchantName}
                 onCopyPhone={() =>
                   copyToClipboard(detail.contactPhone ?? '', '已复制手机号').catch(() => undefined)
                 }
