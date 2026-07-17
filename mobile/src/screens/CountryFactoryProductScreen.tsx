@@ -307,7 +307,17 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
             onClose: () => navigation.navigate('Factory', {country, factoryNo, category, initialTab: tab}),
           },
         ]}
-        topSlot={<OfferInquiryTabs tab={tab} onTabChange={handleTabChange} />}
+        topSlot={
+          <OfferInquiryTabs
+            tab={tab}
+            onTabChange={handleTabChange}
+            showMerchant
+            onMerchantPress={() => {
+              navigation.popToTop();
+              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+            }}
+          />
+        }
         rightAction={
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }

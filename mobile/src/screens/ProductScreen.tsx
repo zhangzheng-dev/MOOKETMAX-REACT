@@ -155,7 +155,17 @@ export function ProductScreen({navigation, route}: Props) {
             },
           },
         ]}
-        topSlot={<OfferInquiryTabs tab={tab} onTabChange={handleTabChange} />}
+        topSlot={
+          <OfferInquiryTabs
+            tab={tab}
+            onTabChange={handleTabChange}
+            showMerchant
+            onMerchantPress={() => {
+              navigation.popToTop();
+              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+            }}
+          />
+        }
         rightAction={
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }

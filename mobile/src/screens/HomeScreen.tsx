@@ -1,7 +1,9 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Platform,
   Pressable,
   RefreshControl,
@@ -24,7 +26,7 @@ import {DEFAULT_CATEGORY} from '../config/env';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
-import type {HomeCardItem, HomeStatData, HotSearchItem} from '../types/api';
+import type {HomeCardItem, HomeStatData, HotSearchItem, OfferFeedItem} from '../types/api';
 import {openHomeCard, openHotSearch} from '../utils/navigation';
 import {getRemoveSelfSelectMessage} from '../utils/selfSelectEntity';
 import {sortSelfSelectCardsByCreateTime} from '../utils/selfSelectCards';
@@ -32,6 +34,10 @@ import {sortSelfSelectCardsByCreateTime} from '../utils/selfSelectCards';
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 const categories = ['牛', '猪'];
+const HOME_INQUIRY_PAGE_SIZE = 30;
+const HOME_INQUIRY_VISIBLE_COUNT = 3;
+const HOME_INQUIRY_ROW_HEIGHT = 42;
+const HOME_INQUIRY_SCROLL_MS_PER_ROW = 2400;
 
 // 18x18 主色「移除删除」icon
 const archiveDelIconXml = `<svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path d="M12.6152 1.5C14.2125 1.50013 15.5098 2.80482 15.5176 4.39453V14.9629C15.5174 16.32 14.5499 16.8901 13.3652 16.2305L9.70508 14.1973C9.32267 13.9798 8.69274 13.9799 8.30273 14.1973L4.64258 16.2305C3.45775 16.8828 2.49042 16.3126 2.49023 14.9629V4.39453C2.49049 2.80482 3.78753 1.50012 5.38477 1.5H12.6152ZM7.125 7.4248C6.81756 7.4248 6.5626 7.67989 6.5625 7.9873C6.5625 8.2948 6.8175 8.5498 7.125 8.5498H10.875C11.1825 8.5498 11.4375 8.2948 11.4375 7.9873C11.4374 7.67989 11.1824 7.4248 10.875 7.4248H7.125Z" fill="#006A61"/></svg>`;
@@ -42,6 +48,8 @@ export function HomeScreen({navigation}: Props) {
   const [stat, setStat] = useState<HomeStatData | null>(null);
   const [hotSearches, setHotSearches] = useState<HotSearchItem[]>([]);
   const [cards, setCards] = useState<HomeCardItem[]>([]);
+  const [homeInquiries, setHomeInquiries] = useState<OfferFeedItem[]>([]);
+  const [inquiryTickerPaused, setInquiryTickerPaused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -53,6 +61,8 @@ export function HomeScreen({navigation}: Props) {
   const focusRefreshReadyRef = useRef(false);
   const loadRef = useRef<(mode?: 'initial' | 'refresh' | 'silent') => Promise<void>>(async () => undefined);
   const sectionListRef = useRef<SectionList>(null);
+  const inquiryTickerY = useRef(new Animated.Value(0)).current;
+  const inquiryTickerLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const handleEditToggle = useCallback(() => {
     setEditMode(prev => {
       const next = !prev;
@@ -110,17 +120,28 @@ export function HomeScreen({navigation}: Props) {
     }
 
     try {
-      const [statData, hotData, selfSelectData, selfSelectHistories] = await Promise.all([
+      const [statData, hotData, selfSelectData, selfSelectHistories, inquiryFeedData] = await Promise.all([
         mooketApi.getHomeStatData(category),
         mooketApi.getHotSearchRecommendations(category),
         mooketApi.getSelfSelectCards(category),
         mooketApi.getSelfSelectSearches(500).catch(() => []),
+        mooketApi
+          .getOfferFeed({
+            category,
+            type: 'inquiry',
+            page: 1,
+            pageSize: HOME_INQUIRY_PAGE_SIZE,
+            sortBy: 'publishTime',
+          })
+          .catch(() => null),
       ]);
       const selfSelectCards = selfSelectData.cards ?? [];
 
       setStat(statData);
       setHotSearches(hotData);
       setCards(sortSelfSelectCardsByCreateTime(selfSelectCards, selfSelectHistories));
+      setHomeInquiries(inquiryFeedData?.items ?? []);
+      inquiryTickerY.setValue(0);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -145,6 +166,47 @@ export function HomeScreen({navigation}: Props) {
     }, []),
   );
 
+  useEffect(() => {
+    inquiryTickerLoopRef.current?.stop();
+    inquiryTickerLoopRef.current = null;
+
+    if (inquiryTickerPaused || homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
+      if (homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
+        inquiryTickerY.setValue(0);
+      }
+      return undefined;
+    }
+
+    inquiryTickerY.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(inquiryTickerY, {
+        toValue: -(homeInquiries.length * HOME_INQUIRY_ROW_HEIGHT),
+        duration: homeInquiries.length * HOME_INQUIRY_SCROLL_MS_PER_ROW,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+      {resetBeforeIteration: true},
+    );
+    inquiryTickerLoopRef.current = loop;
+    loop.start();
+
+    return () => {
+      loop.stop();
+      if (inquiryTickerLoopRef.current === loop) {
+        inquiryTickerLoopRef.current = null;
+      }
+    };
+  }, [homeInquiries.length, inquiryTickerPaused, inquiryTickerY]);
+
+  const visibleHomeInquiries = useMemo(() => {
+    if (homeInquiries.length === 0) return [];
+    if (homeInquiries.length <= HOME_INQUIRY_VISIBLE_COUNT) {
+      return homeInquiries;
+    }
+
+    return [...homeInquiries, ...homeInquiries];
+  }, [homeInquiries]);
+
   function switchCategory(value: string) {
     setCategory(value);
     setMenuOpen(false);
@@ -152,11 +214,11 @@ export function HomeScreen({navigation}: Props) {
   }
 
   function openOfferFeed(initialTab: 'offer' | 'inquiry') {
-    navigation.navigate('OfferFeed', {category, initialTab});
+    navigation.navigate('OfferFeed', {category, initialTab, inquiryOnly: initialTab === 'inquiry'});
   }
 
-  function openSearch() {
-    navigation.navigate('Search', {category});
+  function openSearch(initialTab?: 'offer' | 'inquiry' | 'merchant') {
+    navigation.navigate('Search', initialTab ? {category, initialTab} : {category});
   }
 
   async function cancelSelfSelect(historyId: number) {
@@ -224,7 +286,8 @@ export function HomeScreen({navigation}: Props) {
         }}
         scrollEventThrottle={16}
         ListHeaderComponent={
-          <View style={styles.scrollableTop} onLayout={(e) => { headerHeightRef.current = e.nativeEvent.layout.height; }}>
+          <View onLayout={(e) => { headerHeightRef.current = e.nativeEvent.layout.height; }}>
+          <View style={styles.scrollableTop}>
             {/* 50dp 搜索栏 */}
             <View style={styles.searchWrap}>
               <View style={styles.searchBox}>
@@ -235,12 +298,12 @@ export function HomeScreen({navigation}: Props) {
                 <View style={styles.searchVDivider} />
                 <Pressable
                   style={styles.searchPlaceholder}
-                  onPress={openSearch}>
+                  onPress={() => openSearch()}>
                   <Text style={styles.searchPlaceholderText} numberOfLines={1}>
                     搜索国家、厂号、产品、商家、品牌
                   </Text>
                 </Pressable>
-                <Pressable hitSlop={8} onPress={openSearch} style={styles.searchIcon}>
+                <Pressable hitSlop={8} onPress={() => openSearch()} style={styles.searchIcon}>
                   <SearchIcon24 />
                 </Pressable>
               </View>
@@ -271,24 +334,19 @@ export function HomeScreen({navigation}: Props) {
               </ScrollView>
             </View>
           </View>
+          <TradingGuideSection
+            offerCount={stat?.totalOfferCount}
+            inquiries={visibleHomeInquiries}
+            tickerTranslateY={inquiryTickerY}
+            onTickerPauseChange={setInquiryTickerPaused}
+            onInquiryPress={() => openOfferFeed('inquiry')}
+            onOfferSearchPress={() => openSearch('offer')}
+            onMerchantSearchPress={() => openSearch('merchant')}
+          />
+          </View>
         }
         renderSectionHeader={() => (
           <View style={styles.stickyBlock}>
-            {/* 深色 stat bar */}
-            <View style={styles.statBar}>
-              <View style={styles.statBarLeft}>
-                <View style={styles.statBadge}>
-                  <Text style={styles.statBadgeText}>近两日数据</Text>
-                </View>
-                <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} onPress={() => openOfferFeed('offer')} />
-                <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} onPress={() => openOfferFeed('inquiry')} />
-                <StatViewButton onPress={() => openOfferFeed('offer')} />
-              </View>
-              <View style={styles.statBarRight}>
-                <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
-              </View>
-            </View>
-
             {/* Tabs + 编辑 按钮 */}
             <View style={styles.tabsBar}>
               <Tab
@@ -355,19 +413,6 @@ export function HomeScreen({navigation}: Props) {
       {/* 手动吸顶的 stat + tabs 覆盖层 */}
       {headerSticky ? (
         <View style={[styles.stickyOverlay, {top: fixedTopBottom}]}>
-          <View style={styles.statBar}>
-            <View style={styles.statBarLeft}>
-              <View style={styles.statBadge}>
-                <Text style={styles.statBadgeText}>近两日数据</Text>
-              </View>
-              <StatItem label="报盘" value={stat?.totalOfferCount ?? '--'} onPress={() => openOfferFeed('offer')} />
-              <StatItem label="求购" value={stat?.totalInquiryCount ?? '--'} onPress={() => openOfferFeed('inquiry')} />
-              <StatViewButton onPress={() => openOfferFeed('offer')} />
-            </View>
-            <View style={styles.statBarRight}>
-              <Text style={styles.statTime}>{stat?.statTime ?? '--:--'}</Text>
-            </View>
-          </View>
           <View style={styles.tabsBar}>
             <Tab
               text="自选数据"
@@ -474,6 +519,146 @@ function StatViewButton({onPress}: {onPress: () => void}) {
   );
 }
 
+function TradingGuideSection({
+  offerCount,
+  inquiries,
+  tickerTranslateY,
+  onTickerPauseChange,
+  onInquiryPress,
+  onOfferSearchPress,
+  onMerchantSearchPress,
+}: {
+  offerCount?: string | number | null;
+  inquiries: OfferFeedItem[];
+  tickerTranslateY: Animated.Value;
+  onTickerPauseChange: (paused: boolean) => void;
+  onInquiryPress: () => void;
+  onOfferSearchPress: () => void;
+  onMerchantSearchPress: () => void;
+}) {
+  const hasInquiry = inquiries.length > 0;
+
+  return (
+    <View style={styles.tradeGuideWrap}>
+      <View style={styles.tradeGuideGrid}>
+        <Pressable
+          onPress={onInquiryPress}
+          onPressIn={() => onTickerPauseChange(true)}
+          onPressOut={() => onTickerPauseChange(false)}
+          style={({pressed}) => [styles.tradeInquiryCard, pressed && styles.tradeCardPressed]}>
+          <View style={styles.tradeIconBubble}>
+            <ClipboardListIcon />
+          </View>
+          <View style={styles.tradeTitleRow}>
+            <Text style={styles.tradeMainTitle}>求购专区</Text>
+            <SmallChevronIcon color={colors.text} />
+          </View>
+          <Text style={styles.tradeSubtitle}>看看今日市场需求</Text>
+
+          <View
+            style={styles.inquiryTickerClip}
+            onTouchStart={() => onTickerPauseChange(true)}
+            onTouchEnd={() => onTickerPauseChange(false)}
+            onTouchCancel={() => onTickerPauseChange(false)}>
+            {hasInquiry ? (
+              <Animated.View style={[styles.inquiryTickerTrack, {transform: [{translateY: tickerTranslateY}]}]}>
+                {inquiries.map((item, index) => (
+                  <HomeInquiryTickerRow
+                    key={`${item.offerId ?? 'inquiry'}-${index}`}
+                    item={item}
+                    showDivider={index < inquiries.length - 1}
+                  />
+                ))}
+              </Animated.View>
+            ) : (
+              <View style={styles.inquiryTickerEmpty}>
+                <Text style={styles.inquiryTickerEmptyText}>暂无求购动态</Text>
+              </View>
+            )}
+          </View>
+        </Pressable>
+
+        <View style={styles.tradeSideColumn}>
+          <Pressable
+            onPress={onOfferSearchPress}
+            style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
+            <View style={styles.tradeIconBubbleSmall}>
+              <OfferSearchIcon />
+            </View>
+            <View style={styles.tradeSideTitleRow}>
+              <Text style={styles.tradeSideTitle}>搜报盘</Text>
+              <SmallChevronIcon color={colors.text} />
+            </View>
+            <Text style={styles.tradeSideSubtitle}>按产品/厂号/集团搜索</Text>
+            <Text style={styles.tradeSideStat}>
+              近两日报盘 <Text style={styles.tradeSideStatValue}>{formatHomeCount(offerCount)}</Text>
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onMerchantSearchPress}
+            style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
+            <View style={styles.tradeIconBubbleSmall}>
+              <MerchantSearchIcon />
+            </View>
+            <View style={styles.tradeSideTitleRow}>
+              <Text style={styles.tradeSideTitle}>搜商家</Text>
+              <SmallChevronIcon color={colors.text} />
+            </View>
+            <Text style={styles.tradeSideSubtitle}>查商家 看报盘求购</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function HomeInquiryTickerRow({
+  item,
+  showDivider,
+}: {
+  item: OfferFeedItem;
+  showDivider: boolean;
+}) {
+  return (
+    <View style={[styles.inquiryTickerRow, showDivider && styles.inquiryTickerDivider]}>
+      <View style={styles.homeInquiryBadge}>
+        <Text style={styles.homeInquiryBadgeText}>求购</Text>
+      </View>
+      <Text style={styles.inquiryTickerTitle} numberOfLines={1}>
+        {buildHomeInquiryTitle(item)}
+      </Text>
+      <SmallChevronIcon color="#9DA4A3" />
+    </View>
+  );
+}
+
+function buildHomeInquiryTitle(item: OfferFeedItem) {
+  const productName = cleanText(item.productName) || '求购';
+  const country = cleanText(item.country);
+  const factoryNo = cleanText(item.factoryNo);
+  let scope = '国家厂号不限';
+
+  if (country && factoryNo) {
+    scope = `${country}${factoryNo}`;
+  } else if (country) {
+    scope = `${country}厂号不限`;
+  } else if (factoryNo) {
+    scope = factoryNo;
+  }
+
+  return `${productName} ${scope}`;
+}
+
+function cleanText(value?: string | null) {
+  return value?.trim() ?? '';
+}
+
+function formatHomeCount(value?: string | number | null) {
+  if (value == null || value === '') return '--';
+  return String(value);
+}
+
 function CardWithEdit({
   card,
   editMode,
@@ -532,6 +717,68 @@ function EmptySelfSelectState({onAdd}: {onAdd: () => void}) {
 }
 
 /* ===== Inline icons ===== */
+
+function ClipboardListIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M8.75 5.25H7.6C6.72 5.25 6 5.97 6 6.85V18.4C6 19.28 6.72 20 7.6 20H16.4C17.28 20 18 19.28 18 18.4V6.85C18 5.97 17.28 5.25 16.4 5.25H15.25"
+        stroke="#006A61"
+        strokeWidth={1.55}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9 5.6C9 4.72 9.72 4 10.6 4H13.4C14.28 4 15 4.72 15 5.6V6.6H9V5.6Z"
+        stroke="#006A61"
+        strokeWidth={1.55}
+        strokeLinejoin="round"
+      />
+      <Path d="M9 11H15M9 14H14M9 17H12.8" stroke="#006A61" strokeWidth={1.55} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function OfferSearchIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M7 4.5H14.4L18 8.1V19.5H7V4.5Z"
+        stroke="#006A61"
+        strokeWidth={1.55}
+        strokeLinejoin="round"
+      />
+      <Path d="M14.2 4.8V8.3H17.7" stroke="#006A61" strokeWidth={1.55} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M9.5 15.5L11.5 13.3L13.2 14.8L15.8 11.6" stroke="#006A61" strokeWidth={1.55} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M15 11.6H15.8V12.4" stroke="#006A61" strokeWidth={1.55} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function MerchantSearchIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M5.5 10.2H18.5L17.7 19.5H6.3L5.5 10.2Z"
+        stroke="#006A61"
+        strokeWidth={1.55}
+        strokeLinejoin="round"
+      />
+      <Path d="M7.1 10.2L8 5H16L16.9 10.2" stroke="#006A61" strokeWidth={1.55} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M9 19.4V15.2H12.8V19.4" stroke="#006A61" strokeWidth={1.55} strokeLinejoin="round" />
+      <Path d="M14.8 15.1C15.96 15.1 16.9 14.16 16.9 13C16.9 11.84 15.96 10.9 14.8 10.9C13.64 10.9 12.7 11.84 12.7 13C12.7 14.16 13.64 15.1 14.8 15.1Z" fill="#006A61" fillOpacity={0.16} />
+      <Path d="M16.35 14.55L18.1 16.3" stroke="#006A61" strokeWidth={1.55} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function SmallChevronIcon({color = colors.primary}: {color?: string}) {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 14 14" fill="none">
+      <Path d="M5.25 3.5L8.75 7L5.25 10.5" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
 
 function InventoryIcon() {
   return (
@@ -718,11 +965,179 @@ const styles = StyleSheet.create({
   hotChipText: {color: colors.text, fontSize: 12, fontWeight: '500', lineHeight: 16},
   hotEmpty: {color: '#9DA4A3', fontSize: 11, paddingHorizontal: 8},
 
+  tradeGuideWrap: {
+    backgroundColor: '#F4FBF8',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 6,
+  },
+  tradeGuideGrid: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
+  },
+  tradeInquiryCard: {
+    flex: 1.2,
+    minWidth: 0,
+    minHeight: 220,
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CFE2DF',
+    backgroundColor: '#F8FFFD',
+    shadowColor: 'rgba(0, 40, 36, 0.08)',
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    shadowOffset: {width: 0, height: 3},
+    elevation: 1,
+  },
+  tradeSideColumn: {
+    flex: 0.88,
+    minWidth: 0,
+    gap: 10,
+  },
+  tradeSideCard: {
+    flex: 1,
+    minHeight: 105,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D7E1DF',
+    backgroundColor: '#FFFFFF',
+    shadowColor: 'rgba(0, 40, 36, 0.06)',
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    shadowOffset: {width: 0, height: 2},
+    elevation: 1,
+  },
+  tradeCardPressed: {
+    opacity: 0.72,
+  },
+  tradeIconBubble: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E2F4F0',
+  },
+  tradeIconBubbleSmall: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EAF7F4',
+  },
+  tradeTitleRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tradeMainTitle: {
+    color: colors.text,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '700',
+  },
+  tradeSubtitle: {
+    marginTop: 5,
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  inquiryTickerClip: {
+    height: HOME_INQUIRY_ROW_HEIGHT * HOME_INQUIRY_VISIBLE_COUNT,
+    marginTop: 14,
+    borderRadius: 7,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  inquiryTickerTrack: {
+    minHeight: HOME_INQUIRY_ROW_HEIGHT * (HOME_INQUIRY_VISIBLE_COUNT + 1),
+  },
+  inquiryTickerRow: {
+    height: HOME_INQUIRY_ROW_HEIGHT,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  inquiryTickerDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E2E9E7',
+  },
+  homeInquiryBadge: {
+    minWidth: 38,
+    height: 24,
+    paddingHorizontal: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#C8D8FF',
+    backgroundColor: '#EEF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  homeInquiryBadgeText: {
+    color: '#3767D6',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+  },
+  inquiryTickerTitle: {
+    flex: 1,
+    minWidth: 0,
+    color: colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  inquiryTickerEmpty: {
+    height: HOME_INQUIRY_ROW_HEIGHT * HOME_INQUIRY_VISIBLE_COUNT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inquiryTickerEmptyText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  tradeSideTitleRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tradeSideTitle: {
+    color: colors.text,
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: '700',
+  },
+  tradeSideSubtitle: {
+    marginTop: 3,
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  tradeSideStat: {
+    marginTop: 8,
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  tradeSideStatValue: {
+    fontFamily: fonts.manropeBold,
+    color: colors.primary,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
   // sticky stat + tabs
   stickyBlock: {
     backgroundColor: '#F4FBF8',
     zIndex: 50,
-    elevation: 10,
+    elevation: 0,
   },
   stickyOverlay: {
     position: 'absolute',
@@ -730,7 +1145,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#F4FBF8',
     zIndex: 90,
-    elevation: 15,
+    elevation: 0,
   },
   statBar: {
     height: 38,
@@ -771,8 +1186,9 @@ const styles = StyleSheet.create({
   statViewText: {color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '600'},
 
   tabsBar: {
-    height: 42,
+    height: 40,
     paddingHorizontal: 16,
+    paddingTop: 2,
     backgroundColor: '#F4FBF8',
     flexDirection: 'row',
     alignItems: 'center',
@@ -809,7 +1225,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   emptySelfText: {marginTop: 10, color: '#6C7A77', fontSize: 12, lineHeight: 16},
-  gridRow: {flexDirection: 'row', paddingHorizontal: 16, paddingTop: 12, gap: 12},
+  gridRow: {flexDirection: 'row', paddingHorizontal: 16, paddingTop: 10, gap: 12},
   gridCol: {flex: 1, gap: 12},
   cardWrap: {position: 'relative'},
   exampleBadge: {

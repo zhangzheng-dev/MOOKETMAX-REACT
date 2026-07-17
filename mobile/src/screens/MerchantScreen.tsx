@@ -11,7 +11,7 @@ import {MerchantSortBar, type MerchantSortMode} from '../components/detail/Merch
 import {OfferCardCompact} from '../components/detail/OfferCardCompact';
 import {OriginalTextSheet} from '../components/detail/OriginalTextSheet';
 import {ErrorState} from '../components/common/ErrorState';
-import {OfferInquiryTabs, type OfferTab} from '../components/detail/TabAndSortBar';
+import type {OfferTab} from '../components/detail/TabAndSortBar';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {MerchantDetail, OfferSummary} from '../types/api';
@@ -23,13 +23,17 @@ import {countUniqueFactories, countUniqueProducts, pickTabNumber} from '../utils
 type Props = NativeStackScreenProps<RootStackParamList, 'Merchant'>;
 
 const pageSize = 20;
+const merchantCategoryOptions = ['牛', '猪'] as const;
+type MerchantCategory = (typeof merchantCategoryOptions)[number];
+type MerchantCategoryFilter = 'all' | MerchantCategory;
 
 export function MerchantScreen({navigation, route}: Props) {
-  const {merchantId, category, initialTab} = route.params;
+  const {merchantId, category, initialTab, initialCategory} = route.params;
   const [detail, setDetail] = useState<MerchantDetail | null>(null);
   const [offers, setOffers] = useState<OfferSummary[]>([]);
   const [inquiries, setInquiries] = useState<OfferSummary[]>([]);
   const [tab, setTab] = useState<OfferTab>(initialTab ?? 'offer');
+  const [categoryFilter, setCategoryFilter] = useState<MerchantCategoryFilter>(initialCategory ?? 'all');
   const [sort, setSort] = useState<MerchantSortMode>({kind: 'comprehensive'});
   const [page, setPage] = useState({offer: 1, inquiry: 1});
   const [hasMore, setHasMore] = useState({offer: true, inquiry: true});
@@ -58,7 +62,17 @@ export function MerchantScreen({navigation, route}: Props) {
     setLoading(true);
     setError(null);
     try {
-      const data = await mooketApi.getMerchantDetail(merchantId, category);
+      const categories = getMerchantCategories(categoryFilter, category);
+      const results = await Promise.allSettled(
+        categories.map(item => mooketApi.getMerchantDetail(merchantId, item)),
+      );
+      const details = results
+        .filter((item): item is PromiseFulfilledResult<MerchantDetail> => item.status === 'fulfilled')
+        .map(item => item.value);
+      if (details.length === 0) {
+        throw new Error('加载失败');
+      }
+      const data = combineMerchantDetails(details);
       setDetail(data);
       // 初始加载用第一页数据（后端默认综合排序）
       setOffers(data.offers ?? []);
@@ -73,24 +87,30 @@ export function MerchantScreen({navigation, route}: Props) {
     } finally {
       setLoading(false);
     }
-  }, [category, merchantId]);
+  }, [category, categoryFilter, merchantId]);
 
   // 当排序或 tab 变化时重新加载第一页
   const reloadSorted = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await mooketApi.getMerchantProducts(merchantId, tab, category, 1, pageSize, sortParam);
-      const incoming = data.products ?? [];
+      const categories = getMerchantCategories(categoryFilter, category);
+      const results = await Promise.allSettled(
+        categories.map(item => mooketApi.getMerchantProducts(merchantId, tab, item, 1, pageSize, sortParam)),
+      );
+      const pages = results
+        .filter((item): item is PromiseFulfilledResult<Awaited<ReturnType<typeof mooketApi.getMerchantProducts>>> => item.status === 'fulfilled')
+        .map(item => item.value);
+      const incoming = pages.flatMap(item => item.products ?? []);
       if (tab === 'offer') setOffers(incoming);
       else setInquiries(incoming);
       setPage(p => ({...p, [tab]: 1}));
-      setHasMore(m => ({...m, [tab]: 1 < (data.totalPages ?? 1)}));
+      setHasMore(m => ({...m, [tab]: pages.some(item => 1 < (item.totalPages ?? 1))}));
     } catch {
       // 静默
     } finally {
       setLoading(false);
     }
-  }, [category, merchantId, sortParam, tab]);
+  }, [category, categoryFilter, merchantId, sortParam, tab]);
 
   useEffect(() => {
     load().catch(() => undefined);
@@ -108,7 +128,18 @@ export function MerchantScreen({navigation, route}: Props) {
 
   useEffect(() => {
     setExpanded(new Set());
-  }, [tab]);
+  }, [categoryFilter, tab]);
+
+  useEffect(() => {
+    setCountry(null);
+    setFactories(new Set());
+    setRegions(new Set());
+    setProducts(new Set());
+    setGoodsTypes(new Set());
+    setFeedingMethods(new Set());
+    setTagFilters(new Set());
+    setActiveFilter(null);
+  }, [categoryFilter]);
 
   const currentList = tab === 'offer' ? offers : inquiries;
 
@@ -118,19 +149,25 @@ export function MerchantScreen({navigation, route}: Props) {
     const nextPage = page[tab] + 1;
     setLoadingMore(true);
     try {
-      const data = await mooketApi.getMerchantProducts(merchantId, tab, category, nextPage, pageSize, sortParam);
-      const incoming = data.products ?? [];
+      const categories = getMerchantCategories(categoryFilter, category);
+      const results = await Promise.allSettled(
+        categories.map(item => mooketApi.getMerchantProducts(merchantId, tab, item, nextPage, pageSize, sortParam)),
+      );
+      const pages = results
+        .filter((item): item is PromiseFulfilledResult<Awaited<ReturnType<typeof mooketApi.getMerchantProducts>>> => item.status === 'fulfilled')
+        .map(item => item.value);
+      const incoming = pages.flatMap(item => item.products ?? []);
       const updater = (prev: OfferSummary[]) => mergeOffers(prev, incoming);
       if (tab === 'offer') setOffers(updater);
       else setInquiries(updater);
       setPage(p => ({...p, [tab]: nextPage}));
-      setHasMore(m => ({...m, [tab]: nextPage < (data.totalPages ?? nextPage)}));
+      setHasMore(m => ({...m, [tab]: pages.some(item => nextPage < (item.totalPages ?? nextPage))}));
     } catch {
       // 静默
     } finally {
       setLoadingMore(false);
     }
-  }, [category, hasMore, loading, loadingMore, merchantId, page, sortParam, tab]);
+  }, [category, categoryFilter, hasMore, loading, loadingMore, merchantId, page, sortParam, tab]);
 
   const filteredAndSorted = useMemo(() => {
     let list = currentList.slice();
@@ -189,9 +226,10 @@ export function MerchantScreen({navigation, route}: Props) {
   const allTags = useMemo(() => currentFilterOptions?.tags ?? [], [currentFilterOptions?.tags]);
 
   const filters = [
+    {key: 'category' as const, label: getCategoryFilterLabel(categoryFilter), hasSelection: true},
+    {key: 'product' as const, label: '产品', hasSelection: products.size > 0},
     {key: 'countryFactory' as const, label: '国家厂号', hasSelection: country != null || factories.size > 0},
     {key: 'region' as const, label: '地区', hasSelection: regions.size > 0},
-    {key: 'product' as const, label: '产品', hasSelection: products.size > 0},
     {key: 'goodsType' as const, label: '货物类型', hasSelection: goodsTypes.size > 0},
     {key: 'feedingMethod' as const, label: '饲养方式', hasSelection: feedingMethods.size > 0},
     {key: 'tag' as const, label: '标签', hasSelection: tagFilters.size > 0},
@@ -233,7 +271,6 @@ export function MerchantScreen({navigation, route}: Props) {
           <SelfSelectButton category={category} card={selfSelectCard} payload={selfSelectPayload} />
         }
       />
-      <OfferInquiryTabs tab={tab} onTabChange={setTab} style={styles.topTabs} />
 
       {loading && !detail ? (
         <View style={styles.loading}>
@@ -254,12 +291,8 @@ export function MerchantScreen({navigation, route}: Props) {
             <View>
               <DataDashboard
                 stats={[
-                  {
-                    label: tab === 'offer' ? '近2日报盘' : '近2日求购',
-                    value: tab === 'offer' ? detail.todayOfferCount : detail.todayInquiryCount,
-                  },
-                  {label: '产品数', value: dashboardProductCount},
-                  {label: '工厂数', value: dashboardFactoryCount},
+                  {label: '近2日报盘', value: detail.todayOfferCount},
+                  {label: '近2日求购', value: detail.todayInquiryCount},
                 ]}
               />
               <View style={styles.gap} />
@@ -267,7 +300,7 @@ export function MerchantScreen({navigation, route}: Props) {
           }
           renderSectionHeader={() => (
             <View style={styles.stickyHeader}>
-              <MerchantSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} showTabs={false} />
+              <MerchantSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} />
               <FilterBar filters={filters} active={activeFilter} onPress={setActiveFilter} />
             </View>
           )}
@@ -302,6 +335,25 @@ export function MerchantScreen({navigation, route}: Props) {
           ListEmptyComponent={!loading ? <Text style={styles.empty}>暂无数据</Text> : null}
         />
       ) : null}
+
+      <FilterPanelSheet
+        visible={activeFilter === 'category'}
+        title="大类"
+        onClose={() => setActiveFilter(null)}
+        onReset={() => {
+          setCategoryFilter('all');
+          setActiveFilter(null);
+        }}
+        onConfirm={() => setActiveFilter(null)}>
+        <MultiSelectChips
+          options={['全部', '牛', '猪']}
+          selected={new Set([getCategoryFilterLabel(categoryFilter)])}
+          onToggle={value => {
+            setCategoryFilter(value === '牛' || value === '猪' ? value : 'all');
+            setActiveFilter(null);
+          }}
+        />
+      </FilterPanelSheet>
 
       <FilterPanelSheet
         visible={activeFilter === 'countryFactory'}
@@ -420,6 +472,51 @@ export function MerchantScreen({navigation, route}: Props) {
 function offerKey(offer: OfferSummary, index: number) {
   if (offer.offerId != null) return `${offer.offerId}`;
   return `${offer.country ?? ''}-${offer.factoryNo ?? ''}-${offer.productName ?? ''}-${index}`;
+}
+
+function getMerchantCategories(filter: MerchantCategoryFilter, fallbackCategory: string): MerchantCategory[] {
+  if (filter === 'all') return [...merchantCategoryOptions];
+  if (merchantCategoryOptions.includes(filter)) return [filter];
+  return [fallbackCategory === '猪' ? '猪' : '牛'];
+}
+
+function getCategoryFilterLabel(filter: MerchantCategoryFilter) {
+  return filter === 'all' ? '全部' : filter;
+}
+
+function combineMerchantDetails(details: MerchantDetail[]): MerchantDetail {
+  const primary = details[0];
+  const offers = details.flatMap(item => item.offers ?? []);
+  const inquiries = details.flatMap(item => item.inquiries ?? []);
+  return {
+    ...primary,
+    todayOfferCount: sumNumbers(details.map(item => item.todayOfferCount)),
+    todayInquiryCount: sumNumbers(details.map(item => item.todayInquiryCount)),
+    todayProductCount: countUniqueProducts([...offers, ...inquiries]),
+    todayFactoryCount: countUniqueFactories([...offers, ...inquiries]),
+    offers,
+    inquiries,
+    offerFilterOptions: combineMerchantFilterOptions(details.map(item => item.offerFilterOptions ?? null)),
+    inquiryFilterOptions: combineMerchantFilterOptions(details.map(item => item.inquiryFilterOptions ?? null)),
+    totalOffers: sumNumbers(details.map(item => item.totalOffers ?? item.offers?.length ?? 0)),
+    totalInquiries: sumNumbers(details.map(item => item.totalInquiries ?? item.inquiries?.length ?? 0)),
+  };
+}
+
+function combineMerchantFilterOptions(options: Array<MerchantDetail['offerFilterOptions'] | null>) {
+  return {
+    countries: unique(options.flatMap(item => item?.countries ?? [])),
+    countryFactories: unique(options.flatMap(item => item?.countryFactories ?? [])),
+    regions: unique(options.flatMap(item => item?.regions ?? [])),
+    products: unique(options.flatMap(item => item?.products ?? [])),
+    goodsTypes: unique(options.flatMap(item => item?.goodsTypes ?? [])),
+    feedingMethods: unique(options.flatMap(item => item?.feedingMethods ?? [])),
+    tags: unique(options.flatMap(item => item?.tags ?? [])),
+  };
+}
+
+function sumNumbers(values: Array<number | null | undefined>) {
+  return values.reduce((total, value) => total + (Number(value) || 0), 0);
 }
 
 function offerRegions(offer: OfferSummary): string[] {

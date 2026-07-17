@@ -71,13 +71,14 @@ export function OfferFeedScreen({navigation, route}: Props) {
   const merchantId = route.params?.merchantId;
   const brandName = route.params?.brandName;
   const productName = route.params?.productName;
+  const inquiryOnly = route.params?.inquiryOnly === true;
   const parsedRouteKeyword = parseOfferSearchText(routeKeyword);
   const initialCountry = route.params?.initialFilters?.country ?? parsedRouteKeyword.country;
   const initialFactoryNo = route.params?.initialFilters?.factoryNo ?? parsedRouteKeyword.factoryNo;
   const hasInitialStructuredFilter = Boolean(initialCountry || initialFactoryNo);
   const initialQueryKeyword =
     route.params?.queryKeyword ?? (hasInitialStructuredFilter ? parsedRouteKeyword.keyword : routeKeyword);
-  const [tab, setTab] = useState<OfferTab>(route.params?.initialTab ?? 'offer');
+  const [tab, setTab] = useState<OfferTab>(inquiryOnly ? 'inquiry' : route.params?.initialTab ?? 'offer');
   const [category, setCategory] = useState(route.params?.category ?? DEFAULT_CATEGORY);
   const [keywordInput, setKeywordInput] = useState(routeKeyword);
   const [keyword, setKeyword] = useState(initialQueryKeyword);
@@ -306,10 +307,17 @@ export function OfferFeedScreen({navigation, route}: Props) {
         <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.backButton}>
           <BackIcon />
         </Pressable>
-        <View style={styles.headerTabs}>
-          <HeaderTab text="报盘" active={tab === 'offer'} onPress={() => setTab('offer')} />
-          <HeaderTab text="求购" active={tab === 'inquiry'} onPress={() => setTab('inquiry')} />
-        </View>
+        {inquiryOnly ? (
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>求购专区</Text>
+            <View style={styles.headerTitleLine} />
+          </View>
+        ) : (
+          <View style={styles.headerTabs}>
+            <HeaderTab text="报盘" active={tab === 'offer'} onPress={() => setTab('offer')} />
+            <HeaderTab text="求购" active={tab === 'inquiry'} onPress={() => setTab('inquiry')} />
+          </View>
+        )}
         <View style={styles.clearButton} />
       </View>
 
@@ -657,7 +665,8 @@ export function OfferFeedCard({
   const title = buildTitle(item, tab);
   const price = formatPrice(item.price, item.priceMax);
   const time = formatCardTime(item.publishTime);
-  const merchantName = item.merchantShortName || item.merchantName || '未知商家';
+  const merchantName = item.merchantShortName || item.merchantName || '';
+  const hasMerchantName = Boolean(merchantName.trim()) && merchantName.trim() !== '未知商家';
   const publisherName = item.userNickname || '未知发布人';
   const phone = item.contactPhone?.trim() ?? '';
   const detailParts = buildDetailParts(item);
@@ -683,14 +692,18 @@ export function OfferFeedCard({
       </View>
 
       <View style={styles.publisherPriceRow}>
-        <Pressable onPress={onMerchantPress} style={styles.publisherRow}>
+        <Pressable disabled={!hasMerchantName} onPress={onMerchantPress} style={styles.publisherRow}>
           <View style={styles.publisherTextWrap}>
-            <CompanyIcon />
-            <Text style={styles.merchantText} numberOfLines={1}>{merchantName}</Text>
-            {item.merchantId != null ? <MerchantChevronIcon /> : null}
-            <Text style={styles.publisherDivider}>|</Text>
+            {hasMerchantName ? (
+              <>
+                <CompanyIcon />
+                <Text style={styles.merchantText} numberOfLines={1}>{merchantName}</Text>
+                {item.merchantId != null ? <MerchantChevronIcon /> : null}
+                <Text style={styles.publisherDivider}>|</Text>
+              </>
+            ) : null}
             <PersonIcon />
-            <Text style={styles.publisherNameText} numberOfLines={1}>{publisherName}</Text>
+            <Text style={[styles.publisherNameText, !hasMerchantName && styles.publisherNameOnlyText]} numberOfLines={1}>{publisherName}</Text>
           </View>
         </Pressable>
         {priceText ? (
@@ -1315,7 +1328,9 @@ const styles = StyleSheet.create({
   },
   backButton: {width: 36, height: 36, alignItems: 'center', justifyContent: 'center'},
   clearButton: {width: 36, height: 36, alignItems: 'center', justifyContent: 'center'},
-  headerTitle: {color: colors.text, fontSize: 17, lineHeight: 24, fontWeight: '700'},
+  headerTitleWrap: {alignItems: 'center', justifyContent: 'center', paddingTop: 6},
+  headerTitle: {color: '#00A99A', fontSize: 22, lineHeight: 28, fontWeight: '700'},
+  headerTitleLine: {marginTop: 2, width: 28, height: 3, borderRadius: 3, backgroundColor: '#00A99A'},
   headerTabs: {flexDirection: 'row', alignItems: 'center', gap: 34},
   headerTab: {alignItems: 'center', justifyContent: 'center', paddingTop: 6},
   headerTabText: {fontSize: 22, lineHeight: 28, color: colors.text, fontWeight: '400'},
@@ -1543,6 +1558,7 @@ const styles = StyleSheet.create({
   merchantText: {flex: 1.05, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
   publisherDivider: {width: 14, textAlign: 'center', color: '#D4DAD8', fontSize: 14, lineHeight: 20},
   publisherNameText: {flex: 0.95, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
+  publisherNameOnlyText: {flex: 1.8},
   certTags: {marginTop: 4, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5},
   certTag: {
     borderWidth: 1,
