@@ -602,10 +602,17 @@ function TradingGuideSection({
             style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
             <View style={styles.tradeSideHeadingRow}>
               <View style={styles.tradeIconBubbleSmall}>
-                <OfferSearchIcon size={17} />
+                <OfferSearchIcon size={15} />
               </View>
               <View style={styles.tradeSideTitleRow}>
-                <Text style={styles.tradeSideTitle} numberOfLines={1}>搜报盘</Text>
+                <Text
+                  style={styles.tradeSideTitle}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                  maxFontSizeMultiplier={1}>
+                  搜报盘
+                </Text>
                 <SmallChevronIcon color={colors.text} />
               </View>
             </View>
@@ -620,10 +627,17 @@ function TradingGuideSection({
             style={({pressed}) => [styles.tradeSideCard, pressed && styles.tradeCardPressed]}>
             <View style={styles.tradeSideHeadingRow}>
               <View style={styles.tradeIconBubbleSmall}>
-                <MerchantSearchIcon size={17} />
+                <MerchantSearchIcon size={15} />
               </View>
               <View style={styles.tradeSideTitleRow}>
-                <Text style={styles.tradeSideTitle} numberOfLines={1}>搜商家</Text>
+                <Text
+                  style={styles.tradeSideTitle}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
+                  maxFontSizeMultiplier={1}>
+                  搜商家
+                </Text>
                 <SmallChevronIcon color={colors.text} />
               </View>
             </View>
@@ -1116,7 +1130,7 @@ const styles = StyleSheet.create({
   tradeSideCard: {
     flex: 1,
     minHeight: 105,
-    padding: 12,
+    padding: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#D7E1DF',
@@ -1139,9 +1153,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2F4F0',
   },
   tradeIconBubbleSmall: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EAF7F4',
@@ -1230,7 +1244,7 @@ const styles = StyleSheet.create({
   tradeSideHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   tradeSideTitleRow: {
     flex: 1,
@@ -1239,10 +1253,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   tradeSideTitle: {
+    flex: 1,
     flexShrink: 1,
     color: colors.text,
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '700',
   },
   tradeSideSubtitle: {
