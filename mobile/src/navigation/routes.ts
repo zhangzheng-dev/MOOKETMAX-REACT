@@ -2,9 +2,47 @@ export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
   Search: {category: string; keyword?: string; initialTab?: 'offer' | 'inquiry' | 'merchant'};
+  MerchantSearchResults: {
+    category: string;
+    searchKeyword: string;
+    tags: string[];
+    merchantSearch: {
+      display: string;
+      matchType: string;
+      type: string;
+      targetId?: number | string | null;
+      country?: string | null;
+      factoryNo?: string | null;
+      productName?: string | null;
+      brandName?: string | null;
+      merchantName?: string | null;
+    };
+    target:
+      | {screen: 'Product'; productId: number; productName: string}
+      | {screen: 'Country'; country: string}
+      | {screen: 'Factory'; country: string; factoryNo: string}
+      | {screen: 'CountryProduct'; country: string; productName: string}
+      | {screen: 'CountryFactoryProduct'; country: string; factoryNo: string; productName: string}
+      | {screen: 'Brand'; brandName: string}
+      | {screen: 'BrandProduct'; brandName: string; productName: string}
+      | {
+          screen: 'OfferFeed';
+          keyword?: string;
+          queryKeyword?: string;
+          merchantId?: number | string;
+          brandName?: string;
+          productName?: string;
+          keywordScope?: 'all' | 'product';
+          initialFilters?: {
+            country?: string | null;
+            factoryNo?: string | null;
+          };
+        };
+  };
   OfferFeed: {
     category: string;
-    initialTab?: 'offer' | 'inquiry';
+    initialTab?: 'offer' | 'inquiry' | 'merchant';
+    disableTransition?: boolean;
     inquiryOnly?: boolean;
     keyword?: string;
     queryKeyword?: string;
@@ -12,6 +50,17 @@ export type RootStackParamList = {
     brandName?: string;
     productName?: string;
     keywordScope?: 'all' | 'product';
+    merchantSearch?: {
+      display: string;
+      matchType: string;
+      type: string;
+      targetId?: number | string | null;
+      country?: string | null;
+      factoryNo?: string | null;
+      productName?: string | null;
+      brandName?: string | null;
+      merchantName?: string | null;
+    };
     initialFilters?: {
       country?: string | null;
       factoryNo?: string | null;
@@ -19,11 +68,19 @@ export type RootStackParamList = {
   };
   PlateFollow: {initialTab?: 'intent' | 'recent'; category?: string} | undefined;
   HomeCards: {category?: string} | undefined;
-  Merchant: {merchantId: number | string; category: string; initialTab?: 'offer' | 'inquiry'; initialCategory?: 'all' | '牛' | '猪'};
-  Product: {productId: number; category: string; productName: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
-  Country: {country: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
-  Factory: {country: string; factoryNo: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
-  CountryProduct: {country: string; productName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
+  Merchant: {
+    merchantId: number | string;
+    category: string;
+    initialTab?: 'offer' | 'inquiry';
+    initialCategory?: 'all' | '牛' | '猪';
+    initialCountry?: string | null;
+    initialFactoryNo?: string | null;
+    initialProductName?: string | null;
+  };
+  Product: {productId: number; category: string; productName: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'; disableTransition?: boolean};
+  Country: {country: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'; disableTransition?: boolean};
+  Factory: {country: string; factoryNo: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'; disableTransition?: boolean};
+  CountryProduct: {country: string; productName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'; disableTransition?: boolean};
   CountryFactoryProduct: {
     country: string;
     factoryNo: string;
@@ -31,6 +88,7 @@ export type RootStackParamList = {
     category: string;
     searchKeyword?: string;
     initialTab?: 'offer' | 'inquiry';
+    disableTransition?: boolean;
   };
   SubstituteProduct: {
     country: string;
@@ -46,8 +104,8 @@ export type RootStackParamList = {
     category: string;
     excludeFactoryNo?: string | null;
   };
-  Brand: {brandName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
-  BrandProduct: {brandName: string; productName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'};
+  Brand: {brandName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'; disableTransition?: boolean};
+  BrandProduct: {brandName: string; productName: string; category: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'; disableTransition?: boolean};
   Profile: undefined;
   EditProfile: undefined;
   Inventory: undefined;

@@ -4,12 +4,10 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {DataDashboard} from '../components/detail/DataDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
-import {InquiryFeedSectionList} from '../components/detail/InquiryFeedSectionList';
 import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
 import {OfferInquiryTabs, TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
-import {useInquiryFeed} from '../hooks/useInquiryFeed';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {ProductDetail, ProductSummary} from '../types/api';
@@ -36,18 +34,15 @@ export function ProductScreen({navigation, route}: Props) {
   const handleTabChange = useCallback(
     (nextTab: OfferTab) => {
       if (nextTab === tab) return;
+      setData(null);
+      setPage(1);
+      setError(null);
       setTab(nextTab);
     },
     [tab],
   );
   const summaries = data?.summaries ?? [];
   const currentProductName = data?.productName || productName;
-  const inquiryFeed = useInquiryFeed({
-    enabled: Boolean(currentProductName),
-    category,
-    sortBy: requestSortParam,
-    productName: currentProductName,
-  });
   const selfSelectCard = currentProductName
     ? {cardType: 'product', productId, productName: currentProductName}
     : null;
@@ -82,14 +77,8 @@ export function ProductScreen({navigation, route}: Props) {
   }, [category, productId, requestSortParam, tab]);
 
   useEffect(() => {
-    if (tab !== 'offer') return;
     loadFirst().catch(() => undefined);
-  }, [loadFirst, tab]);
-
-  useEffect(() => {
-    if (tab !== 'inquiry' || data) return;
-    loadFirst().catch(() => undefined);
-  }, [data, loadFirst, tab]);
+  }, [loadFirst]);
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !data) return;
@@ -114,30 +103,6 @@ export function ProductScreen({navigation, route}: Props) {
     }
   }, [category, data, loading, loadingMore, page, productId, requestSortParam, tab]);
 
-  const listHeader = data ? (
-    <View>
-      <DataDashboard
-        title={data.productName}
-        mainStat={{
-          label: tab === 'offer' ? '近2日报盘' : '近2日求购',
-          value: tab === 'inquiry' ? inquiryFeed.totalCount : getTabCount(data, tab),
-        }}
-        priceRange={{min: data.priceMin, max: data.priceMax}}
-        stats={[
-          {label: '商家数', value: getTabMerchantCount(data, tab)},
-          {label: '工厂数', value: getTabFactoryCount(data, tab)},
-        ]}
-      />
-      <View style={styles.gap} />
-    </View>
-  ) : null;
-
-  const stickyHeader = () => (
-    <View style={styles.stickyHeader}>
-      <TabAndSortBar tab={tab} onTabChange={handleTabChange} sort={sort} onSortChange={setSort} showTabs={false} />
-    </View>
-  );
-
   return (
     <View style={styles.container}>
       <DetailTopBar
@@ -161,8 +126,19 @@ export function ProductScreen({navigation, route}: Props) {
             onTabChange={handleTabChange}
             showMerchant
             onMerchantPress={() => {
-              navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+              navigation.replace('MerchantSearchResults', {
+                category,
+                searchKeyword,
+                tags: [productName],
+                merchantSearch: {
+                  display: searchKeyword,
+                  matchType: 'product',
+                  type: '产品',
+                  targetId: productId,
+                  productName: currentProductName,
+                },
+                target: {screen: 'Product', productId, productName: currentProductName},
+              });
             }}
           />
         }
@@ -177,20 +153,6 @@ export function ProductScreen({navigation, route}: Props) {
         </View>
       ) : error && !data ? (
         <ErrorState message={error} onRetry={loadFirst} />
-      ) : data && tab === 'inquiry' ? (
-        <InquiryFeedSectionList
-          items={inquiryFeed.items}
-          category={category}
-          navigation={navigation}
-          loading={inquiryFeed.loading}
-          refreshing={inquiryFeed.refreshing}
-          loadingMore={inquiryFeed.loadingMore}
-          error={inquiryFeed.error}
-          onRefresh={inquiryFeed.refresh}
-          onLoadMore={inquiryFeed.loadMore}
-          ListHeaderComponent={listHeader}
-          renderSectionHeader={stickyHeader}
-        />
       ) : data ? (
         <SectionList
           sections={[{key: 'items', data: summaries}]}

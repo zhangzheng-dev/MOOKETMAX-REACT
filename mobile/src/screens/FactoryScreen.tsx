@@ -123,8 +123,19 @@ export function FactoryScreen({navigation, route}: Props) {
             onTabChange={setTab}
             showMerchant
             onMerchantPress={() => {
-              navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+              navigation.replace('MerchantSearchResults', {
+                category,
+                searchKeyword,
+                tags: [tagText],
+                merchantSearch: {
+                  display: searchKeyword,
+                  matchType: 'factory',
+                  type: '国家+厂号',
+                  country,
+                  factoryNo,
+                },
+                target: {screen: 'Factory', country, factoryNo},
+              });
             }}
           />
         }

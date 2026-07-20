@@ -14,7 +14,7 @@ import {ErrorState} from '../components/common/ErrorState';
 import type {OfferTab} from '../components/detail/TabAndSortBar';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
-import type {MerchantDetail, OfferSummary} from '../types/api';
+import type {EmployeeOffer, MerchantDetail, OfferFeedItem, OfferSummary} from '../types/api';
 import {copyToClipboard, dialPhone} from '../utils/contact';
 import type {OriginalTextPayload} from '../utils/originalText';
 import {extractCity, splitTags} from '../utils/offer';
@@ -28,7 +28,15 @@ type MerchantCategory = (typeof merchantCategoryOptions)[number];
 type MerchantCategoryFilter = 'all' | MerchantCategory;
 
 export function MerchantScreen({navigation, route}: Props) {
-  const {merchantId, category, initialTab, initialCategory} = route.params;
+  const {
+    merchantId,
+    category,
+    initialTab,
+    initialCategory,
+    initialCountry,
+    initialFactoryNo,
+    initialProductName,
+  } = route.params;
   const [detail, setDetail] = useState<MerchantDetail | null>(null);
   const [offers, setOffers] = useState<OfferSummary[]>([]);
   const [inquiries, setInquiries] = useState<OfferSummary[]>([]);
@@ -50,13 +58,65 @@ export function MerchantScreen({navigation, route}: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [originalText, setOriginalText] = useState<OriginalTextPayload | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
-  const [country, setCountry] = useState<string | null>(null);
-  const [factories, setFactories] = useState<Set<string>>(new Set());
+  const [country, setCountry] = useState<string | null>(initialCountry ?? null);
+  const [factories, setFactories] = useState<Set<string>>(
+    () => new Set(initialFactoryNo ? [`${initialCountry ?? ''}${initialFactoryNo}`] : []),
+  );
   const [regions, setRegions] = useState<Set<string>>(new Set());
-  const [products, setProducts] = useState<Set<string>>(new Set());
+  const [products, setProducts] = useState<Set<string>>(
+    () => new Set(initialProductName ? [initialProductName] : []),
+  );
   const [goodsTypes, setGoodsTypes] = useState<Set<string>>(new Set());
   const [feedingMethods, setFeedingMethods] = useState<Set<string>>(new Set());
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
+  const preserveInitialFiltersRef = useRef(true);
+  const hasInitialSearchFilters = Boolean(initialCountry || initialFactoryNo || initialProductName);
+  const activeSearchProduct = products.size === 1 ? Array.from(products)[0] : undefined;
+  const activeSearchFactory =
+    factories.size === 1
+      ? getFactoryNoFromFilterKey(Array.from(factories)[0], country)
+      : undefined;
+
+  const loadInitialSearchPage = useCallback(
+    async (type: OfferTab, targetPage: number, targetSort: string) => {
+      const categories = getMerchantCategories(categoryFilter, category);
+      const results = await Promise.allSettled(
+        categories.map(item =>
+          mooketApi.getOfferFeed({
+            category: item,
+            type,
+            merchantId,
+            country: country ?? undefined,
+            factoryNo: activeSearchFactory,
+            productName: activeSearchProduct,
+            page: targetPage,
+            pageSize,
+            sortBy: targetSort,
+            skipCache: true,
+          }),
+        ),
+      );
+      const pages = results
+        .filter(
+          (item): item is PromiseFulfilledResult<Awaited<ReturnType<typeof mooketApi.getOfferFeed>>> =>
+            item.status === 'fulfilled',
+        )
+        .map(item => item.value);
+
+      return {
+        products: groupFeedItemsForMerchant(pages.flatMap(item => item.items ?? [])),
+        hasMore: pages.some(item => targetPage < (item.totalPages ?? targetPage)),
+      };
+    },
+    [
+      category,
+      categoryFilter,
+      activeSearchFactory,
+      activeSearchProduct,
+      country,
+      merchantId,
+    ],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,25 +134,43 @@ export function MerchantScreen({navigation, route}: Props) {
       }
       const data = combineMerchantDetails(details);
       setDetail(data);
-      // 初始加载用第一页数据（后端默认综合排序）
-      setOffers(data.offers ?? []);
-      setInquiries(data.inquiries ?? []);
+      if (hasInitialSearchFilters) {
+        const [offerPage, inquiryPage] = await Promise.all([
+          loadInitialSearchPage('offer', 1, 'comprehensive'),
+          loadInitialSearchPage('inquiry', 1, 'comprehensive'),
+        ]);
+        setOffers(offerPage.products);
+        setInquiries(inquiryPage.products);
+        setHasMore({offer: offerPage.hasMore, inquiry: inquiryPage.hasMore});
+      } else {
+        // 普通商家详情仍沿用原有聚合接口。
+        setOffers(data.offers ?? []);
+        setInquiries(data.inquiries ?? []);
+        setHasMore({
+          offer: (data.totalOffers ?? data.offers?.length ?? 0) > (data.offers?.length ?? 0),
+          inquiry: (data.totalInquiries ?? data.inquiries?.length ?? 0) > (data.inquiries?.length ?? 0),
+        });
+      }
       setPage({offer: 1, inquiry: 1});
-      setHasMore({
-        offer: (data.totalOffers ?? data.offers?.length ?? 0) > (data.offers?.length ?? 0),
-        inquiry: (data.totalInquiries ?? data.inquiries?.length ?? 0) > (data.inquiries?.length ?? 0),
-      });
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
     } finally {
       setLoading(false);
     }
-  }, [category, categoryFilter, merchantId]);
+  }, [category, categoryFilter, hasInitialSearchFilters, loadInitialSearchPage, merchantId]);
 
   // 当排序或 tab 变化时重新加载第一页
   const reloadSorted = useCallback(async () => {
     setLoading(true);
     try {
+      if (hasInitialSearchFilters) {
+        const result = await loadInitialSearchPage(tab, 1, sortParam);
+        if (tab === 'offer') setOffers(result.products);
+        else setInquiries(result.products);
+        setPage(p => ({...p, [tab]: 1}));
+        setHasMore(m => ({...m, [tab]: result.hasMore}));
+        return;
+      }
       const categories = getMerchantCategories(categoryFilter, category);
       const results = await Promise.allSettled(
         categories.map(item => mooketApi.getMerchantProducts(merchantId, tab, item, 1, pageSize, sortParam)),
@@ -110,7 +188,15 @@ export function MerchantScreen({navigation, route}: Props) {
     } finally {
       setLoading(false);
     }
-  }, [category, categoryFilter, merchantId, sortParam, tab]);
+  }, [
+    category,
+    categoryFilter,
+    hasInitialSearchFilters,
+    loadInitialSearchPage,
+    merchantId,
+    sortParam,
+    tab,
+  ]);
 
   useEffect(() => {
     load().catch(() => undefined);
@@ -131,6 +217,10 @@ export function MerchantScreen({navigation, route}: Props) {
   }, [categoryFilter, tab]);
 
   useEffect(() => {
+    if (preserveInitialFiltersRef.current) {
+      preserveInitialFiltersRef.current = false;
+      return;
+    }
     setCountry(null);
     setFactories(new Set());
     setRegions(new Set());
@@ -149,6 +239,15 @@ export function MerchantScreen({navigation, route}: Props) {
     const nextPage = page[tab] + 1;
     setLoadingMore(true);
     try {
+      if (hasInitialSearchFilters) {
+        const result = await loadInitialSearchPage(tab, nextPage, sortParam);
+        const updater = (prev: OfferSummary[]) => mergeOffers(prev, result.products);
+        if (tab === 'offer') setOffers(updater);
+        else setInquiries(updater);
+        setPage(p => ({...p, [tab]: nextPage}));
+        setHasMore(m => ({...m, [tab]: result.hasMore}));
+        return;
+      }
       const categories = getMerchantCategories(categoryFilter, category);
       const results = await Promise.allSettled(
         categories.map(item => mooketApi.getMerchantProducts(merchantId, tab, item, nextPage, pageSize, sortParam)),
@@ -167,7 +266,19 @@ export function MerchantScreen({navigation, route}: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [category, categoryFilter, hasMore, loading, loadingMore, merchantId, page, sortParam, tab]);
+  }, [
+    category,
+    categoryFilter,
+    hasInitialSearchFilters,
+    hasMore,
+    loadInitialSearchPage,
+    loading,
+    loadingMore,
+    merchantId,
+    page,
+    sortParam,
+    tab,
+  ]);
 
   const filteredAndSorted = useMemo(() => {
     let list = currentList.slice();
@@ -213,22 +324,32 @@ export function MerchantScreen({navigation, route}: Props) {
     currentFilterOptions?.countryFactories?.length ??
     countUniqueFactories(currentList);
 
-  const allCountries = useMemo(() => currentFilterOptions?.countries ?? [], [currentFilterOptions?.countries]);
+  const allCountries = useMemo(
+    () => Array.from(new Set([...(currentFilterOptions?.countries ?? []), ...(country ? [country] : [])])),
+    [country, currentFilterOptions?.countries],
+  );
   const allFactoryKeys = useMemo(
     () =>
-      (currentFilterOptions?.countryFactories ?? []).filter(item =>
+      Array.from(new Set([...(currentFilterOptions?.countryFactories ?? []), ...factories])).filter(item =>
         country == null ? true : item.startsWith(country),
       ),
-    [country, currentFilterOptions?.countryFactories],
+    [country, currentFilterOptions?.countryFactories, factories],
   );
   const allRegions = useMemo(() => currentFilterOptions?.regions ?? [], [currentFilterOptions?.regions]);
-  const allProductNames = useMemo(() => currentFilterOptions?.products ?? [], [currentFilterOptions?.products]);
+  const allProductNames = useMemo(
+    () => Array.from(new Set([...(currentFilterOptions?.products ?? []), ...products])),
+    [currentFilterOptions?.products, products],
+  );
   const allTags = useMemo(() => currentFilterOptions?.tags ?? [], [currentFilterOptions?.tags]);
 
   const filters = [
     {key: 'category' as const, label: getCategoryFilterLabel(categoryFilter), hasSelection: true},
-    {key: 'product' as const, label: '产品', hasSelection: products.size > 0},
-    {key: 'countryFactory' as const, label: '国家厂号', hasSelection: country != null || factories.size > 0},
+    {key: 'product' as const, label: getSelectedFilterLabel(products, '产品'), hasSelection: products.size > 0},
+    {
+      key: 'countryFactory' as const,
+      label: getCountryFactoryFilterLabel(country, factories),
+      hasSelection: country != null || factories.size > 0,
+    },
     {key: 'region' as const, label: '地区', hasSelection: regions.size > 0},
     {key: 'goodsType' as const, label: '货物类型', hasSelection: goodsTypes.size > 0},
     {key: 'feedingMethod' as const, label: '饲养方式', hasSelection: feedingMethods.size > 0},
@@ -485,6 +606,79 @@ function getMerchantCategories(filter: MerchantCategoryFilter, fallbackCategory:
 
 function getCategoryFilterLabel(filter: MerchantCategoryFilter) {
   return filter === 'all' ? '全部' : filter;
+}
+
+function getSelectedFilterLabel(values: Set<string>, fallback: string) {
+  if (values.size === 1) return Array.from(values)[0];
+  return values.size > 1 ? `${fallback}(${values.size})` : fallback;
+}
+
+function getCountryFactoryFilterLabel(country: string | null, factories: Set<string>) {
+  if (factories.size === 1) return Array.from(factories)[0];
+  if (factories.size > 1) return `国家厂号(${factories.size})`;
+  return country || '国家厂号';
+}
+
+function getFactoryNoFromFilterKey(value: string, country: string | null) {
+  if (country && value.startsWith(country)) {
+    return value.slice(country.length);
+  }
+  return value;
+}
+
+function groupFeedItemsForMerchant(items: OfferFeedItem[]): OfferSummary[] {
+  const groups = new Map<string, OfferSummary>();
+
+  items.forEach(item => {
+    const key = `${item.category ?? ''}|${item.country ?? ''}|${item.factoryNo ?? ''}|${item.productName ?? ''}`;
+    const employee = feedItemToEmployeeOffer(item);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.employeeOffers = [...(existing.employeeOffers ?? []), employee];
+      return;
+    }
+
+    groups.set(key, {
+      offerId: item.offerId,
+      productName: item.productName,
+      country: item.country,
+      factoryNo: item.factoryNo,
+      price: item.price,
+      priceMax: item.priceMax,
+      goodsLocation: item.goodsLocation,
+      tags: item.tags,
+      goodsType: item.goodsType,
+      feedingType: item.feedingType,
+      publishTime: item.publishTime,
+      employeeOffers: [employee],
+    });
+  });
+
+  return Array.from(groups.values());
+}
+
+function feedItemToEmployeeOffer(item: OfferFeedItem): EmployeeOffer {
+  return {
+    offerId: item.offerId,
+    userNickname: item.userNickname,
+    price: item.price,
+    priceMax: item.priceMax,
+    weight: item.weight,
+    goodsLocation: item.goodsLocation,
+    tags: item.tags,
+    goodsType: item.goodsType,
+    feedingType: item.feedingType,
+    fatRatio: item.fatRatio,
+    cattleBreed: item.cattleBreed,
+    remark: item.remark,
+    offerOriginalText:
+      item.offerOriginalText ??
+      item.originalText ??
+      item.originalContent ??
+      item.sourceText ??
+      item.rawText,
+    publishTime: item.publishTime,
+  };
 }
 
 function combineMerchantDetails(details: MerchantDetail[]): MerchantDetail {

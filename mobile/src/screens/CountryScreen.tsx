@@ -113,8 +113,18 @@ export function CountryScreen({navigation, route}: Props) {
             onTabChange={setTab}
             showMerchant
             onMerchantPress={() => {
-              navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+              navigation.replace('MerchantSearchResults', {
+                category,
+                searchKeyword,
+                tags: [country],
+                merchantSearch: {
+                  display: searchKeyword,
+                  matchType: 'country',
+                  type: '国家',
+                  country,
+                },
+                target: {screen: 'Country', country},
+              });
             }}
           />
         }

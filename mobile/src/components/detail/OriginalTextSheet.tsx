@@ -38,7 +38,10 @@ export function OriginalTextSheet({
     if (!visible || analysis.bestSegmentIndex < 0) return;
     const y = segmentLayouts[analysis.bestSegmentIndex];
     if (typeof y === 'number') {
-      scrollRef.current?.scrollTo({y: Math.max(0, y - 12), animated: true});
+      const scrollToMatch = () => scrollRef.current?.scrollTo({y: Math.max(0, y - 12), animated: false});
+      requestAnimationFrame(scrollToMatch);
+      const timer = setTimeout(scrollToMatch, 80);
+      return () => clearTimeout(timer);
     }
   }, [analysis.bestSegmentIndex, segmentLayouts, visible]);
 
@@ -170,7 +173,11 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   textActive: {
-    color: colors.primary,
+    alignSelf: 'flex-start',
+    backgroundColor: '#CFEFE7',
+    borderRadius: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   phoneText: {
     color: colors.primary,

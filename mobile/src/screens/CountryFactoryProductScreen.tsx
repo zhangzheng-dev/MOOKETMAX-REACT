@@ -15,14 +15,12 @@ import {mooketApi} from '../api/mooketApi';
 import {CountryProductDashboard} from '../components/detail/CountryProductDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
 import {SelfSelectButton} from '../components/detail/SelfSelectButton';
-import {InquiryFeedSectionList} from '../components/detail/InquiryFeedSectionList';
 import {FilterBar, type FilterKey} from '../components/detail/FilterBar';
 import {FilterPanelSheet, MultiSelectChips} from '../components/detail/FilterPanelSheet';
 import {MerchantOfferGroupCard} from '../components/detail/MerchantOfferGroupCard';
 import {OriginalTextSheet} from '../components/detail/OriginalTextSheet';
 import {OfferInquiryTabs, TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
-import {useInquiryFeed} from '../hooks/useInquiryFeed';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {CountryFactoryProductDetail, MerchantOfferGroup} from '../types/api';
@@ -33,7 +31,9 @@ import {getTabCount, getTabMerchantCount} from '../utils/tabStats';
 type Props = NativeStackScreenProps<RootStackParamList, 'CountryFactoryProduct'>;
 
 const pageSize = 20;
+const unlinkedMerchantLabel = '暂未关联行业商家';
 type LocalFilterKey = Exclude<FilterKey, 'countryFactory' | 'product' | 'famousMerchant'>;
+type MerchantFilterOption = {key: string; label: string};
 
 function buildCFLabel(country?: string | null, factoryNo?: string | null): string {
   const c = country?.trim();
@@ -80,17 +80,12 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   const currentCountry = data?.country || country;
   const currentFactoryNo = data?.factoryNo || factoryNo;
   const currentProductName = data?.productName || productName;
-  const inquiryFeed = useInquiryFeed({
-    enabled: Boolean(currentCountry && currentFactoryNo && currentProductName),
-    category,
-    sortBy: requestSortParam,
-    productName: currentProductName,
-    country: currentCountry,
-    factoryNo: currentFactoryNo,
-  });
   const handleTabChange = useCallback(
     (nextTab: OfferTab) => {
       if (nextTab === tab) return;
+      setData(null);
+      setPage(1);
+      setError(null);
       setTab(nextTab);
     },
     [tab],
@@ -137,14 +132,8 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   }, [category, country, factoryNo, productName, requestSortParam, tab]);
 
   useEffect(() => {
-    if (tab !== 'offer') return;
     loadFirst().catch(() => undefined);
-  }, [loadFirst, tab]);
-
-  useEffect(() => {
-    if (tab !== 'inquiry' || data) return;
-    loadFirst().catch(() => undefined);
-  }, [data, loadFirst, tab]);
+  }, [loadFirst]);
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !data) return;
@@ -248,7 +237,7 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
   );
 
   const fullMerchantOptions = useMemo(
-    () => data?.filterOptions?.merchants ?? allMerchants,
+    () => normalizeMerchantFilterOptions(data?.filterOptions?.merchants ?? allMerchants),
     [allMerchants, data?.filterOptions?.merchants],
   );
 
@@ -313,8 +302,20 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
             onTabChange={handleTabChange}
             showMerchant
             onMerchantPress={() => {
-              navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+              navigation.replace('MerchantSearchResults', {
+                category,
+                searchKeyword,
+                tags: [buildCFLabel(country, factoryNo), productName],
+                merchantSearch: {
+                  display: searchKeyword,
+                  matchType: 'combined',
+                  type: '国家+厂号+产品',
+                  country,
+                  factoryNo,
+                  productName,
+                },
+                target: {screen: 'CountryFactoryProduct', country, factoryNo, productName},
+              });
             }}
           />
         }
@@ -329,49 +330,6 @@ export function CountryFactoryProductScreen({navigation, route}: Props) {
         </View>
       ) : error && !data ? (
         <ErrorState message={error} onRetry={loadFirst} />
-      ) : data && tab === 'inquiry' ? (
-        <InquiryFeedSectionList
-          items={inquiryFeed.items}
-          category={category}
-          navigation={navigation}
-          loading={inquiryFeed.loading}
-          refreshing={inquiryFeed.refreshing}
-          loadingMore={inquiryFeed.loadingMore}
-          error={inquiryFeed.error}
-          onRefresh={inquiryFeed.refresh}
-          onLoadMore={inquiryFeed.loadMore}
-          ListHeaderComponent={
-            <View>
-              <CountryProductDashboard
-                country={buildCFLabel(currentCountry, currentFactoryNo)}
-                productName={data.productName || productName}
-                isInquiry
-                priceMin={data.priceMin}
-                priceMax={data.priceMax}
-                priceChange={data.priceChange}
-                priceChangeRate={data.priceChangeRate}
-                offerCount={getTabCount(data, 'offer')}
-                inquiryCount={inquiryFeed.totalCount}
-                merchantCount={getTabMerchantCount(data, tab)}
-                history7Days={data.priceHistory7Days}
-                history30Days={data.priceHistory30Days}
-              />
-              <View style={styles.gap} />
-            </View>
-          }
-          renderSectionHeader={() => (
-            <View style={styles.stickyHeader}>
-              <TabAndSortBar
-                tab={tab}
-                onTabChange={handleTabChange}
-                sort={sort}
-                onSortChange={setSort}
-                showPublishTime
-                showTabs={false}
-              />
-            </View>
-          )}
-        />
       ) : data ? (
         <>
           <SectionList
@@ -675,6 +633,21 @@ function mergeMerchantOffers(prev: MerchantOfferGroup[], incoming: MerchantOffer
     }
   });
   return Array.from(map.values());
+}
+
+function normalizeMerchantFilterOptions(options: MerchantFilterOption[]) {
+  const seen = new Set<string>();
+  const result: MerchantFilterOption[] = [];
+
+  for (const option of options) {
+    const label = option.label?.trim() ?? '';
+    const key = `${option.key ?? ''}`.trim() || label;
+    if (!label || label === unlinkedMerchantLabel || seen.has(label)) continue;
+    seen.add(label);
+    result.push({key, label});
+  }
+
+  return result;
 }
 
 function unique(values: string[]) {
