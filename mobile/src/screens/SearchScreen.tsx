@@ -387,6 +387,7 @@ export function SearchScreen({route, navigation}: Props) {
 
     if (selectedTab === 'merchant') {
       const display = getStandardSearchWord(item.text);
+      const target = buildMerchantSearchTarget(item, parts, {country, factoryNo, productName, brandName});
       const merchantSearch = {
         display,
         matchType: item.matchType,
@@ -396,14 +397,14 @@ export function SearchScreen({route, navigation}: Props) {
         factoryNo,
         productName,
         brandName,
-        merchantName: item.merchantName ?? item.standardName ?? display,
+        merchantName: item.matchType === 'merchant' ? item.merchantName ?? item.standardName ?? display : null,
       };
       navigation.navigate('MerchantSearchResults', {
         category: selectedCategory,
         searchKeyword: display,
-        tags: buildMerchantSearchTags(buildMerchantSearchTarget(item, parts, {country, factoryNo, productName, brandName}), display),
+        tags: buildMerchantSearchTags(target, display),
         merchantSearch,
-        target: buildMerchantSearchTarget(item, parts, {country, factoryNo, productName, brandName}),
+        target,
       });
       return;
     }
@@ -1098,99 +1099,103 @@ function buildMerchantFeedParamVariants(condition: MerchantSearchCondition): Mer
     }
   }
 
-  function buildMerchantSearchTarget(
-    item: SearchSuggest,
-    parts: string[],
-    standard: {
-      country?: string | null;
-      factoryNo?: string | null;
-      productName?: string | null;
-      brandName?: string | null;
-    },
-  ): RootStackParamList['MerchantSearchResults']['target'] {
-    const display = getStandardSearchWord(item.text);
-    const countryValue = standard.country ?? getCountryFromText(parts[0]);
-    const factoryValue = standard.factoryNo ?? getFactoryFromText(parts[1]);
-    const productValue = standard.productName ?? getProductFromSuggestion(item, parts) ?? display;
-    const brandValue = standard.brandName ?? getBrandFromSuggestion(item, parts) ?? display;
+  return Array.from(map.values());
+}
 
-    switch (item.matchType) {
-      case 'merchant':
+function buildMerchantSearchTarget(
+  item: SearchSuggest,
+  parts: string[],
+  standard: {
+    country?: string | null;
+    factoryNo?: string | null;
+    productName?: string | null;
+    brandName?: string | null;
+  },
+): RootStackParamList['MerchantSearchResults']['target'] {
+  const display = getStandardSearchWord(item.text);
+  const countryValue = standard.country ?? getCountryFromText(parts[0]);
+  const factoryValue = standard.factoryNo ?? getFactoryFromText(parts[1]);
+  const productValue = standard.productName ?? getProductFromSuggestion(item, parts) ?? display;
+  const brandValue = standard.brandName ?? getBrandFromSuggestion(item, parts) ?? display;
+
+  switch (item.matchType) {
+    case 'merchant':
+      return {
+        screen: 'OfferFeed',
+        keyword: display,
+        queryKeyword: display,
+        merchantId: item.targetId,
+      };
+    case 'product': {
+      const productId = toNumericId(item.targetId);
+      return productId == null
+        ? {screen: 'OfferFeed', keyword: display, queryKeyword: display, productName: productValue, keywordScope: 'product'}
+        : {
+            screen: 'Product',
+            productId,
+            productName: productValue,
+          };
+    }
+    case 'country':
+      return {screen: 'Country', country: countryValue || display};
+    case 'factory':
+      if (countryValue && factoryValue) {
+        return {screen: 'Factory', country: countryValue, factoryNo: factoryValue};
+      }
+      return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
+    case 'brand':
+      if (item.type === '品牌+产品' && (standard.brandName || parts.length >= 2)) {
         return {
-          screen: 'OfferFeed',
-          keyword: display,
-          queryKeyword: display,
-          merchantId: item.targetId,
-        };
-      case 'product':
-        return {
-          screen: 'Product',
-          productId: item.targetId,
+          screen: 'BrandProduct',
+          brandName: brandValue,
           productName: productValue,
         };
-      case 'country':
-        return {screen: 'Country', country: countryValue || display};
-      case 'factory':
-        if (countryValue && factoryValue) {
-          return {screen: 'Factory', country: countryValue, factoryNo: factoryValue};
-        }
-        return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
-      case 'brand':
-        if (item.type === '品牌+产品' && (standard.brandName || parts.length >= 2)) {
-          return {
-            screen: 'BrandProduct',
-            brandName: brandValue,
-            productName: productValue,
-          };
-        }
-        return {screen: 'Brand', brandName: brandValue};
-      case 'combined':
-        if (item.type === '国家+产品' && (countryValue || parts.length >= 2)) {
-          return {
-            screen: 'CountryProduct',
-            country: countryValue || getCountryFromText(parts[0]),
-            productName: productValue,
-          };
-        }
-        if (countryValue && factoryValue && productValue) {
-          return {
-            screen: 'CountryFactoryProduct',
-            country: countryValue,
-            factoryNo: factoryValue,
-            productName: productValue,
-          };
-        }
-        return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
-      default:
-        return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
-    }
+      }
+      return {screen: 'Brand', brandName: brandValue};
+    case 'combined':
+      if (item.type === '国家+产品' && (countryValue || parts.length >= 2)) {
+        return {
+          screen: 'CountryProduct',
+          country: countryValue || getCountryFromText(parts[0]),
+          productName: productValue,
+        };
+      }
+      if (countryValue && factoryValue && productValue) {
+        return {
+          screen: 'CountryFactoryProduct',
+          country: countryValue,
+          factoryNo: factoryValue,
+          productName: productValue,
+        };
+      }
+      return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
+    default:
+      return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
   }
+}
 
-  function buildMerchantSearchTags(
-    target: RootStackParamList['MerchantSearchResults']['target'],
-    fallback: string,
-  ): string[] {
-    switch (target.screen) {
-      case 'Product':
-        return [target.productName];
-      case 'Country':
-        return [target.country];
-      case 'Factory':
-        return [`${target.country}${target.factoryNo}`];
-      case 'CountryProduct':
-        return [target.country, target.productName];
-      case 'CountryFactoryProduct':
-        return [`${target.country}${target.factoryNo}`, target.productName];
-      case 'Brand':
-        return [target.brandName];
-      case 'BrandProduct':
-        return [target.brandName, target.productName];
-      case 'OfferFeed':
-        return [fallback];
-    }
+function buildMerchantSearchTags(
+  target: RootStackParamList['MerchantSearchResults']['target'],
+  fallback: string,
+): string[] {
+  switch (target.screen) {
+    case 'Product':
+      return [target.productName];
+    case 'Country':
+      return [target.country];
+    case 'Factory':
+      return [`${target.country}${target.factoryNo}`];
+    case 'CountryProduct':
+      return [target.country, target.productName];
+    case 'CountryFactoryProduct':
+      return [`${target.country}${target.factoryNo}`, target.productName];
+    case 'Brand':
+      return [target.brandName];
+    case 'BrandProduct':
+      return [target.brandName, target.productName];
+    case 'OfferFeed':
+      return [fallback];
   }
-
-  return Array.from(map.values());
 }
 
 function addMerchantFeedItem(map: Map<string, MerchantSearchResult>, item: OfferFeedItem, type: OfferTab, category: string) {
@@ -1259,6 +1264,15 @@ function buildMerchantResultKey(merchantId?: number | string | null, merchantNam
 
 function normalizeText(value?: string | null) {
   return value?.trim().toLowerCase() || '';
+}
+
+function toNumericId(value?: number | string | null) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function buildMerchantFeedKey(item: OfferFeedItem, type: OfferTab) {

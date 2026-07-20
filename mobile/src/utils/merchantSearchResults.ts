@@ -166,7 +166,7 @@ export function buildMerchantSelectionFromSuggestion(
     factoryNo: standard.factoryNo,
     productName: standard.productName,
     brandName: standard.brandName,
-    merchantName: item.merchantName ?? item.standardName ?? display,
+    merchantName: item.matchType === 'merchant' ? item.merchantName ?? item.standardName ?? display : null,
   };
 }
 
