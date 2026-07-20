@@ -113,8 +113,18 @@ export function BrandScreen({navigation, route}: Props) {
             onTabChange={setTab}
             showMerchant
             onMerchantPress={() => {
-              navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+              navigation.replace('MerchantSearchResults', {
+                category,
+                searchKeyword,
+                tags: [brandName],
+                merchantSearch: {
+                  display: searchKeyword,
+                  matchType: 'brand',
+                  type: '品牌',
+                  brandName,
+                },
+                target: {screen: 'Brand', brandName},
+              });
             }}
           />
         }

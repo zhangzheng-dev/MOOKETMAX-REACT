@@ -156,6 +156,91 @@ function prefetchBrandProduct(category: string, brandName?: string | null, produ
   fireAndForget(mooketApi.getBrandProductDetail(brandName, productName, category));
 }
 
+function mergeSearchSuggestions(groups: SearchSuggest[][]): SearchSuggest[] {
+  const result = new Map<string, SearchSuggest>();
+  groups.flat().forEach(item => {
+    const key = [
+      item.matchType,
+      item.targetId,
+      item.text,
+      item.country ?? '',
+      item.factoryNo ?? '',
+      item.productName ?? '',
+      item.brandName ?? '',
+      item.merchantName ?? '',
+    ].join('|');
+    const current = result.get(key);
+    if (!current || item.priority < current.priority) {
+      result.set(key, item);
+    }
+  });
+  return Array.from(result.values()).sort((left, right) => left.priority - right.priority);
+}
+
+async function loadSuggestionsForInput(tab: SearchTab, category: string, value: string) {
+  const countryProduct = parseCountryProductInput(value);
+  const loadForCategory = async (targetCategory: string) => {
+    const primary = mooketApi.getSearchSuggestions(targetCategory, value);
+    if (!countryProduct) return primary;
+
+    const [primaryItems, productItems] = await Promise.all([
+      primary,
+      mooketApi.getSearchSuggestions(targetCategory, countryProduct.productKeyword),
+    ]);
+    return mergeSearchSuggestions([
+      buildCountryProductSuggestions(countryProduct.country, countryProduct.productKeyword, productItems),
+      primaryItems,
+    ]);
+  };
+
+  if (tab === 'merchant') {
+    return Promise.all(merchantSearchCategories.map(loadForCategory)).then(mergeSearchSuggestions);
+  }
+  return loadForCategory(category);
+}
+
+function parseCountryProductInput(value: string) {
+  const compact = getStandardSearchWord(value).replace(/\s+/g, '');
+  const country = [...merchantSearchCountries]
+    .sort((left, right) => right.length - left.length)
+    .find(item => compact.startsWith(item));
+  if (!country) return null;
+
+  const productKeyword = compact.slice(country.length).trim();
+  if (!productKeyword || /\d/.test(productKeyword)) return null;
+  return {country, productKeyword};
+}
+
+function buildCountryProductSuggestions(
+  country: string,
+  productKeyword: string,
+  productItems: SearchSuggest[],
+): SearchSuggest[] {
+  return productItems
+    .filter(item => item.matchType === 'product')
+    .flatMap(item => {
+      const productName =
+        item.productName ??
+        item.standardName ??
+        getProductFromSuggestion(item, getStandardSearchWord(item.text).split(/\s+/).filter(Boolean));
+      if (!productName || !normalizeSearchComparable(productName).includes(normalizeSearchComparable(productKeyword))) {
+        return [];
+      }
+      const suggestion: SearchSuggest = {
+        ...item,
+        text: `${country} ${productName}`,
+        keyword: `${country}${productKeyword}`,
+        type: '国家+产品',
+        matchType: 'combined',
+        country,
+        factoryNo: null,
+        productName,
+        priority: item.priority - 1,
+      };
+      return [suggestion];
+    });
+}
+
 export function SearchScreen({route, navigation}: Props) {
   const {category, keyword: routeKeyword, initialTab: routeInitialTab} = route.params;
   const insets = useSafeAreaInsets();
@@ -174,15 +259,11 @@ export function SearchScreen({route, navigation}: Props) {
   const [merchantLoading, setMerchantLoading] = useState(false);
   const [histories, setHistories] = useState<SearchHistory[]>([]);
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  const suggestionSearchSeqRef = useRef(0);
   const merchantSearchSeqRef = useRef(0);
 
-  const activeMerchantSelection = useMemo(() => {
-    if (selectedTab !== 'merchant') return null;
-    if (merchantSelection) return merchantSelection;
-    const raw = keyword.trim();
-    if (!raw) return null;
-    return buildMerchantSelectionFromKeyword(raw);
-  }, [keyword, merchantSelection, selectedTab]);
+  const activeMerchantSelection = selectedTab === 'merchant' ? merchantSelection : null;
 
   const loadHistories = useCallback(async () => {
     try {
@@ -218,6 +299,7 @@ export function SearchScreen({route, navigation}: Props) {
   useFocusEffect(
     useCallback(() => {
       const value = keyword.trim();
+      const requestSeq = (suggestionSearchSeqRef.current += 1);
       if (!value) {
         setSuggestions([]);
         setLoading(false);
@@ -226,13 +308,16 @@ export function SearchScreen({route, navigation}: Props) {
 
       setLoading(true);
       const timer = setTimeout(() => {
-        mooketApi
-          .getSearchSuggestions(selectedCategory, value)
+        const request = loadSuggestionsForInput(selectedTab, selectedCategory, value);
+
+        request
           .then(result => {
+            if (requestSeq !== suggestionSearchSeqRef.current) return;
             setSuggestions(result);
             setLoading(false);
           })
           .catch(() => {
+            if (requestSeq !== suggestionSearchSeqRef.current) return;
             setSuggestions([]);
             setLoading(false);
           });
@@ -276,33 +361,33 @@ export function SearchScreen({route, navigation}: Props) {
     [histories],
   );
 
-  async function handleSelect(item: SearchSuggest) {
+  function handleSelect(item: SearchSuggest) {
     Keyboard.dismiss();
     const parts = item.text.split(/\s+/).filter(Boolean);
-    const country = item.country ?? getCountryFromText(parts[0]);
-    const factoryNo = item.factoryNo ?? getFactoryFromText(parts[1]);
+    const hasCountry = ['country', 'factory', 'combined'].includes(item.matchType) || item.type.includes('国家');
+    const hasFactory = ['factory', 'combined'].includes(item.matchType) || item.type.includes('厂号');
+    const country = item.country ?? (hasCountry ? getCountryFromText(parts[0]) : null);
+    const factoryNo = item.factoryNo ?? (hasFactory ? getFactoryFromText(parts[1]) : null);
     const productName = item.productName ?? getProductFromSuggestion(item, parts);
     const brandName = item.brandName ?? getBrandFromSuggestion(item, parts);
-    try {
-      await mooketApi.saveSearchHistory({
-        searchWord: item.text,
-        searchType: item.type,
-        productId: item.matchType === 'product' ? item.targetId : null,
-        productName,
-        country: ['country', 'factory', 'combined'].includes(item.matchType) ? country : null,
-        factoryNo: ['factory', 'combined'].includes(item.matchType) ? factoryNo : null,
-        brandId: item.matchType === 'brand' && item.type !== '品牌+产品' ? item.targetId : null,
-        merchantId: item.matchType === 'merchant' ? item.targetId : null,
-      });
-      await loadHistories();
-    } catch (err) {
-      Alert.alert('保存搜索记录失败', err instanceof Error ? err.message : String(err));
-    }
+    fireAndForget(
+      mooketApi
+        .saveSearchHistory({
+          searchWord: item.text,
+          searchType: item.type,
+          productId: item.matchType === 'product' ? item.targetId : null,
+          productName,
+          country: ['country', 'factory', 'combined'].includes(item.matchType) ? country : null,
+          factoryNo: ['factory', 'combined'].includes(item.matchType) ? factoryNo : null,
+          brandId: item.matchType === 'brand' && item.type !== '品牌+产品' ? item.targetId : null,
+          merchantId: item.matchType === 'merchant' ? item.targetId : null,
+        })
+        .then(loadHistories),
+    );
 
     if (selectedTab === 'merchant') {
       const display = getStandardSearchWord(item.text);
-      setKeyword(display);
-      setMerchantSelection({
+      const merchantSearch = {
         display,
         matchType: item.matchType,
         type: item.type,
@@ -312,8 +397,14 @@ export function SearchScreen({route, navigation}: Props) {
         productName,
         brandName,
         merchantName: item.merchantName ?? item.standardName ?? display,
+      };
+      navigation.navigate('MerchantSearchResults', {
+        category: selectedCategory,
+        searchKeyword: display,
+        tags: buildMerchantSearchTags(buildMerchantSearchTarget(item, parts, {country, factoryNo, productName, brandName}), display),
+        merchantSearch,
+        target: buildMerchantSearchTarget(item, parts, {country, factoryNo, productName, brandName}),
       });
-      setIsInputFocused(false);
       return;
     }
 
@@ -585,8 +676,24 @@ export function SearchScreen({route, navigation}: Props) {
               <View style={styles.searchDivider} />
             </>
           ) : null}
-          {!isInputFocused ? <SearchIcon size={16} color="#ADB7B5" /> : null}
+          {activeMerchantSelection ? (
+            <>
+              <View style={styles.selectedSearchChip}>
+                <Text style={styles.selectedSearchChipText} numberOfLines={1}>
+                  {activeMerchantSelection.display}
+                </Text>
+                <Pressable hitSlop={8} onPress={clearMerchantSelection} style={styles.selectedSearchChipClose}>
+                  <Text style={styles.selectedSearchChipCloseText}>×</Text>
+                </Pressable>
+              </View>
+              <View style={styles.inputSpacer} />
+              <SearchIcon size={16} color="#ADB7B5" />
+            </>
+          ) : (
+            <>
+              {!isInputFocused ? <SearchIcon size={16} color="#ADB7B5" /> : null}
           <TextInput
+            ref={inputRef}
             autoFocus
             value={keyword}
             onFocus={() => setIsInputFocused(true)}
@@ -611,6 +718,8 @@ export function SearchScreen({route, navigation}: Props) {
               <ClearInputIcon size={16} />
             </Pressable>
           ) : null}
+            </>
+          )}
         </View>
       </View>
 
@@ -655,6 +764,7 @@ export function SearchScreen({route, navigation}: Props) {
                       category: selectedCategory,
                       initialTab: getMerchantDefaultTab(item),
                       initialCategory: 'all',
+                      ...buildMerchantDetailInitialFilters(activeMerchantSelection),
                     });
                   }}
                 />
@@ -826,7 +936,7 @@ function MerchantSearchResultItem({
       ) : null}
 
       <View style={styles.merchantResultFooter}>
-        <Text style={styles.merchantResultMore}>查看更多</Text>
+        <Text style={styles.merchantResultMore}>查看</Text>
         <Text style={styles.merchantResultArrow}>›</Text>
       </View>
     </Pressable>
@@ -856,15 +966,22 @@ async function loadMerchantSearchResults(selection: MerchantSearchSelection): Pr
             sortBy: 'publish_time',
             skipCache: true,
           })
-          .then(page => ({...task, items: page.items ?? []})),
+          .then(page => ({...task, params, items: page.items ?? []})),
       ),
     ),
   );
 
   feedResponses.forEach(response => {
     if (response.status !== 'fulfilled') return;
+    const isStructuredResponse = Boolean(
+      response.value.params.merchantId ||
+        response.value.params.brandName ||
+        response.value.params.productName ||
+        response.value.params.country ||
+        response.value.params.factoryNo,
+    );
     response.value.items
-      .filter(item => merchantFeedItemMatchesCondition(item, condition))
+      .filter(item => isStructuredResponse || merchantFeedItemMatchesCondition(item, condition))
       .forEach(item => addMerchantFeedItem(map, item, response.value.type, response.value.category));
   });
 
@@ -889,14 +1006,6 @@ async function loadMerchantSearchResults(selection: MerchantSearchSelection): Pr
     const leftScore = left.offerCount + left.inquiryCount;
     return rightScore - leftScore;
   });
-}
-
-function buildMerchantSelectionFromKeyword(keyword: string): MerchantSearchSelection {
-  return {
-    display: getStandardSearchWord(keyword),
-    matchType: 'keyword',
-    type: '关键词',
-  };
 }
 
 function buildMerchantSearchConditionFromSelection(selection: MerchantSearchSelection): MerchantSearchCondition {
@@ -967,17 +1076,9 @@ function buildMerchantFeedParamVariants(condition: MerchantSearchCondition): Mer
 
   const keyword = buildMerchantFeedKeyword(condition);
   if (condition.matchType === 'merchant') {
-    add({
-      keyword,
-      merchantId: condition.targetId ?? undefined,
-    });
+    add({merchantId: condition.targetId ?? undefined});
+    add({keyword});
   } else {
-    const hasStructuredCondition = Boolean(
-      condition.brandName ||
-        condition.productName ||
-        condition.country ||
-        condition.factoryNo,
-    );
     add({
       brandName: condition.brandName ?? undefined,
       productName: condition.productName ?? undefined,
@@ -985,9 +1086,6 @@ function buildMerchantFeedParamVariants(condition: MerchantSearchCondition): Mer
       factoryNo: condition.factoryNo,
     });
     add({keyword});
-    if (hasStructuredCondition) {
-      add({keyword: condition.raw});
-    }
   }
 
   if (!condition.brandName && !condition.productName && !condition.country && !condition.factoryNo) {
@@ -997,6 +1095,98 @@ function buildMerchantFeedParamVariants(condition: MerchantSearchCondition): Mer
     }
     if (looksLikeFactoryNo(condition.raw)) {
       add({factoryNo: condition.raw});
+    }
+  }
+
+  function buildMerchantSearchTarget(
+    item: SearchSuggest,
+    parts: string[],
+    standard: {
+      country?: string | null;
+      factoryNo?: string | null;
+      productName?: string | null;
+      brandName?: string | null;
+    },
+  ): RootStackParamList['MerchantSearchResults']['target'] {
+    const display = getStandardSearchWord(item.text);
+    const countryValue = standard.country ?? getCountryFromText(parts[0]);
+    const factoryValue = standard.factoryNo ?? getFactoryFromText(parts[1]);
+    const productValue = standard.productName ?? getProductFromSuggestion(item, parts) ?? display;
+    const brandValue = standard.brandName ?? getBrandFromSuggestion(item, parts) ?? display;
+
+    switch (item.matchType) {
+      case 'merchant':
+        return {
+          screen: 'OfferFeed',
+          keyword: display,
+          queryKeyword: display,
+          merchantId: item.targetId,
+        };
+      case 'product':
+        return {
+          screen: 'Product',
+          productId: item.targetId,
+          productName: productValue,
+        };
+      case 'country':
+        return {screen: 'Country', country: countryValue || display};
+      case 'factory':
+        if (countryValue && factoryValue) {
+          return {screen: 'Factory', country: countryValue, factoryNo: factoryValue};
+        }
+        return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
+      case 'brand':
+        if (item.type === '品牌+产品' && (standard.brandName || parts.length >= 2)) {
+          return {
+            screen: 'BrandProduct',
+            brandName: brandValue,
+            productName: productValue,
+          };
+        }
+        return {screen: 'Brand', brandName: brandValue};
+      case 'combined':
+        if (item.type === '国家+产品' && (countryValue || parts.length >= 2)) {
+          return {
+            screen: 'CountryProduct',
+            country: countryValue || getCountryFromText(parts[0]),
+            productName: productValue,
+          };
+        }
+        if (countryValue && factoryValue && productValue) {
+          return {
+            screen: 'CountryFactoryProduct',
+            country: countryValue,
+            factoryNo: factoryValue,
+            productName: productValue,
+          };
+        }
+        return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
+      default:
+        return {screen: 'OfferFeed', keyword: display, queryKeyword: display};
+    }
+  }
+
+  function buildMerchantSearchTags(
+    target: RootStackParamList['MerchantSearchResults']['target'],
+    fallback: string,
+  ): string[] {
+    switch (target.screen) {
+      case 'Product':
+        return [target.productName];
+      case 'Country':
+        return [target.country];
+      case 'Factory':
+        return [`${target.country}${target.factoryNo}`];
+      case 'CountryProduct':
+        return [target.country, target.productName];
+      case 'CountryFactoryProduct':
+        return [`${target.country}${target.factoryNo}`, target.productName];
+      case 'Brand':
+        return [target.brandName];
+      case 'BrandProduct':
+        return [target.brandName, target.productName];
+      case 'OfferFeed':
+        return [fallback];
     }
   }
 
@@ -1109,6 +1299,15 @@ function getSampleCategoryMark(sample: MerchantSearchSample, fallback: string) {
 function getMerchantDefaultTab(item: MerchantSearchResult): OfferTab {
   if (item.offerCount === 0 && item.inquiryCount > 0) return 'inquiry';
   return 'offer';
+}
+
+function buildMerchantDetailInitialFilters(selection: MerchantSearchSelection) {
+  if (selection.matchType === 'merchant') return {};
+  return {
+    initialCountry: selection.country ?? null,
+    initialFactoryNo: selection.factoryNo ?? null,
+    initialProductName: selection.productName ?? null,
+  };
 }
 
 function buildMerchantBrandQueries(
@@ -1261,6 +1460,15 @@ function merchantFeedItemMatchesCondition(item: OfferFeedItem, condition: Mercha
   if (hasStructuredCondition) return true;
 
   const raw = condition.raw;
+  function clearMerchantSelection() {
+    setKeyword('');
+    setMerchantSelection(null);
+    setSuggestions([]);
+    setMerchantResults([]);
+    setCategoryMenuOpen(false);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
   return (
     fieldIncludes(item.productName, raw) ||
     fieldIncludes(item.brandName, raw) ||
@@ -1556,6 +1764,38 @@ const styles = StyleSheet.create({
     marginLeft: 0,
   },
   inputClear: {width: 18, height: 18, alignItems: 'center', justifyContent: 'center'},
+  inputSpacer: {flex: 1},
+  selectedSearchChip: {
+    maxWidth: '78%',
+    minHeight: 28,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 9,
+    paddingRight: 6,
+    gap: 4,
+  },
+  selectedSearchChipText: {
+    flexShrink: 1,
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
+  },
+  selectedSearchChipClose: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedSearchChipCloseText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    lineHeight: 15,
+    fontWeight: '600',
+  },
   resultContent: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1617,8 +1857,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   merchantSampleCard: {
-    flex: 1,
-    minWidth: 0,
+    width: '31.5%',
+    flexGrow: 0,
+    flexShrink: 0,
     minHeight: 58,
     borderRadius: 3,
     backgroundColor: '#FBFDFD',

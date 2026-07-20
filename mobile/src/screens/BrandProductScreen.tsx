@@ -4,12 +4,10 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {BrandProductDashboard} from '../components/detail/BrandProductDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
-import {InquiryFeedSectionList} from '../components/detail/InquiryFeedSectionList';
 import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
 import {OfferInquiryTabs, TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
-import {useInquiryFeed} from '../hooks/useInquiryFeed';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {BrandProductDetailResult, BrandProductSummary} from '../types/api';
@@ -35,16 +33,12 @@ export function BrandProductScreen({navigation, route}: Props) {
   );
   const summaries = data?.summaries ?? [];
   const currentBrandName = stripProductName(data?.brandName || brandName, productName);
-  const inquiryFeed = useInquiryFeed({
-    enabled: Boolean(currentBrandName && productName),
-    category,
-    sortBy: requestSortParam,
-    brandName: currentBrandName,
-    productName,
-  });
   const handleTabChange = useCallback(
     (nextTab: OfferTab) => {
       if (nextTab === tab) return;
+      setData(null);
+      setPage(1);
+      setError(null);
       setTab(nextTab);
     },
     [tab],
@@ -83,14 +77,8 @@ export function BrandProductScreen({navigation, route}: Props) {
   }, [brandName, category, productName, requestSortParam, tab]);
 
   useEffect(() => {
-    if (tab !== 'offer') return;
     loadFirst().catch(() => undefined);
-  }, [loadFirst, tab]);
-
-  useEffect(() => {
-    if (tab !== 'inquiry' || data) return;
-    loadFirst().catch(() => undefined);
-  }, [data, loadFirst, tab]);
+  }, [loadFirst]);
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !data) return;
@@ -142,8 +130,19 @@ export function BrandProductScreen({navigation, route}: Props) {
             onTabChange={handleTabChange}
             showMerchant
             onMerchantPress={() => {
-              navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+              navigation.replace('MerchantSearchResults', {
+                category,
+                searchKeyword,
+                tags: [brandName, productName],
+                merchantSearch: {
+                  display: searchKeyword,
+                  matchType: 'brand',
+                  type: '品牌+产品',
+                  brandName,
+                  productName,
+                },
+                target: {screen: 'BrandProduct', brandName, productName},
+              });
             }}
           />
         }
@@ -158,39 +157,6 @@ export function BrandProductScreen({navigation, route}: Props) {
         </View>
       ) : error && !data ? (
         <ErrorState message={error} onRetry={loadFirst} />
-      ) : data && tab === 'inquiry' ? (
-        <InquiryFeedSectionList
-          items={inquiryFeed.items}
-          category={category}
-          navigation={navigation}
-          loading={inquiryFeed.loading}
-          refreshing={inquiryFeed.refreshing}
-          loadingMore={inquiryFeed.loadingMore}
-          error={inquiryFeed.error}
-          onRefresh={inquiryFeed.refresh}
-          onLoadMore={inquiryFeed.loadMore}
-          ListHeaderComponent={
-            <View>
-              <BrandProductDashboard
-                brandName={stripProductName(data.brandName || brandName, productName)}
-                productName={productName}
-                isInquiry
-                todayOfferCount={data.todayOfferCount}
-                todayInquiryCount={inquiryFeed.totalCount}
-                priceMin={data.priceMin}
-                priceMax={data.priceMax}
-                merchantCount={getTabMerchantCount(data, tab)}
-                factoryCount={getTabFactoryCount(data, tab)}
-              />
-              <View style={styles.gap} />
-            </View>
-          }
-          renderSectionHeader={() => (
-            <View style={styles.stickyHeader}>
-              <TabAndSortBar tab={tab} onTabChange={handleTabChange} sort={sort} onSortChange={setSort} showTabs={false} />
-            </View>
-          )}
-        />
       ) : data ? (
         <SectionList
           sections={[{key: 'items', data: summaries}]}

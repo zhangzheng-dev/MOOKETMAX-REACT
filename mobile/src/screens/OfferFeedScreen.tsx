@@ -19,9 +19,11 @@ import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Circle, Path} from 'react-native-svg';
 import {mooketApi} from '../api/mooketApi';
+import {InventoryIcon} from '../components/common/AppIcons';
 import {FilterBar, type FilterDef, type FilterKey as DetailFilterKey} from '../components/detail/FilterBar';
 import {FilterPanelSheet, MultiSelectChips} from '../components/detail/FilterPanelSheet';
 import {OriginalTextSheet} from '../components/detail/OriginalTextSheet';
+import {SelfSelectButton, toHistoryMerchantId} from '../components/detail/SelfSelectButton';
 import type {SortMode} from '../components/detail/TabAndSortBar';
 import {DEFAULT_CATEGORY} from '../config/env';
 import type {RootStackParamList} from '../navigation/routes';
@@ -38,9 +40,19 @@ import {
   recordRecentContactPlate,
   type ContactAction,
 } from '../utils/plateFollowStore';
+import {
+  buildMerchantDetailInitialFilters,
+  buildMerchantSelectionFromRoute,
+  buildMerchantSelectionFromSuggestion,
+  getMerchantDefaultTab,
+  loadMerchantSearchResults,
+  type MerchantSearchResult,
+  type MerchantSearchSelection,
+} from '../utils/merchantSearchResults';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OfferFeed'>;
 export type OfferTab = 'offer' | 'inquiry';
+type FeedTab = OfferTab | 'merchant';
 type FeedFilterKey =
   | 'sort'
   | 'category'
@@ -87,7 +99,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
   const hasInitialStructuredFilter = Boolean(initialCountry || initialFactoryNo);
   const initialQueryKeyword =
     route.params?.queryKeyword ?? (hasInitialStructuredFilter ? parsedRouteKeyword.keyword : routeKeyword);
-  const [tab, setTab] = useState<OfferTab>(inquiryOnly ? 'inquiry' : route.params?.initialTab ?? 'offer');
+  const [tab, setTab] = useState<FeedTab>(inquiryOnly ? 'inquiry' : route.params?.initialTab ?? 'offer');
   const [category, setCategory] = useState(route.params?.category ?? DEFAULT_CATEGORY);
   const [keywordInput, setKeywordInput] = useState(routeKeyword);
   const [keyword, setKeyword] = useState(initialQueryKeyword);
@@ -107,6 +119,11 @@ export function OfferFeedScreen({navigation, route}: Props) {
   const [realNameOnly, setRealNameOnly] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [items, setItems] = useState<OfferFeedItem[]>([]);
+  const [merchantSearch, setMerchantSearch] = useState<MerchantSearchSelection | null>(
+    route.params?.merchantSearch ?? null,
+  );
+  const [merchantResults, setMerchantResults] = useState<MerchantSearchResult[]>([]);
+  const [merchantLoading, setMerchantLoading] = useState(false);
   const [filterOptions, setFilterOptions] = useState<OfferFeedFilterOptions>({});
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -155,6 +172,12 @@ export function OfferFeedScreen({navigation, route}: Props) {
 
   const loadPage = useCallback(
     async (nextPage: number, mode: 'replace' | 'refresh' | 'more' = 'replace') => {
+      if (tab === 'merchant') {
+        setLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+        return;
+      }
       const requestSeq = (requestSeqRef.current += 1);
       if (mode === 'more') {
         setLoadingMore(true);
@@ -167,7 +190,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
       try {
         const result = await mooketApi.getOfferFeed({
           category,
-          type: tab,
+          type: tab as OfferTab,
           keyword,
           merchantId,
           brandName,
@@ -215,6 +238,45 @@ export function OfferFeedScreen({navigation, route}: Props) {
     loadPage(1).catch(() => undefined);
   }, [loadPage]);
 
+  const activeMerchantSelection = useMemo(
+    () =>
+      merchantSearch ??
+      buildMerchantSelectionFromRoute({
+        keyword: keywordInput || keyword,
+        merchantId,
+        brandName,
+        productName,
+        country: initialCountry,
+        factoryNo: initialFactoryNo,
+      }),
+    [brandName, initialCountry, initialFactoryNo, keyword, keywordInput, merchantId, merchantSearch, productName],
+  );
+
+  useEffect(() => {
+    if (tab !== 'merchant' || !activeMerchantSelection) {
+      setMerchantLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setMerchantLoading(true);
+    loadMerchantSearchResults(activeMerchantSelection)
+      .then(result => {
+        if (cancelled) return;
+        setMerchantResults(result);
+        setMerchantLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMerchantResults([]);
+        setMerchantLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMerchantSelection, tab]);
+
   useEffect(() => {
     const value = keywordInput.trim();
     if (!searchFocused || !value) {
@@ -226,8 +288,11 @@ export function OfferFeedScreen({navigation, route}: Props) {
     let cancelled = false;
     setSuggestionsLoading(true);
     const timer = setTimeout(() => {
-      mooketApi
-        .getSearchSuggestions(category, value)
+      const request =
+        tab === 'merchant'
+          ? Promise.all(categoryOptions.map(item => mooketApi.getSearchSuggestions(item, value))).then(mergeSearchSuggestions)
+          : mooketApi.getSearchSuggestions(category, value);
+      request
         .then(result => {
           if (cancelled) return;
           setSuggestions(result);
@@ -244,7 +309,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [category, keywordInput, searchFocused]);
+  }, [category, keywordInput, searchFocused, tab]);
 
   const visibleItems = useMemo(() => {
     const merchantFilteredItems = merchantId == null
@@ -284,6 +349,14 @@ export function OfferFeedScreen({navigation, route}: Props) {
 
   const applyKeyword = useCallback(() => {
     const value = keywordInput.trim();
+    if (tab === 'merchant') {
+      Keyboard.dismiss();
+      setKeyword(value);
+      setMerchantSearch(buildMerchantSelectionFromRoute({keyword: value}));
+      setSearchFocused(false);
+      setSuggestions([]);
+      return;
+    }
     if (inquiryOnly && value) {
       setSearchFocused(true);
       return;
@@ -297,18 +370,33 @@ export function OfferFeedScreen({navigation, route}: Props) {
     setFilters(prev => ({...prev, country: parsed.country, factoryNo: parsed.factoryNo}));
     setSearchFocused(false);
     setSuggestions([]);
-  }, [inquiryOnly, keywordInput]);
+  }, [inquiryOnly, keywordInput, tab]);
 
   const selectSuggestion = useCallback((item: SearchSuggest) => {
     const query = buildOfferSuggestionQuery(item);
     Keyboard.dismiss();
+    if (tab === 'merchant') {
+      setKeywordInput(query.display);
+      setKeyword(query.display);
+      setMerchantSearch(
+        buildMerchantSelectionFromSuggestion(item, query.display, {
+          country: query.country,
+          factoryNo: query.factoryNo,
+          productName: normalizeOptionalText(item.productName) ?? (query.productOnly ? query.keyword : null),
+          brandName: normalizeOptionalText(item.brandName),
+        }),
+      );
+      setSearchFocused(false);
+      setSuggestions([]);
+      return;
+    }
     setKeywordInput(query.display);
     setKeyword(query.keyword);
     setKeywordScope(query.productOnly ? 'product' : 'all');
     setFilters(prev => ({...prev, country: query.country, factoryNo: query.factoryNo}));
     setSearchFocused(false);
     setSuggestions([]);
-  }, []);
+  }, [tab]);
 
   const clearAllFilters = useCallback(() => {
     setFilters({});
@@ -363,6 +451,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
           <View style={styles.headerTabs}>
             <HeaderTab text="报盘" active={tab === 'offer'} onPress={() => setTab('offer')} />
             <HeaderTab text="求购" active={tab === 'inquiry'} onPress={() => setTab('inquiry')} />
+            <HeaderTab text="商家" active={tab === 'merchant'} onPress={() => setTab('merchant')} />
           </View>
         )}
         <View style={styles.clearButton} />
@@ -377,10 +466,12 @@ export function OfferFeedScreen({navigation, route}: Props) {
             onFocus={() => setSearchFocused(true)}
             onChangeText={text => {
               setKeywordInput(text);
+              setMerchantSearch(null);
               if (!text.trim()) {
                 setKeyword('');
                 setKeywordScope('all');
                 setFilters(prev => ({...prev, country: null, factoryNo: null}));
+                setMerchantResults([]);
               }
             }}
             onSubmitEditing={applyKeyword}
@@ -395,6 +486,8 @@ export function OfferFeedScreen({navigation, route}: Props) {
                 setKeywordInput('');
                 setKeyword('');
                 setKeywordScope('all');
+                setMerchantSearch(null);
+                setMerchantResults([]);
                 setFilters(prev => ({...prev, country: null, factoryNo: null}));
                 setSuggestions([]);
               }}
@@ -430,6 +523,50 @@ export function OfferFeedScreen({navigation, route}: Props) {
         />
       ) : null}
 
+      {tab === 'merchant' ? (
+        <FlatList
+          data={merchantResults}
+          keyExtractor={(item, index) => `${item.merchantId ?? item.merchantName}-${index}`}
+          renderItem={({item}) => (
+            <MerchantSearchResultCard
+              item={item}
+              category={category}
+              onPress={() => {
+                if (item.merchantId == null || !activeMerchantSelection) return;
+                navigation.navigate('Merchant', {
+                  merchantId: item.merchantId,
+                  category,
+                  initialTab: getMerchantDefaultTab(item),
+                  initialCategory: 'all',
+                  ...buildMerchantDetailInitialFilters(activeMerchantSelection),
+                });
+              }}
+            />
+          )}
+          contentContainerStyle={styles.merchantResultList}
+          refreshControl={
+            <RefreshControl
+              refreshing={merchantLoading}
+              onRefresh={() => {
+                if (!activeMerchantSelection) return;
+                setMerchantLoading(true);
+                loadMerchantSearchResults(activeMerchantSelection)
+                  .then(setMerchantResults)
+                  .finally(() => setMerchantLoading(false));
+              }}
+            />
+          }
+          ListEmptyComponent={
+            merchantLoading ? (
+              <ActivityIndicator color={colors.primary} style={styles.loading} />
+            ) : (
+              <Text style={styles.empty}>暂无匹配商家</Text>
+            )
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      ) : (
+        <>
       <View
         style={styles.filterBlock}
         onLayout={event => {
@@ -445,16 +582,16 @@ export function OfferFeedScreen({navigation, route}: Props) {
         renderItem={({item}) => (
           <OfferFeedCard
             item={item}
-            tab={tab}
+            tab={tab as OfferTab}
             onMerchantPress={() => {
               if (item.merchantId != null) {
                 navigation.navigate('Merchant', {merchantId: item.merchantId, category});
               }
             }}
             onViewOriginalText={setOriginalText}
-            isIntentAdded={intentKeys.has(createPlateSnapshotFromFeed(item, tab).key)}
-            onAddIntent={() => handleAddIntent(item, tab)}
-            onContact={action => handleRecordContact(item, tab, action)}
+            isIntentAdded={intentKeys.has(createPlateSnapshotFromFeed(item, tab as OfferTab).key)}
+            onAddIntent={() => handleAddIntent(item, tab as OfferTab)}
+            onContact={action => handleRecordContact(item, tab as OfferTab, action)}
           />
         )}
         contentContainerStyle={styles.listContent}
@@ -486,8 +623,10 @@ export function OfferFeedScreen({navigation, route}: Props) {
         ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.primary} style={styles.footerLoading} /> : null}
         showsVerticalScrollIndicator={false}
       />
+        </>
+      )}
 
-      {activeFilter === 'sort' || activeFilter === 'category' ? (
+      {tab !== 'merchant' && (activeFilter === 'sort' || activeFilter === 'category') ? (
         <View pointerEvents="box-none" style={styles.sortOverlay}>
           <Pressable
             style={[styles.sortOverlayMask, {top: sortOverlayTop}]}
@@ -518,7 +657,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
       ) : null}
 
       <FilterPanelSheet
-        visible={activeFilter === 'region'}
+        visible={tab !== 'merchant' && activeFilter === 'region'}
         title="地区"
         onClose={() => setActiveFilter(null)}
         onReset={() => {
@@ -534,7 +673,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
       </FilterPanelSheet>
 
       <FilterPanelSheet
-        visible={activeFilter === 'priceRange'}
+        visible={tab !== 'merchant' && activeFilter === 'priceRange'}
         title="价格区间"
         onClose={() => setActiveFilter(null)}
         onReset={() => {
@@ -572,7 +711,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
       </FilterPanelSheet>
 
       <FilterPanelSheet
-        visible={activeFilter === 'goodsType'}
+        visible={tab !== 'merchant' && activeFilter === 'goodsType'}
         title="货物类型"
         onClose={() => setActiveFilter(null)}
         onReset={() => {
@@ -588,7 +727,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
       </FilterPanelSheet>
 
       <FilterPanelSheet
-        visible={activeFilter === 'feedingMethod'}
+        visible={tab !== 'merchant' && activeFilter === 'feedingMethod'}
         title="饲养方式"
         onClose={() => setActiveFilter(null)}
         onReset={() => {
@@ -604,7 +743,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
       </FilterPanelSheet>
 
       <FilterPanelSheet
-        visible={activeFilter === 'tag'}
+        visible={tab !== 'merchant' && activeFilter === 'tag'}
         title="标签"
         onClose={() => setActiveFilter(null)}
         onReset={() => {
@@ -849,6 +988,81 @@ export function OfferFeedCard({
       </View>
     </View>
   );
+}
+
+function MerchantSearchResultCard({
+  item,
+  category,
+  onPress,
+}: {
+  item: MerchantSearchResult;
+  category: string;
+  onPress: () => void;
+}) {
+  const displayName = item.merchantShortName || item.merchantName || '未知商家';
+  const card = {
+    cardType: 'merchant',
+    merchantId: item.merchantId,
+    merchantName: item.merchantName,
+    merchantShortName: item.merchantShortName,
+  };
+  const payload = {
+    searchWord: displayName,
+    searchType: '商家',
+    merchantId: toHistoryMerchantId(item.merchantId),
+  };
+
+  return (
+    <Pressable onPress={onPress} style={({pressed}) => [styles.merchantResultCard, pressed && styles.merchantResultPressed]}>
+      <View style={styles.merchantResultHeader}>
+        <View style={styles.merchantResultTitleWrap}>
+          <View style={styles.merchantResultIcon}>
+            <InventoryIcon size={15} color={colors.primary} />
+          </View>
+          <Text style={styles.merchantResultName} numberOfLines={1}>{displayName}</Text>
+        </View>
+        <SelfSelectButton category={category} card={card} payload={payload} />
+      </View>
+
+      <Text style={styles.merchantResultMeta} numberOfLines={1}>
+        报盘 {item.offerCount}  求购 {item.inquiryCount}
+      </Text>
+
+      {item.samples.length > 0 ? (
+        <View style={styles.merchantSampleList}>
+          {item.samples.slice(0, 3).map((sample, index) => (
+            <View key={`${sample.type}-${sample.category}-${sample.productName}-${sample.country}-${sample.factoryNo}-${index}`} style={styles.merchantSampleCard}>
+              <View style={styles.merchantSampleTopLine}>
+                <View style={[styles.merchantSampleBadge, sample.type === 'inquiry' && styles.merchantSampleBadgeInquiry]}>
+                  <Text style={[styles.merchantSampleBadgeText, sample.type === 'inquiry' && styles.merchantSampleBadgeTextInquiry]}>
+                    {sample.type === 'offer' ? '报盘' : '求购'}
+                  </Text>
+                </View>
+                <Text style={styles.merchantSampleProduct} numberOfLines={1}>
+                  {sample.productName?.trim() || '未知产品'}
+                </Text>
+              </View>
+              <Text style={styles.merchantSampleFactory} numberOfLines={1}>
+                {buildMerchantSampleFactoryText(sample)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.merchantResultFooter}>
+        <Text style={styles.merchantResultMore}>查看</Text>
+        <Text style={styles.merchantResultArrow}>›</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function buildMerchantSampleFactoryText(sample: {country?: string | null; factoryNo?: string | null}) {
+  const country = sample.country?.trim();
+  const factoryNo = sample.factoryNo?.trim();
+  if (country && factoryNo) return `${country}${factoryNo}`;
+  return country || factoryNo || '国家厂号不限';
 }
 
 function DetailChip({part}: {part: DetailPart}) {
@@ -1127,6 +1341,27 @@ function parseSuggestionText(text: string): {main: string; alias: string | null}
     };
   }
   return {main: text, alias: null};
+}
+
+function mergeSearchSuggestions(groups: SearchSuggest[][]): SearchSuggest[] {
+  const result = new Map<string, SearchSuggest>();
+  groups.flat().forEach(item => {
+    const key = [
+      item.matchType,
+      item.targetId,
+      item.text,
+      item.country ?? '',
+      item.factoryNo ?? '',
+      item.productName ?? '',
+      item.brandName ?? '',
+      item.merchantName ?? '',
+    ].join('|');
+    const current = result.get(key);
+    if (!current || item.priority < current.priority) {
+      result.set(key, item);
+    }
+  });
+  return Array.from(result.values()).sort((left, right) => left.priority - right.priority);
 }
 
 function getStandardSuggestionText(text: string): string {
@@ -1581,6 +1816,134 @@ const styles = StyleSheet.create({
   countText: {fontSize: 12, color: colors.textMuted},
   countNumber: {fontFamily: fonts.manropeBold, color: colors.primary},
   keywordText: {fontSize: 12, color: colors.textMuted, maxWidth: 180},
+  merchantResultList: {
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 28,
+  },
+  merchantResultCard: {
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DDE9E6',
+  },
+  merchantResultPressed: {
+    opacity: 0.86,
+  },
+  merchantResultHeader: {
+    minHeight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  merchantResultTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  merchantResultIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF8F6',
+  },
+  merchantResultName: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  merchantResultMeta: {
+    marginTop: 4,
+    marginLeft: 24,
+    color: '#6C7A77',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  merchantSampleList: {
+    marginTop: 8,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  merchantSampleCard: {
+    width: '31.5%',
+    flexGrow: 0,
+    flexShrink: 0,
+    minHeight: 44,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
+    borderRadius: 3,
+    backgroundColor: '#FCFEFD',
+    borderWidth: 1,
+    borderColor: '#E3ECE9',
+  },
+  merchantSampleTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  merchantSampleBadge: {
+    minWidth: 24,
+    height: 14,
+    paddingHorizontal: 3,
+    borderRadius: 7,
+    backgroundColor: '#EAF9F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  merchantSampleBadgeInquiry: {
+    backgroundColor: '#EEF4FF',
+  },
+  merchantSampleBadgeText: {
+    color: colors.primary,
+    fontSize: 8,
+    lineHeight: 11,
+  },
+  merchantSampleBadgeTextInquiry: {
+    color: '#3767D6',
+  },
+  merchantSampleProduct: {
+    flex: 1,
+    minWidth: 0,
+    color: colors.text,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  merchantSampleFactory: {
+    marginTop: 2,
+    color: '#3C4947',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  merchantResultFooter: {
+    marginTop: 6,
+    minHeight: 18,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 2,
+  },
+  merchantResultMore: {
+    color: colors.primary,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  merchantResultArrow: {
+    color: colors.primary,
+    fontSize: 13,
+    lineHeight: 16,
+  },
   listContent: {paddingHorizontal: 8, paddingBottom: 28},
   loading: {marginTop: 40},
   footerLoading: {paddingVertical: 16},

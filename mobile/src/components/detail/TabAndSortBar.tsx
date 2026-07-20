@@ -11,6 +11,7 @@ import {colors} from '../../theme/colors';
 import {sortArrowsAsc, sortArrowsDefault, sortArrowsDesc} from './productIcons';
 
 export type OfferTab = 'offer' | 'inquiry';
+export type SearchResultTab = OfferTab | 'merchant';
 export type SortOrder = 'none' | 'asc' | 'desc';
 export type SortMode =
   | {kind: 'comprehensive'}
@@ -30,7 +31,7 @@ type Props = {
 };
 
 type OfferInquiryTabsProps = {
-  tab: OfferTab;
+  tab: SearchResultTab;
   onTabChange: (next: OfferTab) => void;
   style?: ViewStyle;
   offerLabel?: string;
@@ -48,7 +49,7 @@ export function OfferInquiryTabs({
   showMerchant = false,
   onMerchantPress,
 }: OfferInquiryTabsProps) {
-  const [visualTab, setVisualTab] = React.useState<OfferTab>(tab);
+  const [visualTab, setVisualTab] = React.useState<SearchResultTab>(tab);
   const pendingFrame = React.useRef<number | null>(null);
 
   React.useEffect(() => {
@@ -90,7 +91,7 @@ export function OfferInquiryTabs({
       {showMerchant ? (
         <TopTabItem
           text="商家"
-          active={false}
+          active={visualTab === 'merchant'}
           onPress={() => {
             if (pendingFrame.current != null) {
               cancelAnimationFrame(pendingFrame.current);

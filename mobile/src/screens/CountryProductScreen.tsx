@@ -4,12 +4,10 @@ import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {mooketApi} from '../api/mooketApi';
 import {CountryProductDashboard} from '../components/detail/CountryProductDashboard';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
-import {InquiryFeedSectionList} from '../components/detail/InquiryFeedSectionList';
 import {SelfSelectButton} from '../components/detail/SelfSelectButton';
 import {SummaryRowCard} from '../components/detail/SummaryRowCard';
 import {OfferInquiryTabs, TabAndSortBar, type OfferTab, type SortMode} from '../components/detail/TabAndSortBar';
 import {ErrorState} from '../components/common/ErrorState';
-import {useInquiryFeed} from '../hooks/useInquiryFeed';
 import type {RootStackParamList} from '../navigation/routes';
 import {colors} from '../theme/colors';
 import type {CountryProductDetail, CountryProductFactory} from '../types/api';
@@ -36,16 +34,12 @@ export function CountryProductScreen({navigation, route}: Props) {
   const factories = data?.factories ?? [];
   const currentCountry = data?.country || country;
   const currentProductName = data?.productName || productName;
-  const inquiryFeed = useInquiryFeed({
-    enabled: Boolean(currentCountry && currentProductName),
-    category,
-    sortBy: requestSortParam,
-    productName: currentProductName,
-    country: currentCountry,
-  });
   const handleTabChange = useCallback(
     (nextTab: OfferTab) => {
       if (nextTab === tab) return;
+      setData(null);
+      setPage(1);
+      setError(null);
       setTab(nextTab);
     },
     [tab],
@@ -85,14 +79,8 @@ export function CountryProductScreen({navigation, route}: Props) {
   }, [category, country, productName, requestSortParam, tab]);
 
   useEffect(() => {
-    if (tab !== 'offer') return;
     loadFirst().catch(() => undefined);
-  }, [loadFirst, tab]);
-
-  useEffect(() => {
-    if (tab !== 'inquiry' || data) return;
-    loadFirst().catch(() => undefined);
-  }, [data, loadFirst, tab]);
+  }, [loadFirst]);
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !data) return;
@@ -153,8 +141,19 @@ export function CountryProductScreen({navigation, route}: Props) {
             onTabChange={handleTabChange}
             showMerchant
             onMerchantPress={() => {
-              navigation.popToTop();
-              navigation.navigate('Search', {category, keyword: searchKeyword, initialTab: 'merchant'});
+              navigation.replace('MerchantSearchResults', {
+                category,
+                searchKeyword,
+                tags: [country, productName],
+                merchantSearch: {
+                  display: searchKeyword,
+                  matchType: 'combined',
+                  type: '国家+产品',
+                  country,
+                  productName,
+                },
+                target: {screen: 'CountryProduct', country, productName},
+              });
             }}
           />
         }
@@ -169,42 +168,6 @@ export function CountryProductScreen({navigation, route}: Props) {
         </View>
       ) : error && !data ? (
         <ErrorState message={error} onRetry={loadFirst} />
-      ) : data && tab === 'inquiry' ? (
-        <InquiryFeedSectionList
-          items={inquiryFeed.items}
-          category={category}
-          navigation={navigation}
-          loading={inquiryFeed.loading}
-          refreshing={inquiryFeed.refreshing}
-          loadingMore={inquiryFeed.loadingMore}
-          error={inquiryFeed.error}
-          onRefresh={inquiryFeed.refresh}
-          onLoadMore={inquiryFeed.loadMore}
-          ListHeaderComponent={
-            <View>
-              <CountryProductDashboard
-                country={data.country || country}
-                productName={data.productName || productName}
-                isInquiry
-                priceMin={data.priceMin}
-                priceMax={data.priceMax}
-                priceChange={data.priceChange}
-                priceChangeRate={data.priceChangeRate}
-                offerCount={getTabCount(data, 'offer')}
-                inquiryCount={inquiryFeed.totalCount}
-                merchantCount={getTabMerchantCount(data, tab)}
-                history7Days={data.priceHistory7Days}
-                history30Days={data.priceHistory30Days}
-              />
-              <View style={styles.gap} />
-            </View>
-          }
-          renderSectionHeader={() => (
-            <View style={styles.stickyHeader}>
-              <TabAndSortBar tab={tab} onTabChange={handleTabChange} sort={sort} onSortChange={setSort} showTabs={false} />
-            </View>
-          )}
-        />
       ) : data ? (
         <SectionList
           sections={[{key: 'items', data: factories}]}

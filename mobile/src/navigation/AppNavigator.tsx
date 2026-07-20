@@ -15,7 +15,12 @@ import {navigationRef} from './navigationService';
 import type {RootStackParamList} from './routes';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const detailScreenOptions = ({route}: {route: {params?: {disableTransition?: boolean}}}) => ({
+  headerShown: false,
+  animation: route.params?.disableTransition ? 'none' as const : 'default' as const,
+});
 const getSearchScreen = () => require('../screens/SearchScreen').SearchScreen;
+const getMerchantSearchResultsScreen = () => require('../screens/MerchantSearchResultsScreen').MerchantSearchResultsScreen;
 const getOfferFeedScreen = () => require('../screens/OfferFeedScreen').OfferFeedScreen;
 const getPlateFollowScreen = () => require('../screens/PlateFollowScreen').PlateFollowScreen;
 const getHomeCardsScreen = () => require('../screens/HomeCardsScreen').HomeCardsScreen;
@@ -132,22 +137,27 @@ export function AppNavigator() {
                 initialParams={{category: DEFAULT_CATEGORY}}
                 options={{headerShown: false}}
               />
-              <Stack.Screen name="OfferFeed" getComponent={getOfferFeedScreen} options={{headerShown: false}} />
+              <Stack.Screen
+                name="MerchantSearchResults"
+                getComponent={getMerchantSearchResultsScreen}
+                options={{headerShown: false, animation: 'none'}}
+              />
+              <Stack.Screen name="OfferFeed" getComponent={getOfferFeedScreen} options={detailScreenOptions} />
               <Stack.Screen name="PlateFollow" getComponent={getPlateFollowScreen} options={{headerShown: false}} />
               <Stack.Screen name="HomeCards" getComponent={getHomeCardsScreen} options={{headerShown: false}} />
               <Stack.Screen name="Merchant" getComponent={getMerchantScreen} options={{headerShown: false}} />
-              <Stack.Screen name="Product" getComponent={getProductScreen} options={{headerShown: false}} />
-              <Stack.Screen name="Country" getComponent={getCountryScreen} options={{headerShown: false}} />
-              <Stack.Screen name="Factory" getComponent={getFactoryScreen} options={{headerShown: false}} />
+              <Stack.Screen name="Product" getComponent={getProductScreen} options={detailScreenOptions} />
+              <Stack.Screen name="Country" getComponent={getCountryScreen} options={detailScreenOptions} />
+              <Stack.Screen name="Factory" getComponent={getFactoryScreen} options={detailScreenOptions} />
               <Stack.Screen
                 name="CountryProduct"
                 getComponent={getCountryProductScreen}
-                options={{headerShown: false}}
+                options={detailScreenOptions}
               />
               <Stack.Screen
                 name="CountryFactoryProduct"
                 getComponent={getCountryFactoryProductScreen}
-                options={{headerShown: false}}
+                options={detailScreenOptions}
               />
               <Stack.Screen
                 name="SubstituteProduct"
@@ -159,11 +169,11 @@ export function AppNavigator() {
                 getComponent={getDataComparisonScreen}
                 options={{headerShown: false}}
               />
-              <Stack.Screen name="Brand" getComponent={getBrandScreen} options={{headerShown: false}} />
+              <Stack.Screen name="Brand" getComponent={getBrandScreen} options={detailScreenOptions} />
               <Stack.Screen
                 name="BrandProduct"
                 getComponent={getBrandProductScreen}
-                options={{headerShown: false}}
+                options={detailScreenOptions}
               />
               <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{headerShown: false}} />
               <Stack.Screen
