@@ -1,4 +1,4 @@
-import React, {memo, useState} from 'react';
+import React, {memo, useEffect, useState} from 'react';
 import {Alert, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import Svg, {Path} from 'react-native-svg';
@@ -6,11 +6,13 @@ import {colors} from '../../theme/colors';
 import {fonts} from '../../theme/typography';
 import type {EmployeeOffer, OfferSummary} from '../../types/api';
 import {buildOriginalTextPayload, type OriginalTextPayload} from '../../utils/originalText';
-import {colorForOfferField, colorForTag, computePriceRange, extractCity, formatPublishTime, parseWeight, splitTags} from '../../utils/offer';
+import {colorForOfferField, colorForTag, computePriceRange, formatGoodsLocation, formatPublishTime, parseWeight, splitTags} from '../../utils/offer';
 import {
   addIntentPlate,
   createPlateSnapshotFromEmployee,
+  getIntentPlateKeys,
   recordRecentContactPlate,
+  removeIntentPlate,
   type PlateKind,
 } from '../../utils/plateFollowStore';
 import {OfferTagChip} from './OfferTagChip';
@@ -47,13 +49,14 @@ function OfferCardCompactInner({
 }: Props) {
   const employeePrices = offer.employeeOffers?.map(item => item.price);
   const [priceText, priceUnit] = computePriceRange(employeePrices, offer.price, offer.priceMax);
+  const isNegotiatedPrice = Boolean(priceText?.includes('协商'));
   const titleText = offer.factoryNo
     ? `${offer.productName ?? ''} ${offer.country ?? ''}${offer.factoryNo}`
     : `${offer.productName ?? ''} ${offer.country ?? ''}厂号不限`;
 
   const allLocations = unique([
-    extractCity(offer.goodsLocation),
-    ...(offer.employeeOffers ?? []).map(item => extractCity(item.goodsLocation)),
+    formatGoodsLocation(offer.goodsLocation),
+    ...(offer.employeeOffers ?? []).map(item => formatGoodsLocation(item.goodsLocation)),
   ]);
   const allGoodsTypes = unique([
     offer.goodsType ?? '',
@@ -88,7 +91,9 @@ function OfferCardCompactInner({
             </Text>
             {priceText ? (
               <View style={styles.priceLine}>
-                <Text style={styles.priceValue}>{priceText}</Text>
+                <Text style={[styles.priceValue, isNegotiatedPrice && styles.negotiateValue]}>
+                  {priceText}
+                </Text>
                 {priceUnit ? <Text style={styles.priceUnit}>{priceUnit}</Text> : null}
               </View>
             ) : null}
@@ -190,7 +195,29 @@ function EmployeeRow({
   });
   const [intentAdded, setIntentAdded] = useState(false);
 
-  async function handleAddIntent() {
+  useEffect(() => {
+    let cancelled = false;
+    getIntentPlateKeys()
+      .then(keys => {
+        if (!cancelled) setIntentAdded(keys.has(snapshot.key));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [snapshot.key]);
+
+  async function handleToggleIntent() {
+    if (intentAdded) {
+      try {
+        await removeIntentPlate(snapshot.key);
+        setIntentAdded(false);
+      } catch {
+        // Cancelling should stay quiet; the next focus/load will resync local state.
+      }
+      return;
+    }
+
     try {
       const result = await addIntentPlate(snapshot);
       setIntentAdded(true);
@@ -242,7 +269,7 @@ function EmployeeRow({
         <View style={empStyles.tagRow}>
           {time ? <Text style={empStyles.time}>{time}</Text> : null}
           {offer.goodsLocation ? (
-            <OfferTagChip text={extractCity(offer.goodsLocation)} variant="location" />
+            <OfferTagChip text={formatGoodsLocation(offer.goodsLocation)} variant="location" />
           ) : null}
           {offer.goodsType ? <OfferTagChip text={offer.goodsType} variant="colored" {...colorForOfferField('goodsType')} /> : null}
           {feedingType ? <OfferTagChip text={feedingType} variant="colored" {...colorForOfferField('feedingType')} /> : null}
@@ -286,8 +313,7 @@ function EmployeeRow({
           <ActionButton
             text={intentAdded ? '已加意向' : '加意向'}
             icon={<IntentActionIcon selected={intentAdded} />}
-            onPress={handleAddIntent}
-            disabled={intentAdded}
+            onPress={handleToggleIntent}
             primary={intentAdded}
           />
           <View style={empStyles.actionVDivider} />
@@ -456,6 +482,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
   },
+  negotiateValue: {
+    color: colors.primary,
+    fontSize: 14,
+  },
   priceUnit: {
     fontFamily: fonts.manropeRegular,
     color: colors.text,
@@ -528,8 +558,8 @@ const empStyles = StyleSheet.create({
   negotiate: {
     fontFamily: fonts.manropeSemiBold,
     color: colors.primary,
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
   },
   tagRow: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8},
   time: {color: '#3C4947', fontSize: 11, lineHeight: 14},

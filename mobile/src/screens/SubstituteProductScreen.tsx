@@ -174,10 +174,42 @@ export function SubstituteProductScreen({navigation, route}: Props) {
   const allTags = useMemo(() => detail?.filterOptions?.tags ?? [], [detail?.filterOptions?.tags]);
 
   const filters = [
-    {key: 'region' as const, label: '地区', hasSelection: regions.size > 0},
-    {key: 'goodsType' as const, label: '货物类型', hasSelection: goodsTypes.size > 0},
-    {key: 'feedingMethod' as const, label: '饲养方式', hasSelection: feedingMethods.size > 0},
-    {key: 'tag' as const, label: '价格/标签', hasSelection: tagFilters.size > 0},
+    {
+      key: 'region' as const,
+      label: getSelectedFilterLabel(regions, '地区'),
+      hasSelection: regions.size > 0,
+      onClear: regions.size > 0 ? () => {
+        setRegions(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
+    {
+      key: 'goodsType' as const,
+      label: getSelectedFilterLabel(goodsTypes, '货物类型'),
+      hasSelection: goodsTypes.size > 0,
+      onClear: goodsTypes.size > 0 ? () => {
+        setGoodsTypes(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
+    {
+      key: 'feedingMethod' as const,
+      label: getSelectedFilterLabel(feedingMethods, '饲养方式'),
+      hasSelection: feedingMethods.size > 0,
+      onClear: feedingMethods.size > 0 ? () => {
+        setFeedingMethods(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
+    {
+      key: 'tag' as const,
+      label: getSelectedFilterLabel(tagFilters, '价格/标签'),
+      hasSelection: tagFilters.size > 0,
+      onClear: tagFilters.size > 0 ? () => {
+        setTagFilters(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
   ];
 
   return (
@@ -518,6 +550,11 @@ function sortToParam(sort: MerchantSortMode): string {
   if (sort.kind === 'comprehensive') return 'comprehensive';
   if (sort.kind === 'publish_time') return 'publish_time';
   return sort.order === 'asc' ? 'price_asc' : sort.order === 'desc' ? 'price_desc' : 'comprehensive';
+}
+
+function getSelectedFilterLabel(values: Set<string>, fallback: string) {
+  if (values.size === 1) return Array.from(values)[0];
+  return values.size > 1 ? `${fallback}(${values.size})` : fallback;
 }
 
 function formatPriceText(min?: number | null, max?: number | null): string {

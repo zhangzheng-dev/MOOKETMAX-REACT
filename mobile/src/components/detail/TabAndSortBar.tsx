@@ -1,14 +1,13 @@
 import React from 'react';
 import {
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
   type ViewStyle,
 } from 'react-native';
-import {SvgXml} from 'react-native-svg';
 import {colors} from '../../theme/colors';
-import {sortArrowsAsc, sortArrowsDefault, sortArrowsDesc} from './productIcons';
 
 export type OfferTab = 'offer' | 'inquiry';
 export type SearchResultTab = OfferTab | 'merchant';
@@ -118,23 +117,6 @@ export function TabAndSortBar({
 }: Props) {
   const priceOrder = sort.kind === 'price' ? sort.order : 'none';
 
-  function togglePrice() {
-    if (sort.kind !== 'price') {
-      onSortChange({kind: 'price', order: 'asc'});
-      return;
-    }
-    const next: SortOrder =
-      sort.order === 'asc' ? 'desc' : sort.order === 'desc' ? 'none' : 'asc';
-    onSortChange(next === 'none' ? {kind: 'comprehensive'} : {kind: 'price', order: next});
-  }
-
-  const arrowsXml =
-    priceOrder === 'asc'
-      ? sortArrowsAsc()
-      : priceOrder === 'desc'
-        ? sortArrowsDesc()
-        : sortArrowsDefault();
-
   return (
     <View style={styles.bar}>
       {showTabs ? (
@@ -147,7 +129,11 @@ export function TabAndSortBar({
           />
         </View>
       ) : null}
-      <View style={[styles.right, !showTabs && styles.rightOnly]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.sortScroll, !showTabs && styles.sortScrollOnly]}
+        contentContainerStyle={styles.sortContent}>
         {showRecommend ? (
           <SortItem
             text="综合推荐"
@@ -163,12 +149,16 @@ export function TabAndSortBar({
           />
         ) : null}
         <SortItem
-          text="价格"
-          active={sort.kind === 'price' && priceOrder !== 'none'}
-          onPress={togglePrice}
-          rightSlot={<SvgXml xml={arrowsXml} width={6} height={12} />}
+          text="价格从低到高↑"
+          active={sort.kind === 'price' && priceOrder === 'asc'}
+          onPress={() => onSortChange({kind: 'price', order: 'asc'})}
         />
-      </View>
+        <SortItem
+          text="价格从高到低↓"
+          active={sort.kind === 'price' && priceOrder === 'desc'}
+          onPress={() => onSortChange({kind: 'price', order: 'desc'})}
+        />
+      </ScrollView>
     </View>
   );
 }
@@ -195,18 +185,15 @@ function SortItem({
   text,
   active,
   onPress,
-  rightSlot,
 }: {
   text: string;
   active: boolean;
   onPress: () => void;
-  rightSlot?: React.ReactNode;
 }) {
   return (
     <Pressable onPress={onPress} style={styles.item}>
       <View style={styles.labelRow}>
         <Text style={[styles.text, active && styles.textActive]}>{text}</Text>
-        {rightSlot ? <View style={styles.iconWrap}>{rightSlot}</View> : null}
       </View>
       <View style={[styles.indicator, active && styles.indicatorActive]} />
     </Pressable>
@@ -227,7 +214,7 @@ const styles = StyleSheet.create({
   bar: {
     minHeight: 44,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingTop: 6,
     paddingBottom: 4,
     flexDirection: 'row',
@@ -242,15 +229,20 @@ const styles = StyleSheet.create({
     gap: 20,
     flexShrink: 0,
   },
-  right: {
+  sortScroll: {
+    flex: 1,
+    marginLeft: 10,
+    flexShrink: 1,
+  },
+  sortScrollOnly: {
+    marginLeft: 0,
+  },
+  sortContent: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 16,
-    flexShrink: 1,
-    justifyContent: 'flex-end',
-  },
-  rightOnly: {
-    flex: 1,
+    justifyContent: 'flex-start',
+    gap: 32,
+    paddingHorizontal: 0,
   },
   item: {
     alignItems: 'center',
@@ -261,12 +253,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-  },
-  iconWrap: {
-    width: 12,
-    height: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   topTabText: {
     color: '#171D1C',

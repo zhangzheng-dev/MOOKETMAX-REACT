@@ -35,6 +35,7 @@ export function MerchantScreen({navigation, route}: Props) {
     initialCategory,
     initialCountry,
     initialFactoryNo,
+    initialFactoryKeys,
     initialProductName,
   } = route.params;
   const [detail, setDetail] = useState<MerchantDetail | null>(null);
@@ -60,7 +61,13 @@ export function MerchantScreen({navigation, route}: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [country, setCountry] = useState<string | null>(initialCountry ?? null);
   const [factories, setFactories] = useState<Set<string>>(
-    () => new Set(initialFactoryNo ? [`${initialCountry ?? ''}${initialFactoryNo}`] : []),
+    () => new Set(
+      initialFactoryKeys && initialFactoryKeys.length > 0
+        ? initialFactoryKeys
+        : initialFactoryNo
+          ? [`${initialCountry ?? ''}${initialFactoryNo}`]
+          : [],
+    ),
   );
   const [regions, setRegions] = useState<Set<string>>(new Set());
   const [products, setProducts] = useState<Set<string>>(
@@ -70,10 +77,11 @@ export function MerchantScreen({navigation, route}: Props) {
   const [feedingMethods, setFeedingMethods] = useState<Set<string>>(new Set());
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   const preserveInitialFiltersRef = useRef(true);
-  const hasInitialSearchFilters = Boolean(initialCountry || initialFactoryNo || initialProductName);
+  const hasInitialFactoryKeys = Boolean(initialFactoryKeys && initialFactoryKeys.length > 0);
+  const hasInitialSearchFilters = Boolean(initialCountry || initialFactoryNo || initialProductName || hasInitialFactoryKeys);
   const activeSearchProduct = products.size === 1 ? Array.from(products)[0] : undefined;
   const activeSearchFactory =
-    factories.size === 1
+    factories.size === 1 && !hasInitialFactoryKeys
       ? getFactoryNoFromFilterKey(Array.from(factories)[0], country)
       : undefined;
 
@@ -228,7 +236,6 @@ export function MerchantScreen({navigation, route}: Props) {
     setGoodsTypes(new Set());
     setFeedingMethods(new Set());
     setTagFilters(new Set());
-    setActiveFilter(null);
   }, [categoryFilter]);
 
   const currentList = tab === 'offer' ? offers : inquiries;
@@ -343,17 +350,62 @@ export function MerchantScreen({navigation, route}: Props) {
   const allTags = useMemo(() => currentFilterOptions?.tags ?? [], [currentFilterOptions?.tags]);
 
   const filters = [
-    {key: 'category' as const, label: getCategoryFilterLabel(categoryFilter), hasSelection: true},
-    {key: 'product' as const, label: getSelectedFilterLabel(products, '产品'), hasSelection: products.size > 0},
+    {key: 'category' as const, label: getCategoryFilterLabel(categoryFilter), hasSelection: categoryFilter !== 'all'},
+    {
+      key: 'product' as const,
+      label: getSelectedFilterLabel(products, '产品'),
+      hasSelection: products.size > 0,
+      onClear: products.size > 0 ? () => {
+        setProducts(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
     {
       key: 'countryFactory' as const,
       label: getCountryFactoryFilterLabel(country, factories),
       hasSelection: country != null || factories.size > 0,
+      onClear: country != null || factories.size > 0 ? () => {
+        setCountry(null);
+        setFactories(new Set());
+        setActiveFilter(null);
+      } : undefined,
     },
-    {key: 'region' as const, label: '地区', hasSelection: regions.size > 0},
-    {key: 'goodsType' as const, label: '货物类型', hasSelection: goodsTypes.size > 0},
-    {key: 'feedingMethod' as const, label: '饲养方式', hasSelection: feedingMethods.size > 0},
-    {key: 'tag' as const, label: '标签', hasSelection: tagFilters.size > 0},
+    {
+      key: 'region' as const,
+      label: getSelectedFilterLabel(regions, '地区'),
+      hasSelection: regions.size > 0,
+      onClear: regions.size > 0 ? () => {
+        setRegions(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
+    {
+      key: 'goodsType' as const,
+      label: getSelectedFilterLabel(goodsTypes, '货物类型'),
+      hasSelection: goodsTypes.size > 0,
+      onClear: goodsTypes.size > 0 ? () => {
+        setGoodsTypes(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
+    {
+      key: 'feedingMethod' as const,
+      label: getSelectedFilterLabel(feedingMethods, '饲养方式'),
+      hasSelection: feedingMethods.size > 0,
+      onClear: feedingMethods.size > 0 ? () => {
+        setFeedingMethods(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
+    {
+      key: 'tag' as const,
+      label: getSelectedFilterLabel(tagFilters, '标签'),
+      hasSelection: tagFilters.size > 0,
+      onClear: tagFilters.size > 0 ? () => {
+        setTagFilters(new Set());
+        setActiveFilter(null);
+      } : undefined,
+    },
   ];
 
   function toggleExpand(key: string) {
@@ -421,7 +473,14 @@ export function MerchantScreen({navigation, route}: Props) {
           }
           renderSectionHeader={() => (
             <View style={styles.stickyHeader}>
-              <MerchantSortBar tab={tab} onTabChange={setTab} sort={sort} onSortChange={setSort} />
+              <MerchantSortBar
+                tab={tab}
+                onTabChange={setTab}
+                sort={sort}
+                onSortChange={setSort}
+                offerLabel={`报盘(${formatTabCount(detail.todayOfferCount)})`}
+                inquiryLabel={`求购(${formatTabCount(detail.todayInquiryCount)})`}
+              />
               <FilterBar filters={filters} active={activeFilter} onPress={setActiveFilter} />
             </View>
           )}
@@ -470,11 +529,12 @@ export function MerchantScreen({navigation, route}: Props) {
         }}
         onConfirm={() => setActiveFilter(null)}>
         <MultiSelectChips
-          options={['全部', '牛', '猪']}
-          selected={new Set([getCategoryFilterLabel(categoryFilter)])}
+          options={[...merchantCategoryOptions]}
+          selected={getSelectedMerchantCategoryLabels(categoryFilter)}
           onToggle={value => {
-            setCategoryFilter(value === '牛' || value === '猪' ? value : 'all');
-            setActiveFilter(null);
+            if (isMerchantCategory(value)) {
+              setCategoryFilter(prev => toggleMerchantCategoryFilter(prev, value));
+            }
           }}
         />
       </FilterPanelSheet>
@@ -605,7 +665,31 @@ function getMerchantCategories(filter: MerchantCategoryFilter, fallbackCategory:
 }
 
 function getCategoryFilterLabel(filter: MerchantCategoryFilter) {
-  return filter === 'all' ? '全部' : filter;
+  return filter === 'all' ? '牛/猪' : filter;
+}
+
+function getSelectedMerchantCategoryLabels(filter: MerchantCategoryFilter) {
+  return new Set(filter === 'all' ? merchantCategoryOptions : [filter]);
+}
+
+function isMerchantCategory(value: string): value is MerchantCategory {
+  return merchantCategoryOptions.includes(value as MerchantCategory);
+}
+
+function toggleMerchantCategoryFilter(
+  current: MerchantCategoryFilter,
+  value: MerchantCategory,
+): MerchantCategoryFilter {
+  const selected = getSelectedMerchantCategoryLabels(current);
+  if (selected.has(value)) {
+    if (selected.size === 1) return current;
+    selected.delete(value);
+  } else {
+    selected.add(value);
+  }
+
+  if (selected.size === merchantCategoryOptions.length) return 'all';
+  return selected.has('猪') ? '猪' : '牛';
 }
 
 function getSelectedFilterLabel(values: Set<string>, fallback: string) {
@@ -777,10 +861,13 @@ function toggle<T>(set: Set<T>, value: T): Set<T> {
   return next;
 }
 
+function formatTabCount(value?: number | null): string {
+  return value == null ? '0' : `${value}`;
+}
+
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
   loading: {paddingVertical: 48, alignItems: 'center'},
-  topTabs: {borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#EFF5F3', borderBottomWidth: 1, borderBottomColor: colors.border},
   gap: {height: 12, backgroundColor: '#F4FBF8'},
   footer: {alignItems: 'center', paddingVertical: 8},
   footerText: {color: '#9DA4A3', fontSize: 11, lineHeight: 18},

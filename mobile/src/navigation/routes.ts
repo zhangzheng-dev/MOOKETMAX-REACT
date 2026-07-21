@@ -75,6 +75,7 @@ export type RootStackParamList = {
     initialCategory?: 'all' | '牛' | '猪';
     initialCountry?: string | null;
     initialFactoryNo?: string | null;
+    initialFactoryKeys?: string[];
     initialProductName?: string | null;
   };
   Product: {productId: number; category: string; productName: string; searchKeyword?: string; initialTab?: 'offer' | 'inquiry'; disableTransition?: boolean};

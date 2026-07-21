@@ -45,6 +45,7 @@ export function CountryProductDashboard({
   const [expanded, setExpanded] = useState(false);
 
   const priceText = formatPrice(priceMin, priceMax);
+  const isMissingPrice = !priceText.unit;
   const trend7 = (history7Days ?? [])
     .map(d => Number(d.avgPrice))
     .filter(v => Number.isFinite(v) && v > 0) as number[];
@@ -77,7 +78,10 @@ export function CountryProductDashboard({
             近2日{isInquiry ? '求购' : '报盘'}价格区间（RMB）
           </Text>
           <View style={styles.priceLine}>
-            <Text style={styles.priceValue} numberOfLines={1} adjustsFontSizeToFit>
+            <Text
+              style={[styles.priceValue, isMissingPrice && styles.priceMuted]}
+              numberOfLines={1}
+              adjustsFontSizeToFit>
               {priceText.value}
             </Text>
             {priceText.unit ? <Text style={styles.priceUnit}>{priceText.unit}</Text> : null}
@@ -313,6 +317,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 32,
     flexShrink: 1,
+  },
+  priceMuted: {
+    color: colors.primary,
+    fontSize: 16,
   },
   priceUnit: {
     fontFamily: fonts.manropeRegular,

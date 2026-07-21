@@ -18,19 +18,20 @@ type Props = {
   onClose: () => void;
   onReset?: () => void;
   onConfirm?: () => void;
+  showActions?: boolean;
   children: React.ReactNode;
 };
 
-export function FilterPanelSheet({visible, title, onClose, onReset, onConfirm, children}: Props) {
+export function FilterPanelSheet({visible, title, onClose, onReset, onConfirm, showActions = true, children}: Props) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <Pressable style={styles.backdrop} onPress={onClose}>
         <KeyboardAvoidingView
           style={styles.keyboardArea}
+          pointerEvents="box-none"
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable style={styles.sheet} onPress={event => event.stopPropagation()}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>{title}</Text>
             </View>
@@ -40,17 +41,19 @@ export function FilterPanelSheet({visible, title, onClose, onReset, onConfirm, c
               keyboardShouldPersistTaps="handled">
               {children}
             </ScrollView>
-            <View style={styles.actions}>
-              <Pressable style={[styles.button, styles.resetButton]} onPress={onReset}>
-                <Text style={styles.resetText}>重置</Text>
-              </Pressable>
-              <Pressable style={[styles.button, styles.confirmButton]} onPress={onConfirm ?? onClose}>
-                <Text style={styles.confirmText}>确定</Text>
-              </Pressable>
-            </View>
+            {showActions ? (
+              <View style={styles.actions}>
+                <Pressable style={[styles.button, styles.resetButton]} onPress={onReset}>
+                  <Text style={styles.resetText}>重置</Text>
+                </Pressable>
+                <Pressable style={[styles.button, styles.confirmButton]} onPress={onConfirm ?? onClose}>
+                  <Text style={styles.confirmText}>确定</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </Pressable>
         </KeyboardAvoidingView>
-      </View>
+      </Pressable>
     </Modal>
   );
 }

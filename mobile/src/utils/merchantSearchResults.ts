@@ -18,6 +18,7 @@ export type MerchantSearchResult = {
   offerCount: number;
   inquiryCount: number;
   samples: MerchantSearchSample[];
+  factoryKeys?: string[];
   seenFeedKeys?: Set<string>;
 };
 
@@ -232,11 +233,16 @@ export function getMerchantDefaultTab(item: MerchantSearchResult): OfferTab {
   return 'offer';
 }
 
-export function buildMerchantDetailInitialFilters(selection: MerchantSearchSelection) {
+export function buildMerchantDetailInitialFilters(
+  selection: MerchantSearchSelection,
+  result?: MerchantSearchResult,
+) {
   if (selection.matchType === 'merchant') return {};
+  const factoryKeys = getMerchantDetailInitialFactoryKeys(selection, result);
   return {
     initialCountry: selection.country ?? null,
     initialFactoryNo: selection.factoryNo ?? null,
+    initialFactoryKeys: factoryKeys,
     initialProductName: selection.productName ?? null,
   };
 }
@@ -325,7 +331,8 @@ function buildMerchantFeedParamVariants(condition: MerchantSearchCondition): Mer
 }
 
 function addMerchantFeedItem(map: Map<string, MerchantSearchResult>, item: OfferFeedItem, type: OfferTab, category: string) {
-  const merchantName = item.merchantName || item.merchantShortName || '未知商家';
+  const merchantName = getKnownMerchantName(item);
+  if (!merchantName) return;
   const key = buildMerchantResultKey(item.merchantId, merchantName);
   const current = map.get(key) ?? {
     merchantId: item.merchantId,
@@ -334,6 +341,7 @@ function addMerchantFeedItem(map: Map<string, MerchantSearchResult>, item: Offer
     offerCount: 0,
     inquiryCount: 0,
     samples: [],
+    factoryKeys: [],
     seenFeedKeys: new Set<string>(),
   };
 
@@ -346,6 +354,11 @@ function addMerchantFeedItem(map: Map<string, MerchantSearchResult>, item: Offer
 
   if (type === 'offer') current.offerCount += 1;
   else current.inquiryCount += 1;
+
+  const factoryKey = buildMerchantFactoryKey(item.country, item.factoryNo);
+  if (factoryKey && !current.factoryKeys?.includes(factoryKey)) {
+    current.factoryKeys = [...(current.factoryKeys ?? []), factoryKey];
+  }
 
   const sample: MerchantSearchSample = {
     type,
@@ -379,8 +392,27 @@ function addMerchantSuggestion(map: Map<string, MerchantSearchResult>, item: Sea
     offerCount: 0,
     inquiryCount: 0,
     samples: [],
+    factoryKeys: [],
     seenFeedKeys: new Set<string>(),
   });
+}
+
+function getMerchantDetailInitialFactoryKeys(
+  selection: MerchantSearchSelection,
+  result?: MerchantSearchResult,
+) {
+  if (selection.factoryNo || selection.matchType === 'merchant') return undefined;
+  const isBrandSearch = selection.matchType === 'brand' || Boolean(selection.brandName);
+  if (!isBrandSearch) return undefined;
+  const keys = result?.factoryKeys?.filter(Boolean) ?? [];
+  return keys.length > 0 ? keys : undefined;
+}
+
+function buildMerchantFactoryKey(country?: string | null, factoryNo?: string | null) {
+  const countryText = country?.trim();
+  const factoryText = factoryNo?.trim();
+  if (!countryText || !factoryText) return '';
+  return `${countryText}${factoryText}`;
 }
 
 function buildMerchantResultKey(merchantId?: number | string | null, merchantName?: string | null) {
@@ -390,6 +422,17 @@ function buildMerchantResultKey(merchantId?: number | string | null, merchantNam
 
 function normalizeText(value?: string | null) {
   return value?.trim().toLowerCase() || '';
+}
+
+function getKnownMerchantName(item: OfferFeedItem) {
+  const names = [item.merchantShortName, item.merchantName]
+    .map(name => name?.trim())
+    .filter((name): name is string => Boolean(name));
+  return names.find(name => !isUnknownMerchantName(name)) ?? null;
+}
+
+function isUnknownMerchantName(value?: string | null) {
+  return normalizeText(value) === normalizeText('未知商家');
 }
 
 function buildMerchantFeedKey(item: OfferFeedItem, type: OfferTab) {

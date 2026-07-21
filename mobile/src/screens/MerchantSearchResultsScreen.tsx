@@ -1,8 +1,9 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {InventoryIcon} from '../components/common/AppIcons';
+import {SvgXml} from 'react-native-svg';
 import {DetailTopBar} from '../components/detail/DetailTopBar';
+import {merchantBuildingXml} from '../components/detail/productIcons';
 import {SelfSelectButton, toHistoryMerchantId} from '../components/detail/SelfSelectButton';
 import {OfferInquiryTabs, type OfferTab} from '../components/detail/TabAndSortBar';
 import type {RootStackParamList} from '../navigation/routes';
@@ -72,7 +73,7 @@ export function MerchantSearchResultsScreen({navigation, route}: Props) {
                 category,
                 initialTab: getMerchantDefaultTab(item),
                 initialCategory: 'all',
-                ...buildMerchantDetailInitialFilters(merchantSearch),
+                ...buildMerchantDetailInitialFilters(merchantSearch, item),
               });
             }}
           />
@@ -203,7 +204,7 @@ function MerchantResultCard({
       <View style={styles.cardHeader}>
         <View style={styles.titleWrap}>
           <View style={styles.iconWrap}>
-            <InventoryIcon size={15} color={colors.primary} />
+            <SvgXml xml={merchantBuildingXml} width={22} height={21} />
           </View>
           <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
         </View>
@@ -300,12 +301,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   iconWrap: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
+    width: 22,
+    height: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF8F6',
   },
   name: {
     flex: 1,
@@ -316,7 +315,7 @@ const styles = StyleSheet.create({
   },
   meta: {
     marginTop: 4,
-    marginLeft: 24,
+    marginLeft: 28,
     color: '#6C7A77',
     fontSize: 11,
     lineHeight: 16,

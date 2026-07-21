@@ -9,7 +9,7 @@ import {buildOriginalTextPayload, type OriginalTextPayload} from '../../utils/or
 import {
   colorForOfferField,
   colorForTag,
-  extractCity,
+  formatGoodsLocation,
   formatPublishTime,
   parseWeight,
   splitTags,
@@ -19,6 +19,7 @@ import {
   createPlateSnapshotFromEmployee,
   getIntentPlateKeys,
   recordRecentContactPlate,
+  removeIntentPlate,
   type PlateKind,
 } from '../../utils/plateFollowStore';
 import {OfferTagChip} from './OfferTagChip';
@@ -57,7 +58,7 @@ function MerchantOfferGroupCardInner({
   const priceMax = prices.length ? Math.max(...prices) : null;
 
   const firstLocation = firstNonEmpty(
-    (group.employeeOffers ?? []).map(item => extractCity(item.goodsLocation)),
+    (group.employeeOffers ?? []).map(item => formatGoodsLocation(item.goodsLocation)),
   );
   const goodsTypes = uniqueNonEmpty((group.employeeOffers ?? []).map(item => item.goodsType));
   const feedings = uniqueNonEmpty((group.employeeOffers ?? []).map(item => item.feedingType));
@@ -207,8 +208,17 @@ function EmployeeOfferRow({
     };
   }, [snapshot.key]);
 
-  async function handleAddIntent() {
-    if (intentAdded) return;
+  async function handleToggleIntent() {
+    if (intentAdded) {
+      try {
+        await removeIntentPlate(snapshot.key);
+        setIntentAdded(false);
+      } catch {
+        // Cancelling should stay quiet; the next focus/load will resync local state.
+      }
+      return;
+    }
+
     try {
       await addIntentPlate(snapshot);
       setIntentAdded(true);
@@ -259,7 +269,7 @@ function EmployeeOfferRow({
 
       <View style={styles.offerTagRow}>
         {time ? <Text style={styles.timeText}>{time}</Text> : null}
-        {offer.goodsLocation ? <OfferTagChip text={extractCity(offer.goodsLocation)} variant="location" /> : null}
+        {offer.goodsLocation ? <OfferTagChip text={formatGoodsLocation(offer.goodsLocation)} variant="location" /> : null}
         {offer.goodsType ? renderFieldChip('goodsType', offer.goodsType) : null}
         {feedingType ? renderFieldChip('feedingType', feedingType) : null}
         {fatRatio ? renderFieldChip('fatRatio', fatRatio) : null}
@@ -301,7 +311,7 @@ function EmployeeOfferRow({
           <Text style={styles.actionText}>查看原文</Text>
         </Pressable>
         <View style={styles.actionVDivider} />
-        <Pressable disabled={intentAdded} style={styles.actionButton} onPress={handleAddIntent}>
+        <Pressable style={styles.actionButton} onPress={handleToggleIntent}>
           <IntentActionIcon selected={intentAdded} />
           <Text style={[styles.actionText, intentAdded && styles.actionTextPrimary]}>
             {intentAdded ? '已加意向' : '加意向'}
