@@ -17,12 +17,12 @@ import {
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useFocusEffect} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import Svg, {Circle, Path} from 'react-native-svg';
+import Svg, {Circle, Path, SvgXml} from 'react-native-svg';
 import {mooketApi} from '../api/mooketApi';
-import {InventoryIcon} from '../components/common/AppIcons';
 import {FilterBar, type FilterDef, type FilterKey as DetailFilterKey} from '../components/detail/FilterBar';
 import {FilterPanelSheet, MultiSelectChips} from '../components/detail/FilterPanelSheet';
 import {OriginalTextSheet} from '../components/detail/OriginalTextSheet';
+import {merchantBuildingXml} from '../components/detail/productIcons';
 import {SelfSelectButton, toHistoryMerchantId} from '../components/detail/SelfSelectButton';
 import type {SortMode} from '../components/detail/TabAndSortBar';
 import {DEFAULT_CATEGORY} from '../config/env';
@@ -32,12 +32,13 @@ import {fonts} from '../theme/typography';
 import type {OfferFeedFilterOptions, OfferFeedItem, SearchSuggest} from '../types/api';
 import {copyToClipboard, dialPhone} from '../utils/contact';
 import {buildOriginalTextPayload, type OriginalTextPayload} from '../utils/originalText';
-import {parseWeight} from '../utils/offer';
+import {formatGoodsLocation, parseWeight} from '../utils/offer';
 import {
   addIntentPlate,
   createPlateSnapshotFromFeed,
   getIntentPlateKeys,
   recordRecentContactPlate,
+  removeIntentPlate,
   type ContactAction,
 } from '../utils/plateFollowStore';
 import {
@@ -146,9 +147,21 @@ export function OfferFeedScreen({navigation, route}: Props) {
     }, []),
   );
 
-  const handleAddIntent = useCallback(async (item: OfferFeedItem, itemTab: OfferTab) => {
+  const handleToggleIntent = useCallback(async (item: OfferFeedItem, itemTab: OfferTab) => {
     const snapshot = createPlateSnapshotFromFeed(item, itemTab);
-    if (intentKeys.has(snapshot.key)) return;
+    if (intentKeys.has(snapshot.key)) {
+      try {
+        await removeIntentPlate(snapshot.key);
+        setIntentKeys(prev => {
+          const next = new Set(prev);
+          next.delete(snapshot.key);
+          return next;
+        });
+      } catch {
+        // Cancelling should stay quiet; focus refresh will resync local state.
+      }
+      return;
+    }
 
     try {
       await addIntentPlate(snapshot);
@@ -333,16 +346,61 @@ export function OfferFeedScreen({navigation, route}: Props) {
   const filterDefs = useMemo<FilterDef[]>(
     () => [
       {key: 'category', label: category, hasSelection: true},
-      {key: 'sort', label: getSortLabel(sort), hasSelection: sort.kind !== 'comprehensive'},
-      {key: 'region', label: '地区', hasSelection: Boolean(filters.region)},
+      {
+        key: 'sort',
+        label: getSortLabel(sort),
+        hasSelection: sort.kind !== 'comprehensive',
+        onClear: sort.kind !== 'comprehensive' ? () => {
+          setSort({kind: 'comprehensive'});
+          setActiveFilter(null);
+        } : undefined,
+      },
+      {
+        key: 'region',
+        label: filters.region || '地区',
+        hasSelection: Boolean(filters.region),
+        onClear: filters.region ? () => {
+          setFilters(prev => ({...prev, region: null}));
+          setActiveFilter(null);
+        } : undefined,
+      },
       {
         key: 'priceRange',
-        label: '价格区间',
+        label: getPriceRangeFilterLabel(priceMinInput, priceMaxInput),
         hasSelection: priceMinInput.trim().length > 0 || priceMaxInput.trim().length > 0,
+        onClear: priceMinInput.trim().length > 0 || priceMaxInput.trim().length > 0 ? () => {
+          setPriceMinInput('');
+          setPriceMaxInput('');
+          setActiveFilter(null);
+        } : undefined,
       },
-      {key: 'goodsType', label: '货物类型', hasSelection: Boolean(filters.goodsType)},
-      {key: 'feedingMethod', label: '饲养方式', hasSelection: Boolean(filters.feedingType)},
-      {key: 'tag', label: '标签', hasSelection: Boolean(filters.tag)},
+      {
+        key: 'goodsType',
+        label: filters.goodsType || '货物类型',
+        hasSelection: Boolean(filters.goodsType),
+        onClear: filters.goodsType ? () => {
+          setFilters(prev => ({...prev, goodsType: null}));
+          setActiveFilter(null);
+        } : undefined,
+      },
+      {
+        key: 'feedingMethod',
+        label: filters.feedingType || '饲养方式',
+        hasSelection: Boolean(filters.feedingType),
+        onClear: filters.feedingType ? () => {
+          setFilters(prev => ({...prev, feedingType: null}));
+          setActiveFilter(null);
+        } : undefined,
+      },
+      {
+        key: 'tag',
+        label: filters.tag || '标签',
+        hasSelection: Boolean(filters.tag),
+        onClear: filters.tag ? () => {
+          setFilters(prev => ({...prev, tag: null}));
+          setActiveFilter(null);
+        } : undefined,
+      },
     ],
     [category, filters.feedingType, filters.goodsType, filters.region, filters.tag, priceMaxInput, priceMinInput, sort],
   );
@@ -538,7 +596,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
                   category,
                   initialTab: getMerchantDefaultTab(item),
                   initialCategory: 'all',
-                  ...buildMerchantDetailInitialFilters(activeMerchantSelection),
+                  ...buildMerchantDetailInitialFilters(activeMerchantSelection, item),
                 });
               }}
             />
@@ -590,7 +648,7 @@ export function OfferFeedScreen({navigation, route}: Props) {
             }}
             onViewOriginalText={setOriginalText}
             isIntentAdded={intentKeys.has(createPlateSnapshotFromFeed(item, tab as OfferTab).key)}
-            onAddIntent={() => handleAddIntent(item, tab as OfferTab)}
+            onAddIntent={() => handleToggleIntent(item, tab as OfferTab)}
             onContact={action => handleRecordContact(item, tab as OfferTab, action)}
           />
         )}
@@ -873,6 +931,7 @@ export function OfferFeedCard({
   const phone = item.contactPhone?.trim() ?? '';
   const detailParts = buildDetailParts(item);
   const isInquiry = tab === 'inquiry';
+  const showPriceInDetailRow = isInquiry && Boolean(price.amount);
   const priceText = price.amount ?? (isInquiry ? null : '协商报价');
 
   return (
@@ -888,27 +947,43 @@ export function OfferFeedCard({
       </View>
 
       <View style={styles.detailRow}>
+        {showPriceInDetailRow ? (
+          <View style={styles.detailPriceChip}>
+            <Text style={styles.detailPriceText} numberOfLines={1}>
+              {price.amount}
+              {price.unit}
+            </Text>
+          </View>
+        ) : null}
         {detailParts.map(part => (
           <DetailChip key={`${part.kind}-${part.text}`} part={part} />
         ))}
       </View>
 
       <View style={styles.publisherPriceRow}>
-        <Pressable disabled={!hasMerchantName} onPress={onMerchantPress} style={styles.publisherRow}>
+        <Pressable disabled={!hasMerchantName} onPress={onMerchantPress} style={[styles.publisherRow, isInquiry && styles.publisherRowInquiry]}>
           <View style={styles.publisherTextWrap}>
             {hasMerchantName ? (
               <>
                 <CompanyIcon />
-                <Text style={styles.merchantText} numberOfLines={1}>{merchantName}</Text>
+                <Text style={[styles.merchantText, isInquiry && styles.merchantInquiryText]} numberOfLines={1}>{merchantName}</Text>
                 {item.merchantId != null ? <MerchantChevronIcon /> : null}
                 <Text style={styles.publisherDivider}>|</Text>
               </>
             ) : null}
             <PersonIcon />
-            <Text style={[styles.publisherNameText, !hasMerchantName && styles.publisherNameOnlyText]} numberOfLines={1}>{publisherName}</Text>
+            <Text
+              style={[
+                styles.publisherNameText,
+                !hasMerchantName && styles.publisherNameOnlyText,
+                isInquiry && styles.publisherNameInquiryText,
+              ]}
+              numberOfLines={1}>
+              {publisherName}
+            </Text>
           </View>
         </Pressable>
-        {priceText ? (
+        {!isInquiry && priceText ? (
           <View style={styles.priceLine}>
             <Text style={[styles.priceValue, !price.amount && styles.negotiateText]} numberOfLines={1}>
               {priceText}
@@ -957,7 +1032,6 @@ export function OfferFeedCard({
         </Pressable>
         <View style={styles.actionVDivider} />
         <Pressable
-          disabled={isIntentAdded}
           style={styles.actionButton}
           onPress={onAddIntent}>
           <IntentActionIcon selected={isIntentAdded} />
@@ -1017,7 +1091,7 @@ function MerchantSearchResultCard({
       <View style={styles.merchantResultHeader}>
         <View style={styles.merchantResultTitleWrap}>
           <View style={styles.merchantResultIcon}>
-            <InventoryIcon size={15} color={colors.primary} />
+            <SvgXml xml={merchantBuildingXml} width={22} height={21} />
           </View>
           <Text style={styles.merchantResultName} numberOfLines={1}>{displayName}</Text>
         </View>
@@ -1142,7 +1216,7 @@ function FilterSheet({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => undefined}>
+        <Pressable style={styles.sheet} onPress={event => event.stopPropagation()}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{title}</Text>
             <Pressable onPress={onClose} hitSlop={8}>
@@ -1194,6 +1268,15 @@ function getSortLabel(sort: SortMode) {
   if (sort.kind === 'publishTime') return '最新发布';
   if (sort.kind === 'price') return sort.order === 'desc' ? '价格降序' : '价格升序';
   return '综合排序';
+}
+
+function getPriceRangeFilterLabel(minInput: string, maxInput: string) {
+  const min = minInput.trim();
+  const max = maxInput.trim();
+  if (min && max) return `${min}-${max}`;
+  if (min) return `≥${min}`;
+  if (max) return `≤${max}`;
+  return '价格区间';
 }
 
 function isSameSort(left: SortMode, right: SortMode) {
@@ -1488,7 +1571,7 @@ function buildDetailParts(item: OfferFeedItem): DetailPart[] {
   const weight = formatWeight(item.weight);
   const parts: Array<DetailPart | null> = [
     ...splitTags(item.tags).slice(0, 3).map(text => ({text, kind: 'tag' as const})),
-    item.goodsLocation ? {text: item.goodsLocation, kind: 'location'} : null,
+    item.goodsLocation ? {text: formatGoodsLocation(item.goodsLocation), kind: 'location'} : null,
     item.goodsType ? {text: item.goodsType, kind: 'goods'} : null,
     item.feedingType ? {text: item.feedingType, kind: 'feeding'} : null,
     item.fatRatio ? {text: item.fatRatio, kind: 'fat'} : null,
@@ -1849,12 +1932,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   merchantResultIcon: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
+    width: 22,
+    height: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF8F6',
   },
   merchantResultName: {
     flex: 1,
@@ -1865,7 +1946,7 @@ const styles = StyleSheet.create({
   },
   merchantResultMeta: {
     marginTop: 4,
-    marginLeft: 24,
+    marginLeft: 28,
     color: '#6C7A77',
     fontSize: 11,
     lineHeight: 16,
@@ -2010,6 +2091,17 @@ const styles = StyleSheet.create({
   detailChipTextBreed: {color: '#7A47B8'},
   detailChipTextWeight: {color: '#7A47B8'},
   detailChipTextRemark: {color: '#D54941'},
+  detailPriceChip: {
+    maxWidth: 110,
+    minHeight: 24,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 3,
+    backgroundColor: '#FFF1F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailPriceText: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 13, lineHeight: 18},
   publisherPriceRow: {
     marginTop: 9,
     minHeight: 36,
@@ -2026,6 +2118,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  publisherRowInquiry: {
+    width: '100%',
+    maxWidth: '100%',
+  },
   publisherTextWrap: {
     flex: 1,
     minWidth: 0,
@@ -2036,6 +2132,22 @@ const styles = StyleSheet.create({
   merchantText: {flex: 1.15, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
   publisherDivider: {width: 10, textAlign: 'center', color: '#D4DAD8', fontSize: 14, lineHeight: 20},
   publisherNameText: {flex: 1.05, minWidth: 0, color: colors.textMuted, fontSize: 14, lineHeight: 20},
+  merchantInquiryText: {
+    flex: 0,
+    flexShrink: 1,
+    maxWidth: '52%',
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  publisherNameInquiryText: {
+    flex: 0,
+    flexShrink: 1,
+    maxWidth: '42%',
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   publisherNameOnlyText: {flex: 1.8},
   certTags: {marginTop: 4, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5},
   certTag: {
@@ -2049,7 +2161,7 @@ const styles = StyleSheet.create({
   priceLine: {flexDirection: 'row', alignItems: 'baseline', flexShrink: 0, justifyContent: 'flex-end', maxWidth: '24%'},
   priceValue: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 16, lineHeight: 20},
   priceUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20, marginLeft: 2},
-  negotiateText: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 16, lineHeight: 20},
+  negotiateText: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 14, lineHeight: 18},
   actionDivider: {
     marginTop: 10,
     height: StyleSheet.hairlineWidth,

@@ -21,6 +21,7 @@ export type FilterDef = {
   label: string;
   hasSelection: boolean;
   toggle?: boolean;
+  onClear?: () => void;
 };
 
 type Props = {
@@ -42,6 +43,7 @@ export function FilterBar({filters, active, onPress}: Props) {
             toggle={item.toggle}
             famous={item.key === 'famousMerchant'}
             onPress={() => onPress(item.key)}
+            onClear={item.onClear}
           />
         ))}
       </ScrollView>
@@ -56,6 +58,7 @@ function FilterChip({
   toggle,
   famous,
   onPress,
+  onClear,
 }: {
   label: string;
   selected: boolean;
@@ -63,6 +66,7 @@ function FilterChip({
   toggle?: boolean;
   famous?: boolean;
   onPress: () => void;
+  onClear?: () => void;
 }) {
   if (famous) {
     return (
@@ -83,6 +87,41 @@ function FilterChip({
 
   const borderColor = selected ? colors.primary : 'transparent';
   const textColor = selected ? colors.primary : '#3C4947';
+  const showClear = selected && Boolean(onClear);
+
+  if (showClear) {
+    return (
+      <View style={[styles.chip, styles.clearableChip, {borderColor}, active && styles.chipPressed]}>
+        <Pressable onPress={onPress} style={styles.chipMain} hitSlop={{top: 6, bottom: 6, left: 4, right: 4}}>
+          <Text style={[styles.chipText, {color: textColor}]} numberOfLines={1}>
+            {label}
+          </Text>
+          {!toggle ? (
+            <Svg width={10} height={10} viewBox="0 0 10 10">
+              <Path
+                d={active ? 'M2.5 6L5 3.5L7.5 6' : 'M2.5 4L5 6.5L7.5 4'}
+                stroke={colors.primary}
+                strokeWidth={1.2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </Svg>
+          ) : null}
+        </Pressable>
+        <View style={styles.clearDivider} />
+        <Pressable
+          onPress={event => {
+            event.stopPropagation();
+            onClear?.();
+          }}
+          hitSlop={6}
+          style={styles.clearButton}>
+          <Text style={styles.clearText}>×</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <Pressable onPress={onPress} style={[styles.chip, {borderColor}, active && styles.chipPressed]}>
@@ -133,6 +172,34 @@ const styles = StyleSheet.create({
   },
   chipPressed: {
     opacity: 0.7,
+  },
+  clearableChip: {
+    paddingRight: 5,
+  },
+  chipMain: {
+    minHeight: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  clearDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 14,
+    backgroundColor: 'rgba(0,106,97,0.35)',
+    marginHorizontal: 2,
+  },
+  clearButton: {
+    width: 14,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearText: {
+    color: colors.primary,
+    fontSize: 14,
+    lineHeight: 16,
+    fontWeight: '500',
   },
   chipText: {
     fontSize: 12,

@@ -21,6 +21,7 @@ import {colors} from '../theme/colors';
 import {fonts} from '../theme/typography';
 import {copyToClipboard, dialPhone} from '../utils/contact';
 import {buildOriginalTextPayload, type OriginalTextPayload} from '../utils/originalText';
+import {formatGoodsLocation} from '../utils/offer';
 import {
   getIntentPlates,
   getRecentContactPlates,
@@ -431,7 +432,7 @@ function buildPlateDetailParts(item: PlateSnapshot): DetailPart[] {
 
   splitTags(item.tags).slice(0, 3).forEach(tag => add('tag', tag));
   add('tag', item.offerType);
-  add('location', item.goodsLocation ?? item.region);
+  add('location', formatGoodsLocation(item.goodsLocation ?? item.region));
   add('goods', item.goodsType);
   add('feeding', item.feedingType);
   add('fat', item.fatRatio);
@@ -705,7 +706,7 @@ const styles = StyleSheet.create({
   priceLine: {flexDirection: 'row', alignItems: 'baseline', flexShrink: 0, justifyContent: 'flex-end', maxWidth: '32%'},
   priceValue: {fontFamily: fonts.manropeSemiBold, color: colors.price, fontSize: 16, lineHeight: 20},
   priceUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20, marginLeft: 2},
-  negotiateText: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 16, lineHeight: 20},
+  negotiateText: {fontFamily: fonts.manropeSemiBold, color: colors.primary, fontSize: 14, lineHeight: 18},
   followBox: {marginTop: 10, borderRadius: 6, backgroundColor: '#F8FAFA', padding: 8},
   followLabel: {color: colors.textSecondary, fontSize: 12, lineHeight: 17, fontWeight: '600'},
   statusRow: {marginTop: 6, flexDirection: 'row', flexWrap: 'wrap', gap: 6},

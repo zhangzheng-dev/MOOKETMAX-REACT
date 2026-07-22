@@ -45,7 +45,9 @@ export function MerchantCard({card, onPress, onLongPress}: Props) {
                     const price = formatLatestOfferPrice(offer.price);
                     return (
                       <>
-                        <Text style={styles.priceValue}>{price.text}</Text>
+                        <Text style={[styles.priceValue, !price.unit && styles.negotiateValue]}>
+                          {price.text}
+                        </Text>
                         {price.unit ? <Text style={styles.priceUnit}>{price.unit}</Text> : null}
                       </>
                     );
@@ -129,6 +131,7 @@ const styles = StyleSheet.create({
   offerInfo: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
   priceLine: {flexDirection: 'row', alignItems: 'baseline'},
   priceValue: {fontFamily: fonts.manropeBold, color: colors.price, fontSize: 12, lineHeight: 20},
+  negotiateValue: {color: colors.primary},
   priceUnit: {fontFamily: fonts.manropeRegular, color: colors.text, fontSize: 10, lineHeight: 20},
   weightLine: {flexDirection: 'row', alignItems: 'baseline'},
   weightValue: {fontFamily: fonts.manropeBold, color: colors.text, fontSize: 12, lineHeight: 20},
